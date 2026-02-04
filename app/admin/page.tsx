@@ -156,15 +156,18 @@ export default function AdminPage() {
   }, [data]);
 
   const handleUpdate = async (id: number, field: string, value: string) => {
+    // If date field is cleared, set to null
+    const finalValue = value === "" ? null : value;
+    
     // Optimistic update
     const updatedData = data.map((r) =>
-      r.id === id ? { ...r, [field]: value } : r
+      r.id === id ? { ...r, [field]: finalValue } : r
     );
     setData(updatedData);
     setIsSyncing(true);
     
-    // Persist to Supabase
-    const result = await updateRosterRow(id, { [field]: value });
+    // Persist to Supabase (send null for cleared dates)
+    const result = await updateRosterRow(id, { [field]: finalValue });
     setIsSyncing(false);
     
     if (result.success) {
@@ -309,13 +312,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={syncAll}
-              className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-lg active:scale-95 transition-all"
-            >
-              Save Changes
-            </button>
+            
           </div>
         </div>
 
