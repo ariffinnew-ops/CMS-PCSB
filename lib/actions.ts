@@ -20,15 +20,20 @@ export async function getRosterData(): Promise<RosterRow[]> {
 }
 
 export async function updateRosterRow(id: number, updates: Partial<RosterRow>): Promise<{ success: boolean; error?: string }> {
+  console.log('[v0] updateRosterRow called with id:', id, 'updates:', updates)
+  
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('staffing_roster')
     .update(updates)
     .eq('id', id)
+    .select()
+
+  console.log('[v0] Supabase update result - data:', data, 'error:', error)
 
   if (error) {
-    console.error('Error updating roster row:', error)
+    console.error('[v0] Error updating roster row:', error)
     return { success: false, error: error.message }
   }
 
