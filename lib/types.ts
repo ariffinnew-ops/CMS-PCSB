@@ -8,7 +8,7 @@ export interface RosterRow {
   client: string;
   location: string;
   roles_em: string;
-  [key: string]: string | number; // For m1, d1, m2, d2, etc.
+  [key: string]: string | number | null; // For m1, d1, m2, d2, etc. - null for cleared dates
 }
 
 export interface CrewMember {
