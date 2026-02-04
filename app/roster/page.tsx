@@ -264,16 +264,16 @@ export default function RosterPage() {
             <table className="w-full border-collapse" style={{ minWidth: '100%' }}>
               <thead>
                 <tr className="bg-slate-900">
-                  <th className="px-3 py-2 w-44 min-w-[176px] text-left sticky left-0 bg-slate-900 z-20 border-r border-slate-700">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                      Personnel
+                  <th className="px-3 py-2 w-48 min-w-[192px] text-left sticky left-0 bg-slate-800 z-20 border-r-2 border-slate-600">
+                    <span className="text-[11px] font-black text-white uppercase tracking-wider">
+                      Crew / Trade
                     </span>
                   </th>
                   {daysInMonth.map((d) => (
                     <th
                       key={d.dayNum}
-                      className={`px-0 py-1.5 text-center w-[26px] min-w-[26px] max-w-[26px] border-r border-slate-700/40 ${
-                        d.isWeekend ? "bg-slate-800" : ""
+                      className={`px-0 py-1.5 text-center w-[26px] min-w-[26px] max-w-[26px] border-r border-slate-700/30 ${
+                        d.isWeekend ? "bg-slate-800" : "bg-slate-900"
                       }`}
                     >
                       <div className="flex flex-col items-center leading-none">
@@ -323,12 +323,12 @@ export default function RosterPage() {
                     return (
                       <tr
                         key={row.id}
-                        className="hover:bg-muted/20 transition-colors group"
+                        className="hover:bg-muted/30 transition-colors group border-b border-slate-700/40"
                         style={{ height: '28px' }}
                       >
-                        <td className="px-3 py-0 sticky left-0 bg-card group-hover:bg-muted/20 z-10 border-r border-border/50 w-44 min-w-[176px]">
+                        <td className="px-3 py-0 sticky left-0 bg-slate-850 group-hover:bg-slate-800/80 z-10 border-r-2 border-slate-600 w-48 min-w-[192px]" style={{ backgroundColor: 'rgb(30, 41, 59)' }}>
                           <div 
-                            className="text-[10px] font-semibold text-foreground leading-tight truncate"
+                            className="text-[10px] font-semibold text-slate-100 leading-tight truncate"
                             title={row.crew_name}
                           >
                             {row.crew_name}
@@ -360,12 +360,12 @@ export default function RosterPage() {
                             <td
                               key={d.dayNum}
                               className={`p-0 relative w-[26px] min-w-[26px] max-w-[26px] ${
-                                d.isWeekend ? "bg-muted/10" : ""
+                                d.isWeekend ? "bg-slate-900/50" : "bg-card"
                               }`}
                               style={{ height: '28px' }}
                             >
-                              {/* Grid line behind bar - thicker for visibility */}
-                              <div className="absolute inset-y-0 right-0 w-[2px] bg-slate-700/50 z-0" />
+                              {/* Thin vertical grid line */}
+                              <div className="absolute inset-y-0 right-0 w-px bg-slate-700/30 z-0" />
                               
                               {status !== "OFF" && (
                                 <div
