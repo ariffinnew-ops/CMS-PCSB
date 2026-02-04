@@ -35,12 +35,18 @@ export default function LoginPage() {
 
     const user = login(username, password);
 
-    await recordLoginLog({
-      username: username.toLowerCase(),
-      role: user?.role || "unknown",
-      timestamp: new Date().toISOString(),
-      success: !!user,
-    });
+    // Try to record login log, but don't block login if it fails
+    try {
+      await recordLoginLog({
+        username: username.toLowerCase(),
+        role: user?.role || "unknown",
+        timestamp: new Date().toISOString(),
+        success: !!user,
+      });
+    } catch (error) {
+      // Silently fail - login logging is optional
+      console.warn("Login logging failed:", error);
+    }
 
     if (user) {
       toast({
