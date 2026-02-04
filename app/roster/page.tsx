@@ -302,20 +302,20 @@ export default function RosterPage() {
                           const toNext = connectsToNext(row, d.dayNum);
                           const fromPrev = connectsFromPrev(row, d.dayNum);
 
-                          // Color coding based on status
+                          // Color coding based on status - solid 3D bars
                           let barClass = "";
                           if (status === "PRIMARY") {
-                            // OM/EM Primary - Navy blue-black
-                            barClass = "bg-gradient-to-b from-slate-700 to-slate-900 shadow-[0_2px_4px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)]";
+                            // OM/EM Primary - Navy blue-black solid 3D
+                            barClass = "bg-gradient-to-b from-slate-600 via-slate-800 to-slate-900 shadow-[0_3px_6px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.15)]";
                           } else if (status === "SECONDARY") {
-                            // EM Secondary - Light blue
-                            barClass = "bg-gradient-to-b from-sky-300 to-sky-500 shadow-[0_2px_4px_rgba(56,189,248,0.3),inset_0_1px_0_rgba(255,255,255,0.3)]";
+                            // EM Secondary - Light blue solid 3D
+                            barClass = "bg-gradient-to-b from-sky-400 via-sky-500 to-sky-600 shadow-[0_3px_6px_rgba(14,165,233,0.4),inset_0_1px_0_rgba(255,255,255,0.3)]";
                           } else if (status === "OHN_WEEKDAY") {
-                            // OHN Weekday - Navy blue-black
-                            barClass = "bg-gradient-to-b from-slate-700 to-slate-900 shadow-[0_2px_4px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)]";
+                            // OHN Weekday - Navy blue-black solid 3D
+                            barClass = "bg-gradient-to-b from-slate-600 via-slate-800 to-slate-900 shadow-[0_3px_6px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.15)]";
                           } else if (status === "OHN_WEEKEND") {
-                            // OHN Weekend - Medium grey/teal
-                            barClass = "bg-gradient-to-b from-slate-400 to-slate-500 shadow-[0_2px_4px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.2)]";
+                            // OHN Weekend - Medium grey solid 3D
+                            barClass = "bg-gradient-to-b from-slate-400 via-slate-500 to-slate-600 shadow-[0_3px_6px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.2)]";
                           }
 
                           // Continuous bar styling (no gaps)
@@ -327,16 +327,16 @@ export default function RosterPage() {
                           return (
                             <td
                               key={d.dayNum}
-                              className={`p-0 h-8 border-r border-border/20 relative ${
+                              className={`p-0 h-8 relative ${
                                 d.isWeekend ? "bg-muted/20" : ""
                               }`}
                             >
                               {status !== "OFF" && (
                                 <div
-                                  className={`absolute inset-y-1 left-0 right-0 ${marginLeft} ${marginRight} ${roundedLeft} ${roundedRight} ${barClass} transition-all duration-300 animate-in fade-in slide-in-from-left-1`}
+                                  className={`absolute top-1.5 bottom-1.5 ${roundedLeft} ${roundedRight} ${barClass}`}
                                   style={{
-                                    marginLeft: fromPrev ? 0 : 2,
-                                    marginRight: toNext ? 0 : 2,
+                                    left: fromPrev ? 0 : 1,
+                                    right: toNext ? 0 : 1,
                                   }}
                                 />
                               )}
