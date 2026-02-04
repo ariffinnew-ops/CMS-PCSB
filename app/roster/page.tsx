@@ -301,16 +301,16 @@ export default function RosterPage() {
                 ) : (
                   groupedData.map((item, idx) => {
                     if (item.type === 'separator') {
-                      // Light separator - subtle grey background with dark text
+                      // Darker separator to separate sectors
                       return (
-                        <tr key={`sep-${idx}`} className="bg-gray-100">
+                        <tr key={`sep-${idx}`} className="bg-slate-300">
                           <td 
                             colSpan={daysInMonth.length + 1} 
-                            className="px-3 sticky left-0 z-10 border-t border-b border-gray-200 bg-gray-100"
-                            style={{ height: '22px' }}
+                            className="px-3 sticky left-0 z-10 border-t-2 border-b-2 border-slate-400 bg-slate-300"
+                            style={{ height: '24px' }}
                           >
                             <div className="flex items-center h-full">
-                              <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
+                              <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest">
                                 {item.label}
                               </span>
                             </div>
@@ -323,7 +323,7 @@ export default function RosterPage() {
                     return (
                       <tr
                         key={row.id}
-                        className="hover:bg-blue-50/50 transition-colors group border-b border-gray-200"
+                        className="hover:bg-blue-50/50 transition-colors group border-b border-gray-300"
                         style={{ height: '28px' }}
                       >
                         <td className="px-3 py-0 sticky left-0 bg-slate-100 group-hover:bg-blue-100/50 z-10 border-r border-gray-300 w-48 min-w-[192px]">
@@ -364,17 +364,17 @@ export default function RosterPage() {
                               }`}
                               style={{ height: '28px' }}
                             >
-                              {/* Thin light grey vertical grid line */}
-                              <div className="absolute inset-y-0 right-0 w-px bg-gray-200 z-0" />
+                              {/* Clearer vertical grid line */}
+                              <div className="absolute inset-y-0 right-0 w-px bg-gray-300 z-0" />
                               
                               {status !== "OFF" && (
                                 <div
                                   className={`absolute z-10 gantt-bar ${roundedLeft} ${roundedRight} ${barClass}`}
                                   style={{
-                                    top: '6px',
-                                    bottom: '6px',
-                                    left: fromPrev ? 0 : 1,
-                                    right: toNext ? 0 : 1,
+                                    top: '4px',
+                                    bottom: '4px',
+                                    left: fromPrev ? 0 : 0,
+                                    right: toNext ? 0 : 0,
                                   }}
                                 />
                               )}
