@@ -118,24 +118,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="bg-slate-950 border-b border-slate-800 sticky top-0 z-50 shadow-2xl">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <Link href="/dashboard" className="flex items-center gap-3 group">
-              <div className="bg-white p-1.5 rounded-lg shadow-lg transform group-hover:scale-105 transition-all">
+            <Link href="/dashboard" className="flex items-center group">
+              <div className="bg-white px-3 py-1.5 rounded-lg shadow-lg transform group-hover:scale-[1.02] transition-all">
                 <Image
                   src="https://i.ibb.co/yzF9WBZ/Group-26.png"
                   alt="Company Logo"
-                  width={80}
-                  height={28}
-                  className="h-6 w-auto object-contain"
+                  width={140}
+                  height={32}
+                  className="h-7 w-auto object-contain"
                   priority
                 />
-              </div>
-              <div className="hidden sm:flex flex-col">
-                <span className="font-bold text-xs tracking-tight text-white uppercase leading-none">
-                  CMS Portal
-                </span>
-                <span className="text-[10px] text-slate-500 font-medium">
-                  Crewing Management
-                </span>
               </div>
             </Link>
 

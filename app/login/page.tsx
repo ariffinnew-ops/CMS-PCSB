@@ -73,13 +73,13 @@ export default function LoginPage() {
       
       <Card className="w-full max-w-md border-slate-800 bg-slate-900/90 backdrop-blur-sm shadow-2xl">
         <CardHeader className="text-center pb-2 pt-8">
-          <div className="mx-auto mb-6 bg-white p-4 rounded-xl shadow-lg">
+          <div className="mx-auto mb-6 bg-white px-6 py-4 rounded-xl shadow-lg inline-block">
             <Image
               src="https://i.ibb.co/yzF9WBZ/Group-26.png"
               alt="Company Logo"
-              width={160}
-              height={48}
-              className="h-12 w-auto object-contain"
+              width={220}
+              height={60}
+              className="h-14 w-auto object-contain"
               priority
             />
           </div>
