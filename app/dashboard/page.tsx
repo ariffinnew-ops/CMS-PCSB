@@ -4,7 +4,6 @@ import { useState, useMemo, Fragment, useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
 import { RosterRow, ClientType, TradeType } from "@/lib/types";
 import { getRosterData } from "@/lib/actions";
-import { getUser, type AuthUser } from "@/lib/auth";
 import {
   isPersonnelOnBoard,
   getDaysOnBoard,
@@ -21,10 +20,8 @@ export default function DashboardPage() {
   const [tradeFilter, setTradeFilter] = useState<TradeType | "ALL">("ALL");
   const [data, setData] = useState<RosterRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
-    setUser(getUser());
     getRosterData().then((rosterData) => {
       setData(rosterData);
       setLoading(false);
@@ -87,26 +84,6 @@ export default function DashboardPage() {
   return (
     <AppShell>
       <div className="space-y-4 animate-in fade-in duration-300">
-        {/* WELCOME HEADER */}
-        <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-xl p-4 border border-slate-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-white">
-                Welcome back, <span className="capitalize">{user?.username || "User"}</span>
-              </h2>
-              <p className="text-sm text-slate-400 mt-0.5">
-                You are logged in as <span className={user?.role === "admin" ? "text-amber-400 font-medium" : "text-slate-300"}>{user?.role === "admin" ? "Administrator" : "Guest"}</span>
-              </p>
-            </div>
-            <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-            </div>
-          </div>
-        </div>
-
         {/* HEADER BAR */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-card border border-border rounded-xl p-4">
           <div className="flex items-center gap-3">

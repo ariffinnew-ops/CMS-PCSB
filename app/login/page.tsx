@@ -1,10 +1,10 @@
 "use client";
 
-import React from "react"
-
+import React from "react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { login, isAuthenticated } from "@/lib/auth";
+import { recordLoginLog } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +34,14 @@ export default function LoginPage() {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     const user = login(username, password);
+
+    // Record login attempt to Supabase
+    await recordLoginLog({
+      username: username.toLowerCase(),
+      role: user?.role || "unknown",
+      timestamp: new Date().toISOString(),
+      success: !!user,
+    });
 
     if (user) {
       toast({
@@ -133,17 +141,21 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-6 pt-4 border-t border-slate-800">
-            <p className="text-xs text-slate-500 text-center">
+            <p className="text-xs text-slate-500 text-center mb-2">
               Demo Credentials
             </p>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-slate-800/50 rounded-lg p-2 text-center">
-                <span className="text-slate-400">Admin:</span>
-                <span className="text-slate-300 ml-1">admin / admin999</span>
+            <div className="space-y-2 text-xs">
+              <div className="bg-slate-800/50 rounded-lg p-2 flex justify-between">
+                <span className="text-amber-400 font-medium">Admin:</span>
+                <span className="text-slate-300">admin / admin999</span>
               </div>
-              <div className="bg-slate-800/50 rounded-lg p-2 text-center">
-                <span className="text-slate-400">Guest:</span>
-                <span className="text-slate-300 ml-1">guest / guest999</span>
+              <div className="bg-slate-800/50 rounded-lg p-2 flex justify-between">
+                <span className="text-blue-400 font-medium">Data Logger:</span>
+                <span className="text-slate-300">datalogger / data999</span>
+              </div>
+              <div className="bg-slate-800/50 rounded-lg p-2 flex justify-between">
+                <span className="text-slate-400 font-medium">Guest:</span>
+                <span className="text-slate-300">guest / guest999</span>
               </div>
             </div>
           </div>
