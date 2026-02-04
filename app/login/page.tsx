@@ -73,13 +73,14 @@ export default function LoginPage() {
       
       <Card className="w-full max-w-md border-slate-800 bg-slate-900/90 backdrop-blur-sm shadow-2xl">
         <CardHeader className="text-center pb-2 pt-8">
-          <div className="mx-auto mb-6 bg-white px-6 py-4 rounded-xl shadow-lg inline-block">
+          <div className="mx-auto mb-6 bg-white px-8 py-5 rounded-xl shadow-lg inline-block">
             <Image
-              src="https://i.ibb.co/yzF9WBZ/Group-26.png"
+              src="https://cptffqgvibhwjzvklual.supabase.co/storage/v1/object/public/branding/BOSH%20LOGO-trf.png"
               alt="Company Logo"
-              width={220}
-              height={60}
-              className="h-14 w-auto object-contain"
+              width={280}
+              height={70}
+              className="h-16 w-auto"
+              style={{ objectFit: 'contain' }}
               priority
             />
           </div>
