@@ -301,22 +301,16 @@ export default function RosterPage() {
                 ) : (
                   groupedData.map((item, idx) => {
                     if (item.type === 'separator') {
-                      // Separator - slim, dark background, bold high-contrast text
-                      const separatorBg = item.trade === 'OFFSHORE MEDIC' 
-                        ? 'bg-amber-950/80' 
-                        : item.trade === 'IMP / OHN' 
-                        ? 'bg-teal-950/80'
-                        : 'bg-blue-950/80';
-                        
+                      // Unified separator - consistent dark command center style
                       return (
-                        <tr key={`sep-${idx}`} className={separatorBg}>
+                        <tr key={`sep-${idx}`} className="bg-slate-950">
                           <td 
                             colSpan={daysInMonth.length + 1} 
-                            className="px-3 sticky left-0 z-10"
-                            style={{ height: '20px' }}
+                            className="px-3 sticky left-0 z-10 border-t border-b border-slate-700/50"
+                            style={{ height: '22px' }}
                           >
                             <div className="flex items-center h-full">
-                              <span className="text-[10px] font-black text-white uppercase tracking-wider drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                              <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]">
                                 {item.label}
                               </span>
                             </div>
@@ -345,16 +339,17 @@ export default function RosterPage() {
                           const toNext = connectsToNext(row, d.dayNum);
                           const fromPrev = connectsFromPrev(row, d.dayNum);
 
-                          // Solid 3D bar styles
+                          // Solid 3D bar styles - Navy Blue for Primary, Light Blue for Secondary
                           let barClass = "";
-                          if (status === "PRIMARY") {
-                            barClass = "bg-gradient-to-b from-slate-600 via-slate-800 to-slate-900 shadow-[0_2px_4px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.15)]";
+                          if (status === "PRIMARY" || status === "OHN_WEEKDAY") {
+                            // Navy Blue for Primary / OHN Weekday
+                            barClass = "bg-gradient-to-b from-blue-600 via-blue-700 to-blue-900 shadow-[0_2px_4px_rgba(30,64,175,0.6),inset_0_1px_0_rgba(255,255,255,0.2)]";
                           } else if (status === "SECONDARY") {
+                            // Light Blue for EM Secondary
                             barClass = "bg-gradient-to-b from-sky-400 via-sky-500 to-sky-600 shadow-[0_2px_4px_rgba(14,165,233,0.4),inset_0_1px_0_rgba(255,255,255,0.3)]";
-                          } else if (status === "OHN_WEEKDAY") {
-                            barClass = "bg-gradient-to-b from-slate-600 via-slate-800 to-slate-900 shadow-[0_2px_4px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.15)]";
                           } else if (status === "OHN_WEEKEND") {
-                            barClass = "bg-gradient-to-b from-slate-400 via-slate-500 to-slate-600 shadow-[0_2px_4px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.2)]";
+                            // Lighter Navy for OHN Weekend
+                            barClass = "bg-gradient-to-b from-blue-400 via-blue-500 to-blue-600 shadow-[0_2px_4px_rgba(59,130,246,0.4),inset_0_1px_0_rgba(255,255,255,0.25)]";
                           }
 
                           // Zero-gap continuous bars
@@ -369,8 +364,8 @@ export default function RosterPage() {
                               }`}
                               style={{ height: '28px' }}
                             >
-                              {/* Grid line behind bar */}
-                              <div className="absolute inset-y-0 right-0 w-px bg-border/20 z-0" />
+                              {/* Grid line behind bar - thicker for visibility */}
+                              <div className="absolute inset-y-0 right-0 w-[2px] bg-slate-700/50 z-0" />
                               
                               {status !== "OFF" && (
                                 <div
@@ -396,10 +391,10 @@ export default function RosterPage() {
         </div>
 
         {/* Legend */}
-        <div className="flex flex-wrap items-center gap-4 px-4 py-2 bg-slate-900 rounded-lg w-fit shadow-lg border border-slate-700">
+        <div className="flex flex-wrap items-center gap-4 px-4 py-2 bg-slate-950 rounded-lg w-fit shadow-lg border border-slate-700">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-3 bg-gradient-to-b from-slate-600 to-slate-900 rounded-sm shadow-md" />
-            <span className="text-[9px] font-bold text-white uppercase tracking-wider">
+            <div className="w-5 h-3 bg-gradient-to-b from-blue-600 to-blue-900 rounded-sm shadow-md" />
+            <span className="text-[9px] font-bold text-blue-400 uppercase tracking-wider">
               Primary / OHN Weekday
             </span>
           </div>
@@ -410,8 +405,8 @@ export default function RosterPage() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-5 h-3 bg-gradient-to-b from-slate-400 to-slate-600 rounded-sm shadow-md" />
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+            <div className="w-5 h-3 bg-gradient-to-b from-blue-400 to-blue-600 rounded-sm shadow-md" />
+            <span className="text-[9px] font-bold text-blue-300 uppercase tracking-wider">
               OHN Weekend
             </span>
           </div>
