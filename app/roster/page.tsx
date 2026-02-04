@@ -6,9 +6,27 @@ import { RosterRow, ClientType, TradeType } from "@/lib/types";
 import { getRosterData } from "@/lib/actions";
 import { safeParseDate, getTradeRank, shortenPost } from "@/lib/logic";
 
+// Generate months from Sep 2025 to Dec 2026
+const generateMonthRange = () => {
+  const months = [];
+  for (let year = 2025; year <= 2026; year++) {
+    const startMonth = year === 2025 ? 8 : 0; // Sep 2025 (index 8) or Jan 2026
+    const endMonth = year === 2026 ? 11 : 11; // Dec of each year
+    for (let month = startMonth; month <= endMonth; month++) {
+      months.push({ year, month });
+    }
+  }
+  return months;
+};
+
+const MONTH_RANGE = generateMonthRange();
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
 export default function RosterPage() {
   const [viewDate, setViewDate] = useState(new Date(2025, 11, 1));
-  const [systemDate] = useState(new Date(2025, 11, 31));
   const [data, setData] = useState<RosterRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [clientFilter, setClientFilter] = useState<ClientType | "ALL">("ALL");
@@ -31,14 +49,12 @@ export default function RosterPage() {
         dayNum: i + 1,
         dayName: ["S", "M", "T", "W", "T", "F", "S"][d.getDay()],
         isWeekend: d.getDay() === 0 || d.getDay() === 6,
-        isToday:
-          d.getDate() === systemDate.getDate() &&
-          d.getMonth() === systemDate.getMonth() &&
-          d.getFullYear() === systemDate.getFullYear(),
+        dayOfWeek: d.getDay(),
       };
     });
-  }, [viewDate, systemDate]);
+  }, [viewDate]);
 
+  // Sort by Client -> Trade -> Location (matching Data Manager)
   const sortedData = useMemo(() => {
     return data
       .filter((row) => {
@@ -53,38 +69,68 @@ export default function RosterPage() {
         return matchesClient && matchesTrade;
       })
       .sort((a, b) => {
+        // Sort by Client first
         const clientOrder = { SKA: 1, SBA: 2 };
         const valA = clientOrder[a.client as keyof typeof clientOrder] || 3;
         const valB = clientOrder[b.client as keyof typeof clientOrder] || 3;
         if (valA !== valB) return valA - valB;
+        
+        // Then by Trade rank
         const rankA = getTradeRank(a.post);
         const rankB = getTradeRank(b.post);
         if (rankA !== rankB) return rankA - rankB;
+        
+        // Then by Location
         const locA = a.location || "";
         const locB = b.location || "";
         if (locA !== locB) return locA.localeCompare(locB);
+        
+        // Finally by Name
         return a.crew_name.localeCompare(b.crew_name);
       });
   }, [data, clientFilter, tradeFilter]);
+
+  // Group data with separators
+  const groupedData = useMemo(() => {
+    const result: { type: 'separator' | 'row'; label?: string; row?: RosterRow; trade?: string }[] = [];
+    let lastGroupKey = "";
+    
+    sortedData.forEach((row) => {
+      const trade = shortenPost(row.post);
+      const groupKey = `${row.client}-${trade}-${row.location}`;
+      
+      if (groupKey !== lastGroupKey) {
+        result.push({
+          type: 'separator',
+          label: `${row.client} - ${trade} - ${row.location}`,
+          trade: trade
+        });
+        lastGroupKey = groupKey;
+      }
+      
+      result.push({ type: 'row', row, trade });
+    });
+    
+    return result;
+  }, [sortedData]);
 
   const getDayStatus = (row: RosterRow, day: number) => {
     const checkDate = new Date(
       viewDate.getFullYear(),
       viewDate.getMonth(),
       day,
-      0,
-      0,
-      0,
-      0
+      0, 0, 0, 0
     );
     const checkTime = checkDate.getTime();
+    const dayOfWeek = checkDate.getDay();
 
+    // OHN/IM staff - weekday vs weekend logic
     if (row.post?.includes("IM") || row.post?.includes("OHN")) {
-      const dow = checkDate.getDay();
-      if (dow === 0 || dow === 6) return "OFF";
-      return "PRIMARY";
+      if (dayOfWeek === 0 || dayOfWeek === 6) return "OHN_WEEKEND";
+      return "OHN_WEEKDAY";
     }
 
+    // OM/EM - check rotation dates
     for (let i = 1; i <= 24; i++) {
       const m = safeParseDate(row[`m${i}`] as string);
       const d = safeParseDate(row[`d${i}`] as string);
@@ -95,56 +141,57 @@ export default function RosterPage() {
     return "OFF";
   };
 
+  // Check if current day connects to next day (for continuous bars)
+  const connectsToNext = (row: RosterRow, day: number) => {
+    if (day >= daysInMonth.length) return false;
+    const currentStatus = getDayStatus(row, day);
+    const nextStatus = getDayStatus(row, day + 1);
+    return currentStatus !== "OFF" && nextStatus !== "OFF" && currentStatus === nextStatus;
+  };
+
+  // Check if current day connects from previous day
+  const connectsFromPrev = (row: RosterRow, day: number) => {
+    if (day <= 1) return false;
+    const currentStatus = getDayStatus(row, day);
+    const prevStatus = getDayStatus(row, day - 1);
+    return currentStatus !== "OFF" && prevStatus !== "OFF" && currentStatus === prevStatus;
+  };
+
   return (
     <AppShell>
-      <div className="space-y-8 animate-in fade-in duration-500">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div className="space-y-6 animate-in fade-in duration-500 mt-4">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h2 className="text-4xl font-black text-foreground uppercase italic tracking-tighter leading-none">
+            <h2 className="text-3xl font-black text-foreground uppercase tracking-tight leading-none">
               ROTATION MAP
             </h2>
-            <div className="flex items-center gap-3 mt-3">
-              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest italic">
-                Temporal View:
+            <div className="flex items-center gap-3 mt-2">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                Period:
               </span>
               <select
-                value={viewDate.getMonth()}
-                onChange={(e) =>
-                  setViewDate(
-                    new Date(viewDate.getFullYear(), parseInt(e.target.value), 1)
-                  )
-                }
-                className="text-[11px] font-black text-blue-600 bg-card border border-border px-3 py-1 rounded-lg outline-none cursor-pointer uppercase italic shadow-sm"
+                value={`${viewDate.getFullYear()}-${viewDate.getMonth()}`}
+                onChange={(e) => {
+                  const [year, month] = e.target.value.split('-').map(Number);
+                  setViewDate(new Date(year, month, 1));
+                }}
+                className="text-[11px] font-bold text-blue-600 bg-card border border-border px-3 py-1.5 rounded-lg outline-none cursor-pointer uppercase shadow-sm"
               >
-                {[
-                  "January",
-                  "February",
-                  "March",
-                  "April",
-                  "May",
-                  "June",
-                  "July",
-                  "August",
-                  "September",
-                  "October",
-                  "November",
-                  "December",
-                ].map((m, i) => (
-                  <option key={m} value={i}>
-                    {m} {viewDate.getFullYear()}
+                {MONTH_RANGE.map(({ year, month }) => (
+                  <option key={`${year}-${month}`} value={`${year}-${month}`}>
+                    {MONTH_NAMES[month]} {year}
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 bg-card p-2 rounded-2xl shadow-sm border border-border">
+          <div className="flex flex-wrap items-center gap-2 bg-card p-2 rounded-xl shadow-sm border border-border">
             <select
               value={clientFilter}
-              onChange={(e) =>
-                setClientFilter(e.target.value as ClientType | "ALL")
-              }
-              className="bg-muted border-none rounded-xl px-4 py-2 text-[10px] font-black uppercase outline-none shadow-inner"
+              onChange={(e) => setClientFilter(e.target.value as ClientType | "ALL")}
+              className="bg-muted border-none rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase outline-none"
             >
               <option value="ALL">All Clients</option>
               <option value="SKA">SKA</option>
@@ -152,40 +199,40 @@ export default function RosterPage() {
             </select>
             <select
               value={tradeFilter}
-              onChange={(e) =>
-                setTradeFilter(e.target.value as TradeType | "ALL")
-              }
-              className="bg-muted border-none rounded-xl px-4 py-2 text-[10px] font-black uppercase outline-none shadow-inner"
+              onChange={(e) => setTradeFilter(e.target.value as TradeType | "ALL")}
+              className="bg-muted border-none rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase outline-none"
             >
               <option value="ALL">All Trades</option>
               <option value="OM">OM</option>
               <option value="EM">EM</option>
+              <option value="IMP/OHN">OHN</option>
             </select>
           </div>
         </div>
 
-        <div className="bg-card rounded-[2.5rem] shadow-2xl border border-border overflow-hidden">
+        {/* Table */}
+        <div className="bg-card rounded-2xl shadow-2xl border border-border overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table className="w-full border-collapse" style={{ minWidth: '100%' }}>
               <thead>
-                <tr className="bg-slate-900 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-800">
-                  <th className="px-8 py-5 w-56 text-left sticky left-0 bg-slate-900 z-20 border-r border-slate-800">
-                    Operational Unit
+                <tr className="bg-slate-900">
+                  <th className="px-4 py-3 w-48 text-left sticky left-0 bg-slate-900 z-20 border-r border-slate-700">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Personnel
+                    </span>
                   </th>
                   {daysInMonth.map((d) => (
                     <th
                       key={d.dayNum}
-                      className={`p-2 text-center border-r border-slate-800 ${
-                        d.isToday
-                          ? "bg-blue-600 text-white shadow-[inset_0_0_10px_rgba(255,255,255,0.2)]"
-                          : ""
+                      className={`px-0 py-2 text-center min-w-[28px] border-r border-slate-700/50 ${
+                        d.isWeekend ? "bg-slate-800" : ""
                       }`}
                     >
-                      <div className="flex flex-col leading-none">
-                        <span className="text-[7px] opacity-60 mb-1">
+                      <div className="flex flex-col items-center leading-none">
+                        <span className="text-[11px] font-bold text-white/70">
                           {d.dayName}
                         </span>
-                        <span className="text-[11px] tabular-nums">
+                        <span className="text-[13px] font-black text-white tabular-nums mt-0.5">
                           {d.dayNum}
                         </span>
                       </div>
@@ -193,88 +240,141 @@ export default function RosterPage() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
-                {sortedData.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="hover:bg-muted/50 transition-colors group"
-                  >
-                    <td className="px-8 py-4 sticky left-0 bg-card group-hover:bg-muted/50 z-10 border-r border-border whitespace-nowrap shadow-sm">
-                      <div className="text-[11px] font-black text-foreground uppercase tracking-tight truncate max-w-[200px]">
-                        {row.crew_name}
-                      </div>
-                      <div className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest mt-1 truncate">
-                        {shortenPost(row.post)} - {row.location}
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={daysInMonth.length + 1} className="text-center py-12">
+                      <div className="flex items-center justify-center gap-3">
+                        <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent" />
+                        <span className="text-sm text-muted-foreground">Loading roster data...</span>
                       </div>
                     </td>
-                    {daysInMonth.map((d) => {
-                      const status = getDayStatus(row, d.dayNum);
-
-                      let barClass = "";
-                      if (status === "PRIMARY") {
-                        barClass =
-                          "bg-slate-950 border-t border-white/20 shadow-[0_3px_6px_rgba(0,0,0,0.5)] ring-1 ring-slate-900";
-                      } else if (status === "SECONDARY") {
-                        barClass =
-                          "bg-blue-400 border-t border-white/40 shadow-[0_2px_4px_rgba(59,130,246,0.3)] ring-1 ring-blue-500/20";
-                      }
-
-                      return (
-                        <td
-                          key={d.dayNum}
-                          className={`p-0 h-14 border-r border-border/50 relative ${
-                            d.isWeekend ? "bg-muted/30" : ""
-                          }`}
-                        >
-                          {status !== "OFF" && (
-                            <div
-                              className={`absolute inset-y-3 left-0.5 right-0.5 rounded-sm transition-all transform hover:scale-y-110 z-0 ${barClass}`}
-                            />
-                          )}
-                          {d.isToday && (
-                            <div className="absolute inset-0 border-x-2 border-blue-500 bg-blue-500/5 pointer-events-none z-10" />
-                          )}
-                        </td>
-                      );
-                    })}
                   </tr>
-                ))}
+                ) : (
+                  groupedData.map((item, idx) => {
+                    if (item.type === 'separator') {
+                      // Separator bar with group label
+                      const separatorColor = item.trade === 'OM' 
+                        ? 'bg-amber-50 border-amber-200' 
+                        : item.trade === 'OHN' 
+                        ? 'bg-teal-50 border-teal-200'
+                        : 'bg-blue-50 border-blue-200';
+                      const textColor = item.trade === 'OM'
+                        ? 'text-amber-700'
+                        : item.trade === 'OHN'
+                        ? 'text-teal-700'
+                        : 'text-blue-700';
+                        
+                      return (
+                        <tr key={`sep-${idx}`} className={`${separatorColor} border-y`}>
+                          <td 
+                            colSpan={daysInMonth.length + 1} 
+                            className="px-4 py-1.5 sticky left-0 z-10"
+                          >
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${textColor}`}>
+                              {item.label}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    const row = item.row!;
+                    return (
+                      <tr
+                        key={row.id}
+                        className="hover:bg-muted/30 transition-colors group border-b border-border/30"
+                      >
+                        <td className="px-4 py-1.5 sticky left-0 bg-card group-hover:bg-muted/30 z-10 border-r border-border">
+                          <div 
+                            className="text-[11px] font-bold text-foreground leading-tight"
+                            style={{ 
+                              maxWidth: '160px',
+                              wordWrap: 'break-word',
+                              whiteSpace: 'normal'
+                            }}
+                          >
+                            {row.crew_name}
+                          </div>
+                        </td>
+                        {daysInMonth.map((d) => {
+                          const status = getDayStatus(row, d.dayNum);
+                          const toNext = connectsToNext(row, d.dayNum);
+                          const fromPrev = connectsFromPrev(row, d.dayNum);
+
+                          // Color coding based on status
+                          let barClass = "";
+                          if (status === "PRIMARY") {
+                            // OM/EM Primary - Navy blue-black
+                            barClass = "bg-gradient-to-b from-slate-700 to-slate-900 shadow-[0_2px_4px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)]";
+                          } else if (status === "SECONDARY") {
+                            // EM Secondary - Light blue
+                            barClass = "bg-gradient-to-b from-sky-300 to-sky-500 shadow-[0_2px_4px_rgba(56,189,248,0.3),inset_0_1px_0_rgba(255,255,255,0.3)]";
+                          } else if (status === "OHN_WEEKDAY") {
+                            // OHN Weekday - Navy blue-black
+                            barClass = "bg-gradient-to-b from-slate-700 to-slate-900 shadow-[0_2px_4px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.1)]";
+                          } else if (status === "OHN_WEEKEND") {
+                            // OHN Weekend - Medium grey/teal
+                            barClass = "bg-gradient-to-b from-slate-400 to-slate-500 shadow-[0_2px_4px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.2)]";
+                          }
+
+                          // Continuous bar styling (no gaps)
+                          const roundedLeft = !fromPrev ? "rounded-l-sm" : "";
+                          const roundedRight = !toNext ? "rounded-r-sm" : "";
+                          const marginLeft = fromPrev ? "" : "ml-0.5";
+                          const marginRight = toNext ? "" : "mr-0.5";
+
+                          return (
+                            <td
+                              key={d.dayNum}
+                              className={`p-0 h-8 border-r border-border/20 relative ${
+                                d.isWeekend ? "bg-muted/20" : ""
+                              }`}
+                            >
+                              {status !== "OFF" && (
+                                <div
+                                  className={`absolute inset-y-1 left-0 right-0 ${marginLeft} ${marginRight} ${roundedLeft} ${roundedRight} ${barClass} transition-all duration-300 animate-in fade-in slide-in-from-left-1`}
+                                  style={{
+                                    marginLeft: fromPrev ? 0 : 2,
+                                    marginRight: toNext ? 0 : 2,
+                                  }}
+                                />
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-8 px-10 py-5 bg-slate-950 rounded-[2rem] w-fit shadow-2xl border border-white/10 ring-1 ring-slate-800">
-          <div className="flex items-center gap-4">
-            <div className="w-5 h-5 bg-slate-950 border-t border-white/20 rounded shadow-lg ring-1 ring-slate-800" />
+        {/* Legend */}
+        <div className="flex flex-wrap items-center gap-6 px-6 py-4 bg-slate-900 rounded-xl w-fit shadow-xl border border-slate-700">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-4 bg-gradient-to-b from-slate-700 to-slate-900 rounded-sm shadow-md" />
             <div className="flex flex-col">
-              <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">
-                Primary Deployment
-              </span>
-              <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">
-                Blue Black Logic
+              <span className="text-[10px] font-bold text-white uppercase tracking-wider">
+                Primary / OHN Weekday
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="w-5 h-5 bg-blue-400 border-t border-white/40 rounded shadow-lg ring-1 ring-blue-500/30" />
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-4 bg-gradient-to-b from-sky-300 to-sky-500 rounded-sm shadow-md" />
             <div className="flex flex-col">
-              <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em]">
-                Secondary Role
-              </span>
-              <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">
-                Light Blue Base
+              <span className="text-[10px] font-bold text-sky-400 uppercase tracking-wider">
+                EM Secondary
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="w-5 h-5 bg-slate-800 rounded border border-slate-700" />
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-4 bg-gradient-to-b from-slate-400 to-slate-500 rounded-sm shadow-md" />
             <div className="flex flex-col">
-              <span className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">
-                Off Duty / Reserve
-              </span>
-              <span className="text-[8px] font-bold text-slate-700 uppercase tracking-widest">
-                Null State
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                OHN Weekend
               </span>
             </div>
           </div>
