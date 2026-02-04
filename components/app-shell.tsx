@@ -119,13 +119,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Link href="/dashboard" className="flex items-center group">
-              <div className="bg-white px-3 py-1.5 rounded-lg shadow-lg transform group-hover:scale-[1.02] transition-all">
+              <div className="bg-white px-4 py-2 rounded-lg shadow-lg transform group-hover:scale-[1.02] transition-all">
                 <Image
-                  src="https://i.ibb.co/yzF9WBZ/Group-26.png"
+                  src="https://cptffqgvibhwjzvklual.supabase.co/storage/v1/object/public/branding/BOSH%20LOGO-trf.png"
                   alt="Company Logo"
-                  width={140}
-                  height={32}
-                  className="h-7 w-auto object-contain"
+                  width={160}
+                  height={40}
+                  className="h-8 w-auto"
+                  style={{ objectFit: 'contain' }}
                   priority
                 />
               </div>
