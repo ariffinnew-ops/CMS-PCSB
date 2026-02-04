@@ -211,11 +211,11 @@ export default function RosterPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-black text-foreground uppercase tracking-tight leading-none">
+            <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight leading-none">
               ROTATION MAP
             </h2>
             <div className="flex items-center gap-3 mt-2">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                 Period:
               </span>
               <select
@@ -224,7 +224,7 @@ export default function RosterPage() {
                   const [year, month] = e.target.value.split('-').map(Number);
                   setViewDate(new Date(year, month, 1));
                 }}
-                className="text-[11px] font-bold text-blue-600 bg-card border border-border px-3 py-1.5 rounded-lg outline-none cursor-pointer uppercase shadow-sm"
+                className="text-[11px] font-bold text-blue-600 bg-white border border-gray-200 px-3 py-1.5 rounded-lg outline-none cursor-pointer uppercase shadow-sm"
               >
                 {MONTH_RANGE.map(({ year, month }) => (
                   <option key={`${year}-${month}`} value={`${year}-${month}`}>
@@ -235,11 +235,11 @@ export default function RosterPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 bg-card p-2 rounded-xl shadow-sm border border-border">
+          <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-gray-200">
             <select
               value={clientFilter}
               onChange={(e) => setClientFilter(e.target.value as ClientType | "ALL")}
-              className="bg-muted border-none rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase outline-none"
+              className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 uppercase outline-none"
             >
               <option value="ALL">All Clients</option>
               <option value="SKA">SKA</option>
@@ -248,7 +248,7 @@ export default function RosterPage() {
             <select
               value={tradeFilter}
               onChange={(e) => setTradeFilter(e.target.value as TradeType | "ALL")}
-              className="bg-muted border-none rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase outline-none"
+              className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 uppercase outline-none"
             >
               <option value="ALL">All Trades</option>
               <option value="OM">OFFSHORE MEDIC</option>
@@ -258,29 +258,29 @@ export default function RosterPage() {
           </div>
         </div>
 
-        {/* Table */}
-        <div className="bg-card rounded-2xl shadow-2xl border border-border overflow-hidden">
+        {/* Table - Light Theme */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse" style={{ minWidth: '100%' }}>
               <thead>
-                <tr className="bg-slate-900">
-                  <th className="px-3 py-2 w-48 min-w-[192px] text-left sticky left-0 bg-slate-800 z-20 border-r-2 border-slate-600">
-                    <span className="text-[11px] font-black text-white uppercase tracking-wider">
+                <tr className="bg-slate-100">
+                  <th className="px-3 py-2 w-48 min-w-[192px] text-left sticky left-0 bg-slate-200 z-20 border-r border-gray-300">
+                    <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider">
                       Crew / Trade
                     </span>
                   </th>
                   {daysInMonth.map((d) => (
                     <th
                       key={d.dayNum}
-                      className={`px-0 py-1.5 text-center w-[26px] min-w-[26px] max-w-[26px] border-r border-slate-700/30 ${
-                        d.isWeekend ? "bg-slate-800" : "bg-slate-900"
+                      className={`px-0 py-1.5 text-center w-[26px] min-w-[26px] max-w-[26px] border-r border-gray-200 ${
+                        d.isWeekend ? "bg-gray-100" : "bg-slate-50"
                       }`}
                     >
                       <div className="flex flex-col items-center leading-none">
-                        <span className="text-[10px] font-bold text-white/70">
+                        <span className="text-[10px] font-bold text-slate-500">
                           {d.dayName}
                         </span>
-                        <span className="text-[12px] font-black text-white tabular-nums">
+                        <span className="text-[12px] font-black text-slate-700 tabular-nums">
                           {d.dayNum}
                         </span>
                       </div>
@@ -291,26 +291,26 @@ export default function RosterPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={daysInMonth.length + 1} className="text-center py-8">
+                    <td colSpan={daysInMonth.length + 1} className="text-center py-8 bg-white">
                       <div className="flex items-center justify-center gap-3">
                         <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent" />
-                        <span className="text-xs text-muted-foreground">Loading...</span>
+                        <span className="text-xs text-slate-500">Loading...</span>
                       </div>
                     </td>
                   </tr>
                 ) : (
                   groupedData.map((item, idx) => {
                     if (item.type === 'separator') {
-                      // Unified separator - consistent dark command center style
+                      // Light separator - subtle grey background with dark text
                       return (
-                        <tr key={`sep-${idx}`} className="bg-slate-950">
+                        <tr key={`sep-${idx}`} className="bg-gray-100">
                           <td 
                             colSpan={daysInMonth.length + 1} 
-                            className="px-3 sticky left-0 z-10 border-t border-b border-slate-700/50"
+                            className="px-3 sticky left-0 z-10 border-t border-b border-gray-200 bg-gray-100"
                             style={{ height: '22px' }}
                           >
                             <div className="flex items-center h-full">
-                              <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]">
+                              <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
                                 {item.label}
                               </span>
                             </div>
@@ -323,12 +323,12 @@ export default function RosterPage() {
                     return (
                       <tr
                         key={row.id}
-                        className="hover:bg-muted/30 transition-colors group border-b border-slate-700/40"
+                        className="hover:bg-blue-50/50 transition-colors group border-b border-gray-200"
                         style={{ height: '28px' }}
                       >
-                        <td className="px-3 py-0 sticky left-0 bg-slate-850 group-hover:bg-slate-800/80 z-10 border-r-2 border-slate-600 w-48 min-w-[192px]" style={{ backgroundColor: 'rgb(30, 41, 59)' }}>
+                        <td className="px-3 py-0 sticky left-0 bg-slate-100 group-hover:bg-blue-100/50 z-10 border-r border-gray-300 w-48 min-w-[192px]">
                           <div 
-                            className="text-[10px] font-semibold text-slate-100 leading-tight truncate"
+                            className="text-[10px] font-semibold text-slate-700 leading-tight truncate"
                             title={row.crew_name}
                           >
                             {row.crew_name}
@@ -339,17 +339,17 @@ export default function RosterPage() {
                           const toNext = connectsToNext(row, d.dayNum);
                           const fromPrev = connectsFromPrev(row, d.dayNum);
 
-                          // Solid 3D bar styles - Navy Blue for Primary, Light Blue for Secondary
+                          // Flat, solid bar styles - no gradients or heavy shadows
                           let barClass = "";
                           if (status === "PRIMARY" || status === "OHN_WEEKDAY") {
-                            // Navy Blue for Primary / OHN Weekday
-                            barClass = "bg-gradient-to-b from-blue-600 via-blue-700 to-blue-900 shadow-[0_2px_4px_rgba(30,64,175,0.6),inset_0_1px_0_rgba(255,255,255,0.2)]";
+                            // Medium Blue - clean solid color
+                            barClass = "bg-blue-500";
                           } else if (status === "SECONDARY") {
-                            // Light Blue for EM Secondary
-                            barClass = "bg-gradient-to-b from-sky-400 via-sky-500 to-sky-600 shadow-[0_2px_4px_rgba(14,165,233,0.4),inset_0_1px_0_rgba(255,255,255,0.3)]";
+                            // Soft Sky Blue
+                            barClass = "bg-sky-300";
                           } else if (status === "OHN_WEEKEND") {
-                            // Lighter Navy for OHN Weekend
-                            barClass = "bg-gradient-to-b from-blue-400 via-blue-500 to-blue-600 shadow-[0_2px_4px_rgba(59,130,246,0.4),inset_0_1px_0_rgba(255,255,255,0.25)]";
+                            // Light Slate/Greyish Blue
+                            barClass = "bg-slate-400";
                           }
 
                           // Zero-gap continuous bars
@@ -360,12 +360,12 @@ export default function RosterPage() {
                             <td
                               key={d.dayNum}
                               className={`p-0 relative w-[26px] min-w-[26px] max-w-[26px] ${
-                                d.isWeekend ? "bg-slate-900/50" : "bg-card"
+                                d.isWeekend ? "bg-gray-50" : "bg-white"
                               }`}
                               style={{ height: '28px' }}
                             >
-                              {/* Thin vertical grid line */}
-                              <div className="absolute inset-y-0 right-0 w-px bg-slate-700/30 z-0" />
+                              {/* Thin light grey vertical grid line */}
+                              <div className="absolute inset-y-0 right-0 w-px bg-gray-200 z-0" />
                               
                               {status !== "OFF" && (
                                 <div
@@ -390,23 +390,23 @@ export default function RosterPage() {
           </div>
         </div>
 
-        {/* Legend */}
-        <div className="flex flex-wrap items-center gap-4 px-4 py-2 bg-slate-950 rounded-lg w-fit shadow-lg border border-slate-700">
+        {/* Legend - Light Theme */}
+        <div className="flex flex-wrap items-center gap-4 px-4 py-2 bg-white rounded-lg w-fit shadow-sm border border-gray-200">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-3 bg-gradient-to-b from-blue-600 to-blue-900 rounded-sm shadow-md" />
-            <span className="text-[9px] font-bold text-blue-400 uppercase tracking-wider">
+            <div className="w-5 h-3 bg-blue-500 rounded-sm" />
+            <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">
               Primary / OHN Weekday
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-5 h-3 bg-gradient-to-b from-sky-400 to-sky-600 rounded-sm shadow-md" />
-            <span className="text-[9px] font-bold text-sky-400 uppercase tracking-wider">
+            <div className="w-5 h-3 bg-sky-300 rounded-sm" />
+            <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">
               EM Secondary
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-5 h-3 bg-gradient-to-b from-blue-400 to-blue-600 rounded-sm shadow-md" />
-            <span className="text-[9px] font-bold text-blue-300 uppercase tracking-wider">
+            <div className="w-5 h-3 bg-slate-400 rounded-sm" />
+            <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">
               OHN Weekend
             </span>
           </div>
