@@ -190,6 +190,23 @@ export default function RosterPage() {
 
   return (
     <AppShell>
+      {/* CSS for bar animation */}
+      <style jsx>{`
+        @keyframes barSlideIn {
+          from {
+            transform: scaleX(0);
+            transform-origin: left center;
+          }
+          to {
+            transform: scaleX(1);
+            transform-origin: left center;
+          }
+        }
+        .gantt-bar {
+          animation: barSlideIn 0.8s ease-out forwards;
+        }
+      `}</style>
+      
       <div className="space-y-4 animate-in fade-in duration-500 mt-4">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -247,7 +264,7 @@ export default function RosterPage() {
             <table className="w-full border-collapse" style={{ minWidth: '100%' }}>
               <thead>
                 <tr className="bg-slate-900">
-                  <th className="px-3 py-2 w-40 text-left sticky left-0 bg-slate-900 z-20 border-r border-slate-700">
+                  <th className="px-3 py-2 w-44 min-w-[176px] text-left sticky left-0 bg-slate-900 z-20 border-r border-slate-700">
                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
                       Personnel
                     </span>
@@ -255,7 +272,7 @@ export default function RosterPage() {
                   {daysInMonth.map((d) => (
                     <th
                       key={d.dayNum}
-                      className={`px-0 py-1.5 text-center min-w-[26px] border-r border-slate-700/40 ${
+                      className={`px-0 py-1.5 text-center w-[26px] min-w-[26px] max-w-[26px] border-r border-slate-700/40 ${
                         d.isWeekend ? "bg-slate-800" : ""
                       }`}
                     >
@@ -284,28 +301,25 @@ export default function RosterPage() {
                 ) : (
                   groupedData.map((item, idx) => {
                     if (item.type === 'separator') {
-                      // Separator - 70% shorter height, darker background
+                      // Separator - slim, dark background, bold high-contrast text
                       const separatorBg = item.trade === 'OFFSHORE MEDIC' 
-                        ? 'bg-amber-900/40' 
+                        ? 'bg-amber-950/80' 
                         : item.trade === 'IMP / OHN' 
-                        ? 'bg-teal-900/40'
-                        : 'bg-blue-900/40';
-                      const textColor = item.trade === 'OFFSHORE MEDIC'
-                        ? 'text-amber-300'
-                        : item.trade === 'IMP / OHN'
-                        ? 'text-teal-300'
-                        : 'text-blue-300';
+                        ? 'bg-teal-950/80'
+                        : 'bg-blue-950/80';
                         
                       return (
                         <tr key={`sep-${idx}`} className={separatorBg}>
                           <td 
                             colSpan={daysInMonth.length + 1} 
-                            className="px-3 py-0.5 sticky left-0 z-10"
-                            style={{ height: '18px' }}
+                            className="px-3 sticky left-0 z-10"
+                            style={{ height: '20px' }}
                           >
-                            <span className={`text-[9px] font-bold uppercase tracking-wider ${textColor}`}>
-                              {item.label}
-                            </span>
+                            <div className="flex items-center h-full">
+                              <span className="text-[10px] font-black text-white uppercase tracking-wider drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                                {item.label}
+                              </span>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -318,10 +332,9 @@ export default function RosterPage() {
                         className="hover:bg-muted/20 transition-colors group"
                         style={{ height: '28px' }}
                       >
-                        <td className="px-3 py-0 sticky left-0 bg-card group-hover:bg-muted/20 z-10 border-r border-border/50">
+                        <td className="px-3 py-0 sticky left-0 bg-card group-hover:bg-muted/20 z-10 border-r border-border/50 w-44 min-w-[176px]">
                           <div 
                             className="text-[10px] font-semibold text-foreground leading-tight truncate"
-                            style={{ maxWidth: '140px' }}
                             title={row.crew_name}
                           >
                             {row.crew_name}
@@ -351,17 +364,20 @@ export default function RosterPage() {
                           return (
                             <td
                               key={d.dayNum}
-                              className={`p-0 relative border-r border-border/20 ${
+                              className={`p-0 relative w-[26px] min-w-[26px] max-w-[26px] ${
                                 d.isWeekend ? "bg-muted/10" : ""
                               }`}
                               style={{ height: '28px' }}
                             >
+                              {/* Grid line behind bar */}
+                              <div className="absolute inset-y-0 right-0 w-px bg-border/20 z-0" />
+                              
                               {status !== "OFF" && (
                                 <div
-                                  className={`absolute ${roundedLeft} ${roundedRight} ${barClass}`}
+                                  className={`absolute z-10 gantt-bar ${roundedLeft} ${roundedRight} ${barClass}`}
                                   style={{
-                                    top: '5px',
-                                    bottom: '5px',
+                                    top: '6px',
+                                    bottom: '6px',
                                     left: fromPrev ? 0 : 1,
                                     right: toNext ? 0 : 1,
                                   }}
