@@ -6,7 +6,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { getUser, logout, canAccessPage, type AuthUser, type UserRole } from "@/lib/auth";
+import { getUser, logout, canAccessPage, setupIdleTimeout, type AuthUser, type UserRole } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -36,6 +37,7 @@ const allNavItems: NavItem[] = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { toast } = useToast();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,6 +58,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setUser(currentUser);
     setIsLoading(false);
   }, [router, pathname]);
+
+  // Setup idle timeout (5 minutes)
+  useEffect(() => {
+    if (!user) return;
+    
+    const cleanup = setupIdleTimeout(() => {
+      toast({
+        title: "Session Expired",
+        description: "You have been logged out due to inactivity.",
+        variant: "destructive",
+      });
+      router.push("/login");
+    });
+    
+    return cleanup;
+  }, [user, router, toast]);
 
   // Filter nav items based on user role
   const navItems = user ? allNavItems.filter(item => item.roles.includes(user.role)) : [];
