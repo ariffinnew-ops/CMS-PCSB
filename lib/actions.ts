@@ -72,3 +72,63 @@ export async function deleteRosterRow(id: number): Promise<{ success: boolean; e
 
   return { success: true }
 }
+
+// Login Logs
+export interface LoginLogEntry {
+  id?: number;
+  username: string;
+  role: string;
+  timestamp: string;
+  success: boolean;
+}
+
+export async function recordLoginLog(log: Omit<LoginLogEntry, 'id'>): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('login_logs')
+    .insert(log)
+
+  if (error) {
+    console.error('Error recording login log:', error)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true }
+}
+
+export async function getLoginLogs(): Promise<LoginLogEntry[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('login_logs')
+    .select('*')
+    .order('timestamp', { ascending: false })
+    .limit(100)
+
+  if (error) {
+    console.error('Error fetching login logs:', error)
+    return []
+  }
+
+  return data || []
+}
+
+// Bulk update for Save Changes
+export async function bulkUpdateRosterRows(updates: { id: number; updates: Partial<RosterRow> }[]): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+
+  for (const item of updates) {
+    const { error } = await supabase
+      .from('staffing_roster')
+      .update(item.updates)
+      .eq('id', item.id)
+
+    if (error) {
+      console.error('Error in bulk update:', error)
+      return { success: false, error: error.message }
+    }
+  }
+
+  return { success: true }
+}

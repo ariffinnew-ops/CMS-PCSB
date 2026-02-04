@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { getUser, logout, type AuthUser } from "@/lib/auth";
+import { getUser, logout, canAccessPage, type AuthUser, type UserRole } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,14 +17,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const baseNavItems = [
-  { id: "dashboard", label: "Dashboard", href: "/dashboard" },
-  { id: "roster", label: "Roster", href: "/roster" },
-  { id: "training", label: "Training", href: "/training" },
-  { id: "staff", label: "Staff", href: "/staff" },
-];
+interface NavItem {
+  id: string;
+  label: string;
+  href: string;
+  roles: UserRole[];
+}
 
-const adminNavItem = { id: "admin", label: "Data Manager", href: "/admin" };
+const allNavItems: NavItem[] = [
+  { id: "dashboard", label: "Dashboard", href: "/dashboard", roles: ["admin", "datalogger", "guest"] },
+  { id: "roster", label: "Roster", href: "/roster", roles: ["admin", "datalogger", "guest"] },
+  { id: "training", label: "Training", href: "/training", roles: ["admin", "datalogger", "guest"] },
+  { id: "staff", label: "Staff", href: "/staff", roles: ["admin", "datalogger", "guest"] },
+  { id: "admin", label: "Data Manager", href: "/admin", roles: ["admin", "datalogger"] },
+  { id: "logs", label: "Login Logs", href: "/logs", roles: ["admin"] },
+];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -39,11 +46,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       router.push("/login");
       return;
     }
+    
+    // Route protection - redirect if user doesn't have access
+    if (!canAccessPage(currentUser.role, pathname)) {
+      router.push("/dashboard");
+      return;
+    }
+    
     setUser(currentUser);
     setIsLoading(false);
-  }, [router]);
+  }, [router, pathname]);
 
-  const navItems = user?.role === "admin" ? [...baseNavItems, adminNavItem] : baseNavItems;
+  // Filter nav items based on user role
+  const navItems = user ? allNavItems.filter(item => item.roles.includes(user.role)) : [];
 
   const handleLogout = () => {
     logout();
@@ -58,6 +73,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const activeId = getActiveId();
 
+  const getRoleBadgeColor = (role: UserRole) => {
+    switch (role) {
+      case "admin": return "text-amber-400";
+      case "datalogger": return "text-blue-400";
+      default: return "text-slate-500";
+    }
+  };
+
+  const getRoleLabel = (role: UserRole) => {
+    switch (role) {
+      case "admin": return "Administrator";
+      case "datalogger": return "Data Logger";
+      default: return "Guest";
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">
@@ -69,19 +100,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col bg-muted text-foreground">
       <header className="bg-slate-950 border-b border-slate-800 sticky top-0 z-50 shadow-2xl">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <Link href="/dashboard" className="flex items-center gap-3 group">
-              <div className="bg-background p-1 w-10 h-10 rounded-lg flex items-center justify-center shadow-lg transform group-hover:scale-105 transition-all overflow-hidden border border-slate-700">
-                <span className="text-slate-900 font-black text-[10px]">BOSH</span>
+        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <Link href="/dashboard" className="flex items-center gap-2 group">
+              <div className="bg-background p-1 w-8 h-8 rounded-lg flex items-center justify-center shadow-lg transform group-hover:scale-105 transition-all overflow-hidden border border-slate-700">
+                <span className="text-slate-900 font-black text-[8px]">BOSH</span>
               </div>
               <div className="flex flex-col">
-                <h1 className="font-black text-lg tracking-tight text-white uppercase leading-none">
+                <h1 className="font-black text-sm tracking-tight text-white uppercase leading-none">
                   CMS Portal
                 </h1>
-                <span className="text-[9px] text-blue-400 font-medium uppercase tracking-wider">
-                  Personnel Management
-                </span>
               </div>
             </Link>
 
@@ -91,7 +119,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   key={item.id}
                   href={item.href}
                   className={cn(
-                    "px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wide transition-all duration-200",
+                    "px-3 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wide transition-all duration-200",
                     activeId === item.id
                       ? "text-white bg-blue-600/20 border border-blue-500/30"
                       : "text-slate-400 hover:text-white hover:bg-white/5"
@@ -109,60 +137,42 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className="lg:hidden text-white p-2"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {mobileMenuOpen ? (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               ) : (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               )}
             </svg>
           </button>
 
           {/* User Menu */}
-          <div className="hidden lg:flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="flex items-center gap-2 text-slate-300 hover:text-white hover:bg-white/10 px-3 py-2 h-auto"
+                  className="flex items-center gap-2 text-slate-300 hover:text-white hover:bg-white/10 px-2 py-1.5 h-auto"
                 >
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold text-sm uppercase">
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold text-xs uppercase">
                     {user?.username?.charAt(0) || "U"}
                   </div>
                   <div className="flex flex-col items-start">
                     <span className="text-xs font-semibold capitalize">{user?.username}</span>
-                    <span className={cn(
-                      "text-[10px] font-medium uppercase tracking-wide",
-                      user?.role === "admin" ? "text-amber-400" : "text-slate-500"
-                    )}>
-                      {user?.role}
+                    <span className={cn("text-[9px] font-medium uppercase tracking-wide", getRoleBadgeColor(user?.role || "guest"))}>
+                      {getRoleLabel(user?.role || "guest")}
                     </span>
                   </div>
-                  <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-44">
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium capitalize">{user?.username}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{user?.role} Account</p>
+                    <p className="text-xs text-muted-foreground">{getRoleLabel(user?.role || "guest")}</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -179,18 +189,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-slate-900 border-t border-slate-800 px-4 py-4">
-            <div className="flex items-center gap-3 pb-4 mb-4 border-b border-slate-800">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold text-sm uppercase">
+          <div className="lg:hidden bg-slate-900 border-t border-slate-800 px-4 py-3">
+            <div className="flex items-center gap-3 pb-3 mb-3 border-b border-slate-800">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold text-xs uppercase">
                 {user?.username?.charAt(0) || "U"}
               </div>
               <div>
                 <p className="text-sm font-semibold text-white capitalize">{user?.username}</p>
-                <p className={cn(
-                  "text-xs font-medium uppercase",
-                  user?.role === "admin" ? "text-amber-400" : "text-slate-500"
-                )}>
-                  {user?.role}
+                <p className={cn("text-xs font-medium uppercase", getRoleBadgeColor(user?.role || "guest"))}>
+                  {getRoleLabel(user?.role || "guest")}
                 </p>
               </div>
             </div>
@@ -201,7 +208,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   href={item.href}
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
-                    "px-4 py-3 rounded-lg text-xs font-semibold uppercase tracking-wide transition-all",
+                    "px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wide transition-all",
                     activeId === item.id
                       ? "text-white bg-blue-600/20 border border-blue-500/30"
                       : "text-slate-400 hover:text-white hover:bg-white/5"
@@ -213,7 +220,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="px-4 py-3 rounded-lg text-xs font-semibold uppercase tracking-wide text-red-400 hover:bg-red-500/10 text-left mt-2"
+                className="px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wide text-red-400 hover:bg-red-500/10 text-left mt-2"
               >
                 Logout
               </button>
@@ -222,7 +229,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </header>
 
-      <main className="flex-grow max-w-7xl mx-auto w-full px-4 py-6">
+      <main className="flex-grow max-w-7xl mx-auto w-full px-4 py-4">
         {children}
       </main>
     </div>
