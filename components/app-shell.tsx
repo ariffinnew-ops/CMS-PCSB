@@ -4,6 +4,7 @@ import React from "react"
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { getUser, logout, canAccessPage, setupIdleTimeout, type AuthUser, type UserRole } from "@/lib/auth";
@@ -49,7 +50,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       return;
     }
     
-    // Route protection - redirect if user doesn't have access
     if (!canAccessPage(currentUser.role, pathname)) {
       router.push("/dashboard");
       return;
@@ -59,7 +59,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, [router, pathname]);
 
-  // Setup idle timeout (5 minutes)
   useEffect(() => {
     if (!user) return;
     
@@ -75,7 +74,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return cleanup;
   }, [user, router, toast]);
 
-  // Filter nav items based on user role
   const navItems = user ? allNavItems.filter(item => item.roles.includes(user.role)) : [];
 
   const handleLogout = () => {
@@ -120,14 +118,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="bg-slate-950 border-b border-slate-800 sticky top-0 z-50 shadow-2xl">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <Link href="/dashboard" className="flex items-center gap-2 group">
-              <div className="bg-background p-1 w-8 h-8 rounded-lg flex items-center justify-center shadow-lg transform group-hover:scale-105 transition-all overflow-hidden border border-slate-700">
-                <span className="text-slate-900 font-black text-[8px]">BOSH</span>
+            <Link href="/dashboard" className="flex items-center gap-3 group">
+              <div className="bg-white p-1.5 rounded-lg shadow-lg transform group-hover:scale-105 transition-all">
+                <Image
+                  src="https://i.ibb.co/yzF9WBZ/Group-26.png"
+                  alt="Company Logo"
+                  width={80}
+                  height={28}
+                  className="h-6 w-auto object-contain"
+                  priority
+                />
               </div>
-              <div className="flex flex-col">
-                <h1 className="font-black text-sm tracking-tight text-white uppercase leading-none">
+              <div className="hidden sm:flex flex-col">
+                <span className="font-bold text-xs tracking-tight text-white uppercase leading-none">
                   CMS Portal
-                </h1>
+                </span>
+                <span className="text-[10px] text-slate-500 font-medium">
+                  Crewing Management
+                </span>
               </div>
             </Link>
 
@@ -149,7 +157,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
           </div>
 
-          {/* Mobile Menu Button */}
           <button
             type="button"
             className="lg:hidden text-white p-2"
@@ -164,7 +171,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </svg>
           </button>
 
-          {/* User Menu */}
           <div className="hidden lg:flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -205,7 +211,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="lg:hidden bg-slate-900 border-t border-slate-800 px-4 py-3">
             <div className="flex items-center gap-3 pb-3 mb-3 border-b border-slate-800">
