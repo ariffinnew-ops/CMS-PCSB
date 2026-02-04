@@ -1,5 +1,7 @@
 "use client";
 
+import React from "react"
+
 import { useEffect, useState, useMemo, useRef, Fragment } from "react";
 import { AppShell } from "@/components/app-shell";
 import { RosterRow, TradeType } from "@/lib/types";
@@ -34,6 +36,8 @@ export default function AdminPage() {
   } | null>(null);
 
   const [notesStore, setNotesStore] = useState<Record<string, string>>({});
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSynced, setLastSynced] = useState<Date | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -157,10 +161,14 @@ export default function AdminPage() {
       r.id === id ? { ...r, [field]: value } : r
     );
     setData(updatedData);
+    setIsSyncing(true);
     
     // Persist to Supabase
     const result = await updateRosterRow(id, { [field]: value });
+    setIsSyncing(false);
+    
     if (result.success) {
+      setLastSynced(new Date());
       showNotification("Update Synced", "success");
     } else {
       showNotification(result.error || "Update failed", "error");
@@ -170,7 +178,10 @@ export default function AdminPage() {
   };
 
   const syncAll = async () => {
+    setIsSyncing(true);
     await fetchData();
+    setIsSyncing(false);
+    setLastSynced(new Date());
     showNotification("Global Registry Synced", "success");
   };
 
@@ -214,9 +225,17 @@ export default function AdminPage() {
 
   return (
     <AppShell>
-      <div className="flex flex-col h-full max-h-[calc(100vh-100px)] -mt-6 relative">
+      <div className="flex flex-col h-full max-h-[calc(100vh-100px)] mt-4 relative">
+        {/* SYNCING INDICATOR */}
+        {isSyncing && (
+          <div className="fixed top-24 right-4 z-[2000] px-6 py-3 rounded-2xl shadow-2xl bg-blue-600 text-white font-black text-[11px] uppercase tracking-widest animate-in slide-in-from-right duration-300 flex items-center gap-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+            Saving...
+          </div>
+        )}
+
         {/* NOTIFICATION */}
-        {notification && (
+        {notification && !isSyncing && (
           <div
             className={`fixed top-24 right-4 z-[2000] px-6 py-3 rounded-2xl shadow-2xl text-white font-black text-[11px] uppercase tracking-widest animate-in slide-in-from-right duration-300 ${
               notification.type === "success" ? "bg-emerald-600" : "bg-red-600"
@@ -319,6 +338,18 @@ export default function AdminPage() {
             </span>
           </div>
         </div>
+
+        {/* LAST SYNCED STATUS */}
+        {lastSynced && (
+          <div className="flex items-center justify-end px-4 py-2 bg-muted/30 border-b border-border flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="text-[10px] font-medium text-muted-foreground">
+                Last Synced: {lastSynced.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* TABLE CONTAINER */}
         <div className="bg-card rounded-b-[2rem] shadow-2xl border border-border border-t-0 overflow-hidden flex flex-col flex-grow">
