@@ -173,7 +173,7 @@ function TradePanel({
 
   return (
     <div className="relative">
-      <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-4 shadow-2xl min-w-[180px]">
+      <div className="bg-slate-800/60 backdrop-blur-xl border border-slate-600/50 rounded-2xl p-4 shadow-2xl min-w-[180px]">
         {/* Header */}
         <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-700/50">
           <div className={`w-3 h-3 rounded-full ${client === "SKA" ? "bg-cyan-400 shadow-lg shadow-cyan-400/50" : "bg-emerald-400 shadow-lg shadow-emerald-400/50"}`} />
@@ -218,7 +218,7 @@ function TradePanel({
                     transition={{ duration: 0.15 }}
                     className={`absolute z-[100] ${client === "SKA" ? "left-full ml-4" : "right-full mr-4"} top-0 min-w-[400px] max-w-[600px]`}
                   >
-                    <div className="bg-slate-900/95 backdrop-blur-2xl border border-slate-600/50 rounded-2xl shadow-2xl overflow-hidden">
+                    <div className="bg-slate-800/90 backdrop-blur-2xl border border-slate-500/50 rounded-2xl shadow-2xl overflow-hidden">
                       <div className={`px-4 py-2 border-b border-slate-700/50 ${client === "SKA" ? "bg-cyan-950/50" : "bg-emerald-950/50"}`}>
                         <span className={`text-xs font-bold uppercase tracking-wider ${trade.textColor}`}>
                           {client} - {trade.name}
@@ -274,7 +274,7 @@ function CompactTable({
   let currentTradeCounter = 0;
 
   return (
-    <div className="bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-700/50 overflow-hidden">
+    <div className="bg-slate-800/70 backdrop-blur-xl rounded-2xl border border-slate-600/50 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left">
           <thead>
@@ -452,8 +452,8 @@ export default function DashboardPage() {
           backgroundPosition: 'center',
         }}
       >
-        {/* Dark Overlay */}
-        <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm" />
+        {/* Lighter Dark Overlay */}
+        <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" />
         
         {/* Grid Pattern Overlay */}
         <div 
@@ -525,25 +525,33 @@ export default function DashboardPage() {
                 {/* HUD Layout: SKA (Left) - Donut (Center) - SBA (Right) */}
                 <div className="flex items-center justify-center gap-8 w-full max-w-6xl">
                   {/* SKA Panel - LEFT */}
-                  <div className="flex-shrink-0">
-                    {/* Leader Line SVG */}
-                    <svg className="absolute w-20 h-2 top-1/2 -translate-y-1/2" style={{ left: 'calc(50% - 220px)', transform: 'translateY(-50%)' }}>
-                      <motion.line
-                        x1="0" y1="50%" x2="100%" y2="50%"
-                        stroke="url(#skaGradient)"
-                        strokeWidth="2"
-                        strokeDasharray="4 4"
-                        initial={{ pathLength: 0 }}
-                        animate={{ pathLength: 1 }}
-                        transition={{ duration: 1, delay: 0.5 }}
+                  <div className="flex-shrink-0 relative">
+                    {/* Leader Line with Animated Arrow */}
+                    <div className="absolute top-1/2 -right-12 -translate-y-1/2 flex items-center gap-1">
+                      <motion.div
+                        className="w-16 h-[2px] bg-gradient-to-r from-cyan-500 to-cyan-500/20"
+                        initial={{ scaleX: 0 }}
+                        animate={{ scaleX: 1 }}
+                        transition={{ duration: 0.8, delay: 0.5 }}
+                        style={{ originX: 0 }}
                       />
-                      <defs>
-                        <linearGradient id="skaGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.8" />
-                          <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.2" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
+                      <motion.div
+                        className="text-cyan-500"
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3, delay: 1.2 }}
+                      >
+                        <motion.svg 
+                          className="w-4 h-4" 
+                          viewBox="0 0 24 24" 
+                          fill="currentColor"
+                          animate={{ x: [0, 4, 0] }}
+                          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                        >
+                          <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+                        </motion.svg>
+                      </motion.div>
+                    </div>
                     <TradePanel
                       client="SKA"
                       personnel={skaPersonnel}
@@ -565,25 +573,33 @@ export default function DashboardPage() {
                   </div>
 
                   {/* SBA Panel - RIGHT */}
-                  <div className="flex-shrink-0">
-                    {/* Leader Line SVG */}
-                    <svg className="absolute w-20 h-2 top-1/2" style={{ right: 'calc(50% - 220px)', transform: 'translateY(-50%)' }}>
-                      <motion.line
-                        x1="0" y1="50%" x2="100%" y2="50%"
-                        stroke="url(#sbaGradient)"
-                        strokeWidth="2"
-                        strokeDasharray="4 4"
-                        initial={{ pathLength: 0 }}
-                        animate={{ pathLength: 1 }}
-                        transition={{ duration: 1, delay: 0.5 }}
+                  <div className="flex-shrink-0 relative">
+                    {/* Leader Line with Animated Arrow */}
+                    <div className="absolute top-1/2 -left-12 -translate-y-1/2 flex items-center gap-1">
+                      <motion.div
+                        className="text-emerald-500"
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3, delay: 1.2 }}
+                      >
+                        <motion.svg 
+                          className="w-4 h-4 rotate-180" 
+                          viewBox="0 0 24 24" 
+                          fill="currentColor"
+                          animate={{ x: [0, -4, 0] }}
+                          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                        >
+                          <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+                        </motion.svg>
+                      </motion.div>
+                      <motion.div
+                        className="w-16 h-[2px] bg-gradient-to-l from-emerald-500 to-emerald-500/20"
+                        initial={{ scaleX: 0 }}
+                        animate={{ scaleX: 1 }}
+                        transition={{ duration: 0.8, delay: 0.5 }}
+                        style={{ originX: 1 }}
                       />
-                      <defs>
-                        <linearGradient id="sbaGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor="#10b981" stopOpacity="0.2" />
-                          <stop offset="100%" stopColor="#10b981" stopOpacity="0.8" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
+                    </div>
                     <TradePanel
                       client="SBA"
                       personnel={sbaPersonnel}
