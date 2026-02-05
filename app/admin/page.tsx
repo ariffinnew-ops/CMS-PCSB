@@ -660,14 +660,14 @@ export default function AdminPage() {
                       )}
                       <tr className="transition-colors group h-14 hover:bg-blue-50/20">
                         <td className="px-6 py-2 sticky left-0 bg-card group-hover:bg-muted/50 z-50 border-r border-border shadow-sm">
-                          <div className="flex items-center gap-2">
-                            <span className="font-black text-foreground text-[11px] uppercase leading-tight block tracking-tight whitespace-normal break-words flex-1">
+                          <div className="flex items-center gap-2 group/name">
+                            <span className="font-black text-foreground text-[11px] uppercase leading-tight block tracking-tight whitespace-normal break-words flex-1 cursor-default">
                               {row.crew_name}
                             </span>
                             <button
                               type="button"
                               onClick={() => setDeleteModal({ id: row.id, name: row.crew_name })}
-                              className="flex items-center justify-center w-5 h-5 bg-red-500 hover:bg-red-400 text-white rounded-full text-[14px] font-black transition-all shadow-md hover:shadow-red-500/40 hover:scale-110 flex-shrink-0 opacity-0 group-hover:opacity-100"
+                              className="flex items-center justify-center w-5 h-5 bg-red-500 hover:bg-red-400 text-white rounded-full text-[14px] font-black transition-all shadow-md hover:shadow-red-500/40 hover:scale-110 flex-shrink-0 opacity-0 group-hover/name:opacity-100"
                               title="Delete Staff"
                             >
                               -
