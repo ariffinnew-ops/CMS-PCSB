@@ -222,17 +222,22 @@ function TradePanel({
                 <div className="text-xl font-black text-white tabular-nums">{trade.list.length}</div>
               </motion.div>
 
-              {/* Name List Popover - Glassmorphism, No Scroll, 2 Columns */}
+              {/* Name List Popover - Fixed position, visible on screen edges */}
               <AnimatePresence>
                 {hoveredTrade === `${client}-${trade.code}` && trade.list.length > 0 && (
                   <motion.div
-                    initial={{ opacity: 0, scale: 0.95, x: client === "SKA" ? 10 : -10 }}
-                    animate={{ opacity: 1, scale: 1, x: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, x: client === "SKA" ? 10 : -10 }}
-                    transition={{ duration: 0.15 }}
-                    className={`fixed z-[1000] ${client === "SKA" ? "left-4" : "right-4"} top-1/2 -translate-y-1/2 min-w-[380px] max-w-[500px]`}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.2 }}
+                    className={`fixed z-[9999] top-1/2 -translate-y-1/2 min-w-[350px] max-w-[450px] ${
+                      client === "SKA" ? "left-6" : "right-6"
+                    }`}
+                    style={{ pointerEvents: 'auto' }}
                   >
-                    <div className="bg-slate-800/90 backdrop-blur-2xl border border-slate-500/50 rounded-2xl shadow-2xl overflow-hidden">
+                    <div className={`bg-slate-800/95 backdrop-blur-2xl border-2 rounded-2xl shadow-2xl overflow-hidden ${
+                      client === "SKA" ? "border-blue-500/50" : "border-orange-500/50"
+                    }`}>
                       <div className={`px-4 py-2 border-b border-slate-700/50 ${client === "SKA" ? "bg-blue-950/50" : "bg-orange-950/50"}`}>
                         <span className={`text-xs font-bold uppercase tracking-wider ${trade.textColor}`}>
                           {client} - {trade.name}
@@ -545,28 +550,28 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-center gap-6 w-full max-w-5xl">
                   {/* SKA Panel - LEFT */}
                   <div className="flex-shrink-0 relative">
-                    {/* Leader Line with Animated Arrow - Blue */}
-                    <div className="absolute top-1/2 -right-16 -translate-y-1/2 flex items-center gap-1">
+                    {/* Leader Line with Animated Arrow - Blue (BIGGER) */}
+                    <div className="absolute top-1/2 -right-24 -translate-y-1/2 flex items-center gap-2">
                       <motion.div
-                        className="w-20 h-[3px] bg-gradient-to-r from-blue-500 to-blue-500/20 rounded-full"
+                        className="w-28 h-[4px] bg-gradient-to-r from-blue-500 to-blue-400/30 rounded-full"
                         initial={{ scaleX: 0 }}
                         animate={{ scaleX: 1 }}
                         transition={{ duration: 0.8, delay: 0.5 }}
-                        style={{ originX: 0, filter: "drop-shadow(0 0 6px rgba(59, 130, 246, 0.8))" }}
+                        style={{ originX: 0, filter: "drop-shadow(0 0 10px rgba(59, 130, 246, 1))" }}
                       />
                       <motion.div
-                        className="text-blue-500"
+                        className="text-blue-400"
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.3, delay: 1.2 }}
-                        style={{ filter: "drop-shadow(0 0 8px rgba(59, 130, 246, 0.8))" }}
+                        style={{ filter: "drop-shadow(0 0 15px rgba(59, 130, 246, 1))" }}
                       >
                         <motion.svg 
-                          className="w-6 h-6" 
+                          className="w-10 h-10" 
                           viewBox="0 0 24 24" 
                           fill="currentColor"
-                          animate={{ x: [0, 6, 0] }}
-                          transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+                          animate={{ x: [0, 8, 0] }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
                         >
                           <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
                         </motion.svg>
@@ -594,31 +599,31 @@ export default function DashboardPage() {
 
                   {/* SBA Panel - RIGHT */}
                   <div className="flex-shrink-0 relative">
-                    {/* Leader Line with Animated Arrow - Orange */}
-                    <div className="absolute top-1/2 -left-16 -translate-y-1/2 flex items-center gap-1">
+                    {/* Leader Line with Animated Arrow - Orange (BIGGER) */}
+                    <div className="absolute top-1/2 -left-24 -translate-y-1/2 flex items-center gap-2">
                       <motion.div
-                        className="text-orange-500"
+                        className="text-orange-400"
                         initial={{ opacity: 0, x: 10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.3, delay: 1.2 }}
-                        style={{ filter: "drop-shadow(0 0 8px rgba(249, 115, 22, 0.8))" }}
+                        style={{ filter: "drop-shadow(0 0 15px rgba(249, 115, 22, 1))" }}
                       >
                         <motion.svg 
-                          className="w-6 h-6 rotate-180" 
+                          className="w-10 h-10 rotate-180" 
                           viewBox="0 0 24 24" 
                           fill="currentColor"
-                          animate={{ x: [0, -6, 0] }}
-                          transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+                          animate={{ x: [0, -8, 0] }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
                         >
                           <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
                         </motion.svg>
                       </motion.div>
                       <motion.div
-                        className="w-20 h-[3px] bg-gradient-to-l from-orange-500 to-orange-500/20 rounded-full"
+                        className="w-28 h-[4px] bg-gradient-to-l from-orange-500 to-orange-400/30 rounded-full"
                         initial={{ scaleX: 0 }}
                         animate={{ scaleX: 1 }}
                         transition={{ duration: 0.8, delay: 0.5 }}
-                        style={{ originX: 1, filter: "drop-shadow(0 0 6px rgba(249, 115, 22, 0.8))" }}
+                        style={{ originX: 1, filter: "drop-shadow(0 0 10px rgba(249, 115, 22, 1))" }}
                       />
                     </div>
                     <TradePanel
