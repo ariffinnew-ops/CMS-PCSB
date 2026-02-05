@@ -29,8 +29,8 @@ function DonutChart({
   onSegmentHover: (segment: "SKA" | "SBA" | null) => void;
   hoveredSegment: "SKA" | "SBA" | null;
 }) {
-  const radius = 140;
-  const strokeWidth = 50;
+  const radius = 120;
+  const strokeWidth = 44;
   const normalizedRadius = radius - strokeWidth / 2;
   const circumference = normalizedRadius * 2 * Math.PI;
   
@@ -142,7 +142,7 @@ function DonutChart({
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="text-center">
           <motion.div
-            className="text-6xl font-black text-white tabular-nums"
+            className="text-5xl font-black text-white tabular-nums"
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: "spring", delay: 0.5 }}
@@ -226,11 +226,11 @@ function TradePanel({
               <AnimatePresence>
                 {hoveredTrade === `${client}-${trade.code}` && trade.list.length > 0 && (
                   <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                    initial={{ opacity: 0, scale: 0.95, x: client === "SKA" ? 10 : -10 }}
+                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, x: client === "SKA" ? 10 : -10 }}
                     transition={{ duration: 0.15 }}
-                    className={`absolute z-[1000] ${client === "SKA" ? "left-full ml-4" : "right-full mr-4"} top-0 min-w-[400px] max-w-[600px]`}
+                    className={`fixed z-[1000] ${client === "SKA" ? "left-4" : "right-4"} top-1/2 -translate-y-1/2 min-w-[380px] max-w-[500px]`}
                   >
                     <div className="bg-slate-800/90 backdrop-blur-2xl border border-slate-500/50 rounded-2xl shadow-2xl overflow-hidden">
                       <div className={`px-4 py-2 border-b border-slate-700/50 ${client === "SKA" ? "bg-blue-950/50" : "bg-orange-950/50"}`}>
@@ -459,7 +459,7 @@ export default function DashboardPage() {
   return (
     <AppShell>
       <div 
-        className="min-h-[calc(100vh-80px)] rounded-3xl overflow-hidden relative"
+        className="h-[calc(100vh-80px)] rounded-2xl overflow-hidden relative"
         style={{
           backgroundImage: `url(https://image2url.com/r2/default/images/1770311131560-2493d85c-5fef-4dbd-96b2-5c844492a9aa.jpg)`,
           backgroundSize: 'cover',
@@ -490,11 +490,23 @@ export default function DashboardPage() {
               exit={{ opacity: 0 }}
               className="relative z-10 h-full flex flex-col"
             >
-              {/* Compact Header with Title - CENTER */}
-              <div className="flex flex-col items-center px-6 py-4 border-b border-slate-800/50">
-                {/* Title - Center Top */}
+              {/* Compact Header */}
+              <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800/50">
+                {/* Top Left - CMS Live Data */}
+                <div className="flex items-center gap-2">
+                  <motion.div
+                    className="w-2 h-2 rounded-full bg-emerald-500"
+                    animate={{ opacity: [1, 0.3, 1], scale: [1, 1.2, 1] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  />
+                  <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
+                    CMS - Live Data
+                  </span>
+                </div>
+                
+                {/* Title - Center */}
                 <h1 
-                  className="text-2xl font-black text-white uppercase tracking-[0.3em] mb-2"
+                  className="text-xl font-black text-white uppercase tracking-[0.25em]"
                   style={{ 
                     fontFamily: "'Orbitron', 'Rajdhani', sans-serif",
                     textShadow: "0 0 30px rgba(59, 130, 246, 0.5), 0 0 60px rgba(249, 115, 22, 0.3)"
@@ -502,24 +514,17 @@ export default function DashboardPage() {
                 >
                   PROVISION OF IMS - PCSB
                 </h1>
-                <div className="flex items-center gap-3">
-                  <motion.div
-                    className="w-2 h-2 rounded-full bg-emerald-500"
-                    animate={{ opacity: [1, 0.3, 1] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  />
-                  <span className="text-[10px] text-slate-400 uppercase tracking-wider">
-                    Live POB Status
-                  </span>
-                </div>
+                
+                {/* Right placeholder for balance */}
+                <div className="w-[120px]" />
               </div>
 
               {/* Main HUD Content - Compact */}
-              <div className="flex-1 flex flex-col items-center justify-start pt-4 px-6">
+              <div className="flex-1 flex flex-col items-center justify-center px-4 -mt-2">
                 {/* Date Picker - Above Donut */}
-                <div className="mb-4">
-                  <div className="bg-slate-800/60 backdrop-blur-xl border border-slate-700/50 rounded-2xl px-6 py-3 flex items-center gap-4">
-                    <div className="text-[9px] text-slate-400 uppercase tracking-wider">System Date</div>
+                <div className="mb-3">
+                  <div className="bg-slate-800/60 backdrop-blur-xl border border-slate-700/50 rounded-xl px-4 py-2 flex items-center gap-3">
+                    <div className="text-[8px] text-slate-400 uppercase tracking-wider">Date</div>
                     <input
                       type="date"
                       value={systemDate.toISOString().split("T")[0]}
@@ -537,7 +542,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* HUD Layout: SKA (Left) - Donut (Center) - SBA (Right) */}
-                <div className="flex items-center justify-center gap-8 w-full max-w-6xl">
+                <div className="flex items-center justify-center gap-6 w-full max-w-5xl">
                   {/* SKA Panel - LEFT */}
                   <div className="flex-shrink-0 relative">
                     {/* Leader Line with Animated Arrow - Blue */}
@@ -627,7 +632,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Show Full List Button */}
-                <div className="mt-8">
+                <div className="mt-4">
                   <motion.button
                     type="button"
                     onClick={() => setViewMode("list")}
