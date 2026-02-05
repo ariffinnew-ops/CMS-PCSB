@@ -98,6 +98,9 @@ export default function AdminPage() {
   
   // Track newly added staff IDs for showing delete button
   const [newlyAddedIds, setNewlyAddedIds] = useState<Set<number>>(new Set());
+  
+  // Delete confirmation modal state
+  const [deleteModal, setDeleteModal] = useState<{ id: number; name: string } | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -390,9 +393,12 @@ export default function AdminPage() {
     setStaffSearchQuery("");
   };
 
-  // Delete newly added staff
-  const handleDeleteStaff = async (id: number, name: string) => {
-    if (!confirm(`Are you sure you want to delete ${name}?`)) return;
+  // Delete staff - called after confirmation
+  const handleDeleteStaff = async () => {
+    if (!deleteModal) return;
+    
+    const { id, name } = deleteModal;
+    setDeleteModal(null);
     
     setIsSyncing(true);
     const result = await deleteRosterRow(id);
@@ -625,11 +631,15 @@ export default function AdminPage() {
                     <Fragment key={row.id}>
                       {showSeparator && (
                         <tr className="sticky top-0 z-[90] bg-slate-900 border-y border-slate-950 shadow-xl w-full">
-                          <td className="px-6 py-3 sticky left-0 z-[95] bg-slate-900 border-r border-slate-800">
+                          <td className="px-6 py-2 sticky left-0 z-[95] bg-slate-900 border-r border-slate-800">
                             <div className="flex items-center gap-3">
-                              <div className="text-[13px] font-black text-white uppercase tracking-widest truncate leading-none">
-                                {row.client} / {shortenPost(row.post)} /{" "}
-                                {row.location}
+                              <div className="flex flex-col">
+                                <span className="text-[15px] font-black text-white uppercase tracking-wider leading-tight">
+                                  {shortenPost(row.post)}
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide leading-tight">
+                                  {row.location} / {row.client}
+                                </span>
                               </div>
                               <button
                                 type="button"
@@ -645,7 +655,7 @@ export default function AdminPage() {
                               </button>
                             </div>
                           </td>
-                          <td className="bg-slate-900 py-3 h-12 w-full" />
+                          <td className="bg-slate-900 py-2 h-12 w-full" />
                         </tr>
                       )}
                       <tr className="transition-colors group h-14 hover:bg-blue-50/20">
@@ -654,16 +664,14 @@ export default function AdminPage() {
                             <span className="font-black text-foreground text-[11px] uppercase leading-tight block tracking-tight whitespace-normal break-words flex-1">
                               {row.crew_name}
                             </span>
-                            {newlyAddedIds.has(row.id) && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteStaff(row.id, row.crew_name)}
-                                className="flex items-center justify-center w-5 h-5 bg-red-500 hover:bg-red-400 text-white rounded-full text-[14px] font-black transition-all shadow-md hover:shadow-red-500/40 hover:scale-110 flex-shrink-0"
-                                title="Delete Staff"
-                              >
-                                -
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => setDeleteModal({ id: row.id, name: row.crew_name })}
+                              className="flex items-center justify-center w-5 h-5 bg-red-500 hover:bg-red-400 text-white rounded-full text-[14px] font-black transition-all shadow-md hover:shadow-red-500/40 hover:scale-110 flex-shrink-0 opacity-0 group-hover:opacity-100"
+                              title="Delete Staff"
+                            >
+                              -
+                            </button>
                           </div>
                         </td>
                         <td className="px-6 py-1 whitespace-nowrap">
@@ -1008,6 +1016,43 @@ export default function AdminPage() {
                 >
                   Add to Roster
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DELETE CONFIRMATION MODAL */}
+        {deleteModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[3000] flex items-center justify-center p-4">
+            <div className="bg-card rounded-3xl shadow-2xl border border-border w-full max-w-md p-8 animate-in zoom-in-95 duration-200">
+              <div className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                  <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-black text-foreground uppercase tracking-tight mb-2">
+                  Delete Staff?
+                </h3>
+                <p className="text-muted-foreground text-sm mb-6">
+                  Are you sure you want to delete <strong className="text-foreground">{deleteModal.name}</strong>? This action cannot be undone.
+                </p>
+                <div className="flex gap-3 w-full">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteModal(null)}
+                    className="flex-1 px-6 py-3 rounded-2xl bg-muted hover:bg-muted/80 text-foreground font-black text-[11px] uppercase tracking-widest transition-all border border-border"
+                  >
+                    No, Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteStaff}
+                    className="flex-1 px-6 py-3 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-black text-[11px] uppercase tracking-widest transition-all shadow-lg hover:shadow-red-500/30"
+                  >
+                    Yes, Delete
+                  </button>
+                </div>
               </div>
             </div>
           </div>
