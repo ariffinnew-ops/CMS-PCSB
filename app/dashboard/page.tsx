@@ -161,17 +161,15 @@ function DonutChart({
   );
 }
 
-// Trade Panel with Name List Popover
+// Trade Panel - Just the panel, popover is rendered separately at page level
 function TradePanel({
   client,
   personnel,
-  systemDate,
   hoveredTrade,
   onTradeHover,
 }: {
   client: "SKA" | "SBA";
   personnel: RosterRow[];
-  systemDate: Date;
   hoveredTrade: string | null;
   onTradeHover: (trade: string | null) => void;
 }) {
@@ -180,105 +178,115 @@ function TradePanel({
   const ohnList = personnel.filter((p) => p.post?.includes("IM") || p.post?.includes("OHN"));
 
   const trades = [
-    { code: "OM", name: "Offshore Medic", list: omList, color: "from-blue-500 to-blue-600", textColor: "text-blue-400" },
-    { code: "EM", name: "Escort Medic", list: emList, color: "from-emerald-500 to-emerald-600", textColor: "text-emerald-400" },
-    { code: "OHN", name: "IMP / OHN", list: ohnList, color: "from-amber-500 to-amber-600", textColor: "text-amber-400" },
+    { code: "OM", name: "Offshore Medic", list: omList, color: "from-blue-500 to-blue-600" },
+    { code: "EM", name: "Escort Medic", list: emList, color: "from-emerald-500 to-emerald-600" },
+    { code: "OHN", name: "IMP / OHN", list: ohnList, color: "from-amber-500 to-amber-600" },
   ];
 
   return (
-    <div className="relative">
-      <div className="bg-slate-800/60 backdrop-blur-xl border border-slate-600/50 rounded-2xl p-4 shadow-2xl min-w-[180px]">
-        {/* Header */}
-        <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-700/50">
-          <div className={`w-3 h-3 rounded-full ${client === "SKA" ? "bg-blue-500 shadow-lg shadow-blue-500/50" : "bg-orange-500 shadow-lg shadow-orange-500/50"}`} />
-          <span className="text-sm font-black text-white uppercase tracking-wider">
-            {client}
-          </span>
-          <span className="text-2xl font-black text-white ml-auto tabular-nums">
-            {personnel.length}
-          </span>
-        </div>
-        
-        {/* Trade Rows */}
-        <div className="space-y-2">
-          {trades.map((trade) => (
-            <div key={trade.code} className="relative">
-              <motion.div
-                className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all ${
-                  hoveredTrade === `${client}-${trade.code}`
-                    ? "bg-slate-800/90 ring-2 ring-cyan-500/50"
-                    : "hover:bg-slate-800/50"
-                }`}
-                onMouseEnter={() => onTradeHover(`${client}-${trade.code}`)}
-                onMouseLeave={() => onTradeHover(null)}
-                whileHover={{ scale: 1.02 }}
-              >
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${trade.color} flex items-center justify-center shadow-lg`}>
-                  <span className="text-[11px] font-black text-white">{trade.code}</span>
-                </div>
-                <div className="flex-1">
-                  <div className="text-[9px] text-slate-400 uppercase tracking-wide">{trade.name}</div>
-                </div>
-                <div className="text-xl font-black text-white tabular-nums">{trade.list.length}</div>
-              </motion.div>
-
-              {/* Name List Popover - Fixed position, visible on screen edges */}
-              <AnimatePresence>
-                {hoveredTrade === `${client}-${trade.code}` && trade.list.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ duration: 0.2 }}
-                    className={`fixed z-[9999] top-1/2 -translate-y-1/2 min-w-[350px] max-w-[450px] ${
-                      client === "SKA" ? "left-6" : "right-6"
-                    }`}
-                    style={{ pointerEvents: 'auto' }}
-                  >
-                    <div className={`bg-slate-800/95 backdrop-blur-2xl border-2 rounded-2xl shadow-2xl overflow-hidden ${
-                      client === "SKA" ? "border-blue-500/50" : "border-orange-500/50"
-                    }`}>
-                      <div className={`px-4 py-2 border-b border-slate-700/50 ${client === "SKA" ? "bg-blue-950/50" : "bg-orange-950/50"}`}>
-                        <span className={`text-xs font-bold uppercase tracking-wider ${trade.textColor}`}>
-                          {client} - {trade.name}
-                        </span>
-                        <span className="text-xs text-slate-400 ml-2">({trade.list.length})</span>
-                      </div>
-                      <div className={`p-3 ${trade.list.length > 6 ? "grid grid-cols-2 gap-x-4 gap-y-1" : "space-y-1"}`}>
-                        {trade.list.map((person) => {
-                          const days = getDaysOnBoard(person, systemDate);
-                          const range = getActiveRotationRange(person, systemDate);
-                          const isOHN = person.post?.includes("IM") || person.post?.includes("OHN");
-                          
-                          return (
-                            <div
-                              key={person.id}
-                              className="flex items-center gap-2 text-[10px] py-1 px-2 rounded hover:bg-slate-800/50"
-                            >
-                              <span className="font-semibold text-white truncate flex-shrink min-w-0 max-w-[120px]">
-                                {person.crew_name}
-                              </span>
-                              <span className="text-slate-500">-</span>
-                              <span className={`font-bold tabular-nums ${days >= 14 ? "text-red-400" : "text-cyan-400"}`}>
-                                {isOHN ? "-" : days > 0 ? `${days}d` : "-"}
-                              </span>
-                              <span className="text-slate-500">-</span>
-                              <span className="text-slate-400 tabular-nums whitespace-nowrap">
-                                {isOHN ? "Weekdays" : range.start ? `${formatDate(range.start)}-${formatDate(range.end)}` : "-"}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+    <div className="bg-slate-800/60 backdrop-blur-xl border border-slate-600/50 rounded-2xl p-4 shadow-2xl min-w-[180px]">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-700/50">
+        <div className={`w-3 h-3 rounded-full ${client === "SKA" ? "bg-blue-500 shadow-lg shadow-blue-500/50" : "bg-orange-500 shadow-lg shadow-orange-500/50"}`} />
+        <span className="text-sm font-black text-white uppercase tracking-wider">
+          {client}
+        </span>
+        <span className="text-2xl font-black text-white ml-auto tabular-nums">
+          {personnel.length}
+        </span>
+      </div>
+      
+      {/* Trade Rows */}
+      <div className="space-y-2">
+        {trades.map((trade) => (
+          <motion.div
+            key={trade.code}
+            className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all ${
+              hoveredTrade === `${client}-${trade.code}`
+                ? "bg-slate-700/90 ring-2 ring-white/30"
+                : "hover:bg-slate-800/50"
+            }`}
+            onMouseEnter={() => onTradeHover(`${client}-${trade.code}`)}
+            onMouseLeave={() => onTradeHover(null)}
+            whileHover={{ scale: 1.02 }}
+          >
+            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${trade.color} flex items-center justify-center shadow-lg`}>
+              <span className="text-[11px] font-black text-white">{trade.code}</span>
             </div>
-          ))}
-        </div>
+            <div className="flex-1">
+              <div className="text-[9px] text-slate-400 uppercase tracking-wide">{trade.name}</div>
+            </div>
+            <div className="text-xl font-black text-white tabular-nums">{trade.list.length}</div>
+          </motion.div>
+        ))}
       </div>
     </div>
+  );
+}
+
+// Name List Popover Component - Rendered at page level for proper fixed positioning
+function NameListPopover({
+  client,
+  tradeCode,
+  tradeName,
+  personnel,
+  systemDate,
+}: {
+  client: "SKA" | "SBA";
+  tradeCode: string;
+  tradeName: string;
+  personnel: RosterRow[];
+  systemDate: Date;
+}) {
+  const textColor = tradeCode === "OM" ? "text-blue-400" : tradeCode === "EM" ? "text-emerald-400" : "text-amber-400";
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: client === "SKA" ? -20 : 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: client === "SKA" ? -20 : 20 }}
+      transition={{ duration: 0.2 }}
+      className={`fixed z-[9999] top-1/2 -translate-y-1/2 min-w-[380px] max-w-[480px] ${
+        client === "SKA" ? "left-4" : "right-4"
+      }`}
+    >
+      <div className={`bg-slate-900/95 backdrop-blur-2xl border-2 rounded-2xl shadow-2xl overflow-hidden ${
+        client === "SKA" ? "border-blue-500/60 shadow-blue-500/20" : "border-orange-500/60 shadow-orange-500/20"
+      }`}>
+        <div className={`px-4 py-3 border-b border-slate-700/50 ${client === "SKA" ? "bg-blue-950/60" : "bg-orange-950/60"}`}>
+          <span className={`text-sm font-bold uppercase tracking-wider ${textColor}`}>
+            {client} - {tradeName}
+          </span>
+          <span className="text-sm text-slate-400 ml-2">({personnel.length} personnel)</span>
+        </div>
+        <div className={`p-4 ${personnel.length > 6 ? "grid grid-cols-2 gap-x-6 gap-y-2" : "space-y-2"}`}>
+          {personnel.map((person) => {
+            const days = getDaysOnBoard(person, systemDate);
+            const range = getActiveRotationRange(person, systemDate);
+            const isOHN = person.post?.includes("IM") || person.post?.includes("OHN");
+            
+            return (
+              <div
+                key={person.id}
+                className="flex items-center gap-2 text-[11px] py-1.5 px-2 rounded-lg hover:bg-slate-800/50 transition-colors"
+              >
+                <span className="font-semibold text-white truncate min-w-0 max-w-[130px]">
+                  {person.crew_name}
+                </span>
+                <span className="text-slate-600">|</span>
+                <span className={`font-bold tabular-nums ${days >= 14 ? "text-red-400" : "text-cyan-400"}`}>
+                  {isOHN ? "-" : days > 0 ? `${days}d` : "-"}
+                </span>
+                <span className="text-slate-600">|</span>
+                <span className="text-slate-400 tabular-nums whitespace-nowrap text-[10px]">
+                  {isOHN ? "Weekdays" : range.start ? `${formatDate(range.start)}-${formatDate(range.end)}` : "-"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
@@ -550,37 +558,36 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-center gap-6 w-full max-w-5xl">
                   {/* SKA Panel - LEFT */}
                   <div className="flex-shrink-0 relative">
-                    {/* Leader Line with Animated Arrow - Blue (BIGGER) */}
-                    <div className="absolute top-1/2 -right-24 -translate-y-1/2 flex items-center gap-2">
-                      <motion.div
-                        className="w-28 h-[4px] bg-gradient-to-r from-blue-500 to-blue-400/30 rounded-full"
-                        initial={{ scaleX: 0 }}
-                        animate={{ scaleX: 1 }}
-                        transition={{ duration: 0.8, delay: 0.5 }}
-                        style={{ originX: 0, filter: "drop-shadow(0 0 10px rgba(59, 130, 246, 1))" }}
-                      />
+                    {/* Leader Line with Animated Arrow - Blue pointing LEFT (towards popover) */}
+                    <div className="absolute top-1/2 -left-28 -translate-y-1/2 flex items-center gap-2">
                       <motion.div
                         className="text-blue-400"
-                        initial={{ opacity: 0, x: -10 }}
+                        initial={{ opacity: 0, x: 10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.3, delay: 1.2 }}
                         style={{ filter: "drop-shadow(0 0 15px rgba(59, 130, 246, 1))" }}
                       >
                         <motion.svg 
-                          className="w-10 h-10" 
+                          className="w-12 h-12 rotate-180" 
                           viewBox="0 0 24 24" 
                           fill="currentColor"
-                          animate={{ x: [0, 8, 0] }}
+                          animate={{ x: [0, -8, 0] }}
                           transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
                         >
                           <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
                         </motion.svg>
                       </motion.div>
+                      <motion.div
+                        className="w-32 h-[5px] bg-gradient-to-l from-blue-500 to-blue-400/30 rounded-full"
+                        initial={{ scaleX: 0 }}
+                        animate={{ scaleX: 1 }}
+                        transition={{ duration: 0.8, delay: 0.5 }}
+                        style={{ originX: 1, filter: "drop-shadow(0 0 10px rgba(59, 130, 246, 1))" }}
+                      />
                     </div>
                     <TradePanel
                       client="SKA"
                       personnel={skaPersonnel}
-                      systemDate={systemDate}
                       hoveredTrade={hoveredTrade}
                       onTradeHover={setHoveredTrade}
                     />
@@ -599,37 +606,36 @@ export default function DashboardPage() {
 
                   {/* SBA Panel - RIGHT */}
                   <div className="flex-shrink-0 relative">
-                    {/* Leader Line with Animated Arrow - Orange (BIGGER) */}
-                    <div className="absolute top-1/2 -left-24 -translate-y-1/2 flex items-center gap-2">
+                    {/* Leader Line with Animated Arrow - Orange pointing RIGHT (towards popover) */}
+                    <div className="absolute top-1/2 -right-28 -translate-y-1/2 flex items-center gap-2">
+                      <motion.div
+                        className="w-32 h-[5px] bg-gradient-to-r from-orange-500 to-orange-400/30 rounded-full"
+                        initial={{ scaleX: 0 }}
+                        animate={{ scaleX: 1 }}
+                        transition={{ duration: 0.8, delay: 0.5 }}
+                        style={{ originX: 0, filter: "drop-shadow(0 0 10px rgba(249, 115, 22, 1))" }}
+                      />
                       <motion.div
                         className="text-orange-400"
-                        initial={{ opacity: 0, x: 10 }}
+                        initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.3, delay: 1.2 }}
                         style={{ filter: "drop-shadow(0 0 15px rgba(249, 115, 22, 1))" }}
                       >
                         <motion.svg 
-                          className="w-10 h-10 rotate-180" 
+                          className="w-12 h-12" 
                           viewBox="0 0 24 24" 
                           fill="currentColor"
-                          animate={{ x: [0, -8, 0] }}
+                          animate={{ x: [0, 8, 0] }}
                           transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
                         >
                           <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
                         </motion.svg>
                       </motion.div>
-                      <motion.div
-                        className="w-28 h-[4px] bg-gradient-to-l from-orange-500 to-orange-400/30 rounded-full"
-                        initial={{ scaleX: 0 }}
-                        animate={{ scaleX: 1 }}
-                        transition={{ duration: 0.8, delay: 0.5 }}
-                        style={{ originX: 1, filter: "drop-shadow(0 0 10px rgba(249, 115, 22, 1))" }}
-                      />
                     </div>
                     <TradePanel
                       client="SBA"
                       personnel={sbaPersonnel}
-                      systemDate={systemDate}
                       hoveredTrade={hoveredTrade}
                       onTradeHover={setHoveredTrade}
                     />
@@ -670,6 +676,42 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Name List Popovers - Rendered at page level for proper positioning */}
+              <AnimatePresence>
+                {hoveredTrade?.startsWith("SKA-") && (
+                  <NameListPopover
+                    client="SKA"
+                    tradeCode={hoveredTrade.split("-")[1]}
+                    tradeName={
+                      hoveredTrade === "SKA-OM" ? "Offshore Medic" :
+                      hoveredTrade === "SKA-EM" ? "Escort Medic" : "IMP / OHN"
+                    }
+                    personnel={
+                      hoveredTrade === "SKA-OM" ? skaPersonnel.filter(p => p.post?.includes("OFFSHORE")) :
+                      hoveredTrade === "SKA-EM" ? skaPersonnel.filter(p => p.post?.includes("ESCORT")) :
+                      skaPersonnel.filter(p => p.post?.includes("IM") || p.post?.includes("OHN"))
+                    }
+                    systemDate={systemDate}
+                  />
+                )}
+                {hoveredTrade?.startsWith("SBA-") && (
+                  <NameListPopover
+                    client="SBA"
+                    tradeCode={hoveredTrade.split("-")[1]}
+                    tradeName={
+                      hoveredTrade === "SBA-OM" ? "Offshore Medic" :
+                      hoveredTrade === "SBA-EM" ? "Escort Medic" : "IMP / OHN"
+                    }
+                    personnel={
+                      hoveredTrade === "SBA-OM" ? sbaPersonnel.filter(p => p.post?.includes("OFFSHORE")) :
+                      hoveredTrade === "SBA-EM" ? sbaPersonnel.filter(p => p.post?.includes("ESCORT")) :
+                      sbaPersonnel.filter(p => p.post?.includes("IM") || p.post?.includes("OHN"))
+                    }
+                    systemDate={systemDate}
+                  />
+                )}
+              </AnimatePresence>
             </motion.div>
           ) : (
             <motion.div
