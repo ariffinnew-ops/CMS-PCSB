@@ -225,6 +225,7 @@ function TradePanel({
 }
 
 // Name List Popover Component - Rendered at page level for proper fixed positioning
+// Shows only: NAME - LOCATION - DAYS. No scrollbar, fits all names.
 function NameListPopover({
   client,
   tradeCode,
@@ -239,47 +240,55 @@ function NameListPopover({
   systemDate: Date;
 }) {
   const textColor = tradeCode === "OM" ? "text-blue-400" : tradeCode === "EM" ? "text-emerald-400" : "text-amber-400";
-  
+  const count = personnel.length;
+  // Auto-reduce font size based on list length to fit without scrollbar
+  const fontSize = count > 20 ? "text-[8px]" : count > 14 ? "text-[9px]" : "text-[10px]";
+  const pySize = count > 20 ? "py-0.5" : count > 14 ? "py-0.5" : "py-1";
+
   return (
     <motion.div
       initial={{ opacity: 0, x: client === "SKA" ? -20 : 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: client === "SKA" ? -20 : 20 }}
       transition={{ duration: 0.2 }}
-      className={`fixed z-[9999] top-1/2 -translate-y-1/2 min-w-[380px] max-w-[480px] ${
+      className={`fixed z-[9999] top-1/2 -translate-y-1/2 ${
         client === "SKA" ? "left-4" : "right-4"
       }`}
+      style={{ maxWidth: '360px', minWidth: '280px' }}
     >
       <div className={`bg-slate-900/95 backdrop-blur-2xl border-2 rounded-2xl shadow-2xl overflow-hidden ${
         client === "SKA" ? "border-blue-500/60 shadow-blue-500/20" : "border-orange-500/60 shadow-orange-500/20"
       }`}>
-        <div className={`px-4 py-3 border-b border-slate-700/50 ${client === "SKA" ? "bg-blue-950/60" : "bg-orange-950/60"}`}>
-          <span className={`text-sm font-bold uppercase tracking-wider ${textColor}`}>
+        <div className={`px-3 py-2 border-b border-slate-700/50 ${client === "SKA" ? "bg-blue-950/60" : "bg-orange-950/60"}`}>
+          <span className={`text-xs font-bold uppercase tracking-wider ${textColor}`}>
             {client} - {tradeName}
           </span>
-          <span className="text-sm text-slate-400 ml-2">({personnel.length} personnel)</span>
+          <span className="text-xs text-slate-400 ml-2">({count})</span>
         </div>
-        <div className="p-4 space-y-1 max-h-[70vh] overflow-y-auto">
-          {personnel.map((person) => {
+        <div className="px-3 py-2">
+          {/* Header row */}
+          <div className={`flex items-center gap-2 ${fontSize} ${pySize} px-1 text-slate-500 font-bold uppercase tracking-wide border-b border-slate-800 mb-1 pb-1`}>
+            <span className="w-[130px] truncate">Name</span>
+            <span className="flex-1 truncate">Location</span>
+            <span className="w-[32px] text-right">Days</span>
+          </div>
+          {personnel.map((person, idx) => {
             const days = getDaysOnBoard(person, systemDate);
-            const range = getActiveRotationRange(person, systemDate);
             const isOHN = person.post?.includes("IM") || person.post?.includes("OHN");
-            
+
             return (
               <div
                 key={person.id}
-                className="flex items-center gap-3 text-[11px] py-1.5 px-2 rounded-lg hover:bg-slate-800/50 transition-colors"
+                className={`flex items-center gap-2 ${fontSize} ${pySize} px-1 rounded hover:bg-slate-800/50 transition-colors`}
               >
-                <span className="font-semibold text-white truncate min-w-0 w-[140px]">
+                <span className="font-semibold text-white truncate w-[130px]">
                   {person.crew_name}
                 </span>
-                <span className="text-slate-600">|</span>
-                <span className={`font-bold tabular-nums ${days >= 14 ? "text-red-400" : "text-cyan-400"}`}>
-                  {isOHN ? "-" : days > 0 ? `${days}d` : "-"}
+                <span className="text-slate-400 truncate flex-1">
+                  {person.location || "-"}
                 </span>
-                <span className="text-slate-600">|</span>
-                <span className="text-slate-400 tabular-nums whitespace-nowrap text-[10px]">
-                  {isOHN ? "Weekdays" : range.start ? `${formatDate(range.start)}-${formatDate(range.end)}` : "-"}
+                <span className={`font-bold tabular-nums w-[32px] text-right ${days >= 14 ? "text-red-400" : "text-cyan-400"}`}>
+                  {isOHN ? "-" : days > 0 ? days : "-"}
                 </span>
               </div>
             );
@@ -290,7 +299,7 @@ function NameListPopover({
   );
 }
 
-// Compact Table Component for Full List View
+// Compact Table Component for Full List View - with filters and full scroll
 function CompactTable({
   personnel,
   systemDate,
@@ -298,14 +307,84 @@ function CompactTable({
   personnel: RosterRow[];
   systemDate: Date;
 }) {
+  const [clientFilter, setClientFilter] = useState<string>("ALL");
+  const [tradeFilter, setTradeFilter] = useState<string>("ALL");
+  const [locationFilter, setLocationFilter] = useState<string>("ALL");
+
+  // Get unique locations for filter dropdown
+  const locations = useMemo(() => {
+    const locs = [...new Set(personnel.map((p) => p.location).filter(Boolean))];
+    return locs.sort();
+  }, [personnel]);
+
+  // Apply filters
+  const filtered = useMemo(() => {
+    return personnel.filter((row) => {
+      if (clientFilter !== "ALL" && row.client !== clientFilter) return false;
+      if (tradeFilter !== "ALL") {
+        const tradeName = getFullTradeName(row.post);
+        const tradeShort = tradeName === "OFFSHORE MEDIC" ? "OM" : tradeName === "ESCORT MEDIC" ? "EM" : "OHN";
+        if (tradeShort !== tradeFilter) return false;
+      }
+      if (locationFilter !== "ALL" && row.location !== locationFilter) return false;
+      return true;
+    });
+  }, [personnel, clientFilter, tradeFilter, locationFilter]);
+
   let currentTradeCounter = 0;
 
   return (
     <div className="bg-slate-800/70 backdrop-blur-xl rounded-2xl border border-slate-600/50 overflow-hidden">
-      <div className="overflow-x-auto">
+      {/* Filter Bar */}
+      <div className="flex flex-wrap items-center gap-4 px-4 py-3 bg-slate-800/50 border-b border-slate-700/50">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Client</span>
+          <select
+            value={clientFilter}
+            onChange={(e) => setClientFilter(e.target.value)}
+            className="bg-slate-700/60 text-white text-xs font-bold rounded-lg px-3 py-1.5 border border-slate-600/50 outline-none cursor-pointer"
+          >
+            <option value="ALL">All</option>
+            <option value="SKA">SKA</option>
+            <option value="SBA">SBA</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Trade</span>
+          <select
+            value={tradeFilter}
+            onChange={(e) => setTradeFilter(e.target.value)}
+            className="bg-slate-700/60 text-white text-xs font-bold rounded-lg px-3 py-1.5 border border-slate-600/50 outline-none cursor-pointer"
+          >
+            <option value="ALL">All</option>
+            <option value="OM">OM</option>
+            <option value="EM">EM</option>
+            <option value="OHN">OHN</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Location</span>
+          <select
+            value={locationFilter}
+            onChange={(e) => setLocationFilter(e.target.value)}
+            className="bg-slate-700/60 text-white text-xs font-bold rounded-lg px-3 py-1.5 border border-slate-600/50 outline-none cursor-pointer min-w-[120px]"
+          >
+            <option value="ALL">All</option>
+            {locations.map((loc) => (
+              <option key={loc} value={loc}>{loc}</option>
+            ))}
+          </select>
+        </div>
+        <span className="ml-auto text-[10px] text-slate-400 font-bold">
+          Showing <span className="text-white">{filtered.length}</span> of {personnel.length}
+        </span>
+      </div>
+
+      {/* Scrollable Table */}
+      <div className="overflow-auto max-h-[calc(100vh-260px)]">
         <table className="w-full text-left">
-          <thead>
-            <tr className="bg-slate-800/50 border-b border-slate-700/50">
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-slate-800 border-b border-slate-700/50">
               <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">#</th>
               <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Name</th>
               <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Role</th>
@@ -316,8 +395,8 @@ function CompactTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/50">
-            {personnel.map((row, idx) => {
-              const prev = personnel[idx - 1];
+            {filtered.map((row, idx) => {
+              const prev = filtered[idx - 1];
               const tradeChanged = !prev || getTradeRank(prev.post) !== getTradeRank(row.post);
               const clientChanged = !prev || prev.client !== row.client;
               const showSeparator = clientChanged || tradeChanged;
@@ -339,9 +418,9 @@ function CompactTable({
                     <tr className="bg-slate-800/30">
                       <td colSpan={7} className="px-4 py-2">
                         <span className={`inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide ${
-                          row.client === "SKA" ? "text-cyan-400" : "text-emerald-400"
+                          row.client === "SKA" ? "text-blue-400" : "text-orange-400"
                         }`}>
-                          <span className={`w-2 h-2 rounded-full ${row.client === "SKA" ? "bg-cyan-400" : "bg-emerald-400"}`} />
+                          <span className={`w-2 h-2 rounded-full ${row.client === "SKA" ? "bg-blue-400" : "bg-orange-400"}`} />
                           {row.client} - {tradeName}
                         </span>
                       </td>
@@ -366,7 +445,7 @@ function CompactTable({
                     <td className="px-4 py-2.5 text-xs text-slate-400">{row.location}</td>
                     <td className="px-4 py-2.5">
                       <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold ${
-                        row.client === "SKA" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                        row.client === "SKA" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-orange-500/20 text-orange-400 border border-orange-500/30"
                       }`}>
                         {row.client}
                       </span>
@@ -393,10 +472,10 @@ function CompactTable({
                 </Fragment>
               );
             })}
-            {personnel.length === 0 && (
+            {filtered.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center">
-                  <p className="text-sm text-slate-500">No personnel on board for selected date</p>
+                  <p className="text-sm text-slate-500">No personnel match the selected filters</p>
                 </td>
               </tr>
             )}
@@ -630,10 +709,10 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 50 }}
-              className="relative z-10 p-6"
+              className="relative z-10 p-6 h-full overflow-auto"
             >
               {/* Back to HUD Button */}
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex justify-between items-center mb-4 sticky top-0 z-20 bg-transparent">
                 <motion.button
                   type="button"
                   onClick={() => setViewMode("hud")}
