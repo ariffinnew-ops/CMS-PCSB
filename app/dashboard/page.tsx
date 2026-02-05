@@ -259,7 +259,7 @@ function NameListPopover({
           </span>
           <span className="text-sm text-slate-400 ml-2">({personnel.length} personnel)</span>
         </div>
-        <div className={`p-4 ${personnel.length > 6 ? "grid grid-cols-2 gap-x-6 gap-y-2" : "space-y-2"}`}>
+        <div className="p-4 space-y-1 max-h-[70vh] overflow-y-auto">
           {personnel.map((person) => {
             const days = getDaysOnBoard(person, systemDate);
             const range = getActiveRotationRange(person, systemDate);
@@ -268,9 +268,9 @@ function NameListPopover({
             return (
               <div
                 key={person.id}
-                className="flex items-center gap-2 text-[11px] py-1.5 px-2 rounded-lg hover:bg-slate-800/50 transition-colors"
+                className="flex items-center gap-3 text-[11px] py-1.5 px-2 rounded-lg hover:bg-slate-800/50 transition-colors"
               >
-                <span className="font-semibold text-white truncate min-w-0 max-w-[130px]">
+                <span className="font-semibold text-white truncate min-w-0 w-[140px]">
                   {person.crew_name}
                 </span>
                 <span className="text-slate-600">|</span>
