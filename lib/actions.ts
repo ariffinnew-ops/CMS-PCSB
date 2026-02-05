@@ -79,18 +79,25 @@ export interface LoginLogEntry {
 }
 
 export async function recordLoginLog(log: Omit<LoginLogEntry, 'id'>): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
+  try {
+    const supabase = await createClient()
 
-  const { error } = await supabase
-    .from('login_logs')
-    .insert(log)
+    const { error } = await supabase
+      .from('login_logs')
+      .insert(log)
 
-  if (error) {
-    console.error('Error recording login log:', error)
-    return { success: false, error: error.message }
+    if (error) {
+      // Silently fail if table doesn't exist - logging is optional
+      console.warn('Login logging skipped (table may not exist):', error.message)
+      return { success: false, error: error.message }
+    }
+
+    return { success: true }
+  } catch (err) {
+    // Catch any unexpected errors to prevent login from failing
+    console.warn('Login logging failed:', err)
+    return { success: false, error: 'Logging unavailable' }
   }
-
-  return { success: true }
 }
 
 export async function getLoginLogs(): Promise<LoginLogEntry[]> {
