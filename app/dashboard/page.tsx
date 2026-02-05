@@ -557,34 +557,7 @@ export default function DashboardPage() {
                 {/* HUD Layout: SKA (Left) - Donut (Center) - SBA (Right) */}
                 <div className="flex items-center justify-center gap-6 w-full max-w-5xl">
                   {/* SKA Panel - LEFT */}
-                  <div className="flex-shrink-0 relative">
-                    {/* Leader Line with Animated Arrow - Blue pointing LEFT (towards popover) */}
-                    <div className="absolute top-1/2 -left-28 -translate-y-1/2 flex items-center gap-2">
-                      <motion.div
-                        className="text-blue-400"
-                        initial={{ opacity: 0, x: 10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.3, delay: 1.2 }}
-                        style={{ filter: "drop-shadow(0 0 15px rgba(59, 130, 246, 1))" }}
-                      >
-                        <motion.svg 
-                          className="w-12 h-12 rotate-180" 
-                          viewBox="0 0 24 24" 
-                          fill="currentColor"
-                          animate={{ x: [0, -8, 0] }}
-                          transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
-                        >
-                          <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
-                        </motion.svg>
-                      </motion.div>
-                      <motion.div
-                        className="w-32 h-[5px] bg-gradient-to-l from-blue-500 to-blue-400/30 rounded-full"
-                        initial={{ scaleX: 0 }}
-                        animate={{ scaleX: 1 }}
-                        transition={{ duration: 0.8, delay: 0.5 }}
-                        style={{ originX: 1, filter: "drop-shadow(0 0 10px rgba(59, 130, 246, 1))" }}
-                      />
-                    </div>
+                  <div className="flex-shrink-0">
                     <TradePanel
                       client="SKA"
                       personnel={skaPersonnel}
@@ -605,34 +578,7 @@ export default function DashboardPage() {
                   </div>
 
                   {/* SBA Panel - RIGHT */}
-                  <div className="flex-shrink-0 relative">
-                    {/* Leader Line with Animated Arrow - Orange pointing RIGHT (towards popover) */}
-                    <div className="absolute top-1/2 -right-28 -translate-y-1/2 flex items-center gap-2">
-                      <motion.div
-                        className="w-32 h-[5px] bg-gradient-to-r from-orange-500 to-orange-400/30 rounded-full"
-                        initial={{ scaleX: 0 }}
-                        animate={{ scaleX: 1 }}
-                        transition={{ duration: 0.8, delay: 0.5 }}
-                        style={{ originX: 0, filter: "drop-shadow(0 0 10px rgba(249, 115, 22, 1))" }}
-                      />
-                      <motion.div
-                        className="text-orange-400"
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.3, delay: 1.2 }}
-                        style={{ filter: "drop-shadow(0 0 15px rgba(249, 115, 22, 1))" }}
-                      >
-                        <motion.svg 
-                          className="w-12 h-12" 
-                          viewBox="0 0 24 24" 
-                          fill="currentColor"
-                          animate={{ x: [0, 8, 0] }}
-                          transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
-                        >
-                          <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
-                        </motion.svg>
-                      </motion.div>
-                    </div>
+                  <div className="flex-shrink-0">
                     <TradePanel
                       client="SBA"
                       personnel={sbaPersonnel}
