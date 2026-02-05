@@ -42,12 +42,12 @@ function DonutChart({
 
   return (
     <div className="relative">
-      {/* Heavy 3D Shadow Layers */}
-      <div className="absolute inset-0 blur-3xl opacity-50">
-        <div className="w-full h-full rounded-full bg-gradient-to-br from-blue-600 via-transparent to-emerald-600" />
+      {/* Heavy 3D Shadow Layers - Blue and Orange */}
+      <div className="absolute inset-0 blur-3xl opacity-60">
+        <div className="w-full h-full rounded-full bg-gradient-to-br from-blue-600 via-transparent to-orange-500" />
       </div>
-      <div className="absolute inset-2 blur-2xl opacity-30">
-        <div className="w-full h-full rounded-full bg-gradient-to-tr from-cyan-500 to-green-500" />
+      <div className="absolute inset-2 blur-2xl opacity-40">
+        <div className="w-full h-full rounded-full bg-gradient-to-tr from-blue-500 to-orange-400" />
       </div>
       
       <svg
@@ -76,11 +76,18 @@ function DonutChart({
           cy={radius}
         />
         
-        {/* SKA Segment (LEFT side) - Neon Blue */}
+        {/* SKA Segment (LEFT side) - Solid Blue with 3D */}
+        <defs>
+          <linearGradient id="skaBlueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#3b82f6" />
+            <stop offset="50%" stopColor="#2563eb" />
+            <stop offset="100%" stopColor="#1d4ed8" />
+          </linearGradient>
+        </defs>
         <motion.circle
-          stroke={hoveredSegment === "SKA" ? "#00d4ff" : "#0ea5e9"}
+          stroke="url(#skaBlueGradient)"
           fill="transparent"
-          strokeWidth={hoveredSegment === "SKA" ? strokeWidth + 12 : strokeWidth}
+          strokeWidth={hoveredSegment === "SKA" ? strokeWidth + 14 : strokeWidth}
           strokeDasharray={`${skaStroke} ${circumference}`}
           strokeLinecap="round"
           r={normalizedRadius}
@@ -89,8 +96,8 @@ function DonutChart({
           className="cursor-pointer transition-all duration-300"
           style={{
             filter: hoveredSegment === "SKA" 
-              ? "drop-shadow(0 0 30px #00d4ff) drop-shadow(0 0 60px #0ea5e9)" 
-              : "drop-shadow(0 0 10px rgba(14, 165, 233, 0.5))",
+              ? "drop-shadow(0 0 40px #3b82f6) drop-shadow(0 0 80px #2563eb) drop-shadow(0 8px 16px rgba(0,0,0,0.5))" 
+              : "drop-shadow(0 0 15px rgba(59, 130, 246, 0.6)) drop-shadow(0 6px 12px rgba(0,0,0,0.4))",
           }}
           onMouseEnter={() => onSegmentHover("SKA")}
           onMouseLeave={() => onSegmentHover(null)}
@@ -99,11 +106,18 @@ function DonutChart({
           transition={{ duration: 1.2, ease: "easeOut" }}
         />
         
-        {/* SBA Segment (RIGHT side) - Neon Emerald */}
+        {/* SBA Segment (RIGHT side) - Solid Orange with 3D */}
+        <defs>
+          <linearGradient id="sbaOrangeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#fb923c" />
+            <stop offset="50%" stopColor="#f97316" />
+            <stop offset="100%" stopColor="#ea580c" />
+          </linearGradient>
+        </defs>
         <motion.circle
-          stroke={hoveredSegment === "SBA" ? "#00ff88" : "#10b981"}
+          stroke="url(#sbaOrangeGradient)"
           fill="transparent"
-          strokeWidth={hoveredSegment === "SBA" ? strokeWidth + 12 : strokeWidth}
+          strokeWidth={hoveredSegment === "SBA" ? strokeWidth + 14 : strokeWidth}
           strokeDasharray={`${sbaStroke} ${circumference}`}
           strokeDashoffset={-skaStroke}
           strokeLinecap="round"
@@ -113,8 +127,8 @@ function DonutChart({
           className="cursor-pointer transition-all duration-300"
           style={{
             filter: hoveredSegment === "SBA" 
-              ? "drop-shadow(0 0 30px #00ff88) drop-shadow(0 0 60px #10b981)" 
-              : "drop-shadow(0 0 10px rgba(16, 185, 129, 0.5))",
+              ? "drop-shadow(0 0 40px #f97316) drop-shadow(0 0 80px #ea580c) drop-shadow(0 8px 16px rgba(0,0,0,0.5))" 
+              : "drop-shadow(0 0 15px rgba(249, 115, 22, 0.6)) drop-shadow(0 6px 12px rgba(0,0,0,0.4))",
           }}
           onMouseEnter={() => onSegmentHover("SBA")}
           onMouseLeave={() => onSegmentHover(null)}
@@ -176,7 +190,7 @@ function TradePanel({
       <div className="bg-slate-800/60 backdrop-blur-xl border border-slate-600/50 rounded-2xl p-4 shadow-2xl min-w-[180px]">
         {/* Header */}
         <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-700/50">
-          <div className={`w-3 h-3 rounded-full ${client === "SKA" ? "bg-cyan-400 shadow-lg shadow-cyan-400/50" : "bg-emerald-400 shadow-lg shadow-emerald-400/50"}`} />
+          <div className={`w-3 h-3 rounded-full ${client === "SKA" ? "bg-blue-500 shadow-lg shadow-blue-500/50" : "bg-orange-500 shadow-lg shadow-orange-500/50"}`} />
           <span className="text-sm font-black text-white uppercase tracking-wider">
             {client}
           </span>
@@ -216,10 +230,10 @@ function TradePanel({
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: -10 }}
                     transition={{ duration: 0.15 }}
-                    className={`absolute z-[100] ${client === "SKA" ? "left-full ml-4" : "right-full mr-4"} top-0 min-w-[400px] max-w-[600px]`}
+                    className={`absolute z-[1000] ${client === "SKA" ? "left-full ml-4" : "right-full mr-4"} top-0 min-w-[400px] max-w-[600px]`}
                   >
                     <div className="bg-slate-800/90 backdrop-blur-2xl border border-slate-500/50 rounded-2xl shadow-2xl overflow-hidden">
-                      <div className={`px-4 py-2 border-b border-slate-700/50 ${client === "SKA" ? "bg-cyan-950/50" : "bg-emerald-950/50"}`}>
+                      <div className={`px-4 py-2 border-b border-slate-700/50 ${client === "SKA" ? "bg-blue-950/50" : "bg-orange-950/50"}`}>
                         <span className={`text-xs font-bold uppercase tracking-wider ${trade.textColor}`}>
                           {client} - {trade.name}
                         </span>
@@ -476,8 +490,18 @@ export default function DashboardPage() {
               exit={{ opacity: 0 }}
               className="relative z-10 h-full flex flex-col"
             >
-              {/* Compact Header with Title */}
-              <div className="flex items-center justify-between px-6 py-3 border-b border-slate-800/50">
+              {/* Compact Header with Title - CENTER */}
+              <div className="flex flex-col items-center px-6 py-4 border-b border-slate-800/50">
+                {/* Title - Center Top */}
+                <h1 
+                  className="text-2xl font-black text-white uppercase tracking-[0.3em] mb-2"
+                  style={{ 
+                    fontFamily: "'Orbitron', 'Rajdhani', sans-serif",
+                    textShadow: "0 0 30px rgba(59, 130, 246, 0.5), 0 0 60px rgba(249, 115, 22, 0.3)"
+                  }}
+                >
+                  PROVISION OF IMS - PCSB
+                </h1>
                 <div className="flex items-center gap-3">
                   <motion.div
                     className="w-2 h-2 rounded-full bg-emerald-500"
@@ -487,16 +511,6 @@ export default function DashboardPage() {
                   <span className="text-[10px] text-slate-400 uppercase tracking-wider">
                     Live POB Status
                   </span>
-                </div>
-                
-                {/* Title - Top Right */}
-                <div className="text-right">
-                  <h1 
-                    className="text-lg font-black text-white uppercase tracking-[0.2em]"
-                    style={{ fontFamily: "'Orbitron', 'Rajdhani', sans-serif" }}
-                  >
-                    PROVISION OF IMS - PCSB
-                  </h1>
                 </div>
               </div>
 
@@ -526,27 +540,28 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-center gap-8 w-full max-w-6xl">
                   {/* SKA Panel - LEFT */}
                   <div className="flex-shrink-0 relative">
-                    {/* Leader Line with Animated Arrow */}
-                    <div className="absolute top-1/2 -right-12 -translate-y-1/2 flex items-center gap-1">
+                    {/* Leader Line with Animated Arrow - Blue */}
+                    <div className="absolute top-1/2 -right-16 -translate-y-1/2 flex items-center gap-1">
                       <motion.div
-                        className="w-16 h-[2px] bg-gradient-to-r from-cyan-500 to-cyan-500/20"
+                        className="w-20 h-[3px] bg-gradient-to-r from-blue-500 to-blue-500/20 rounded-full"
                         initial={{ scaleX: 0 }}
                         animate={{ scaleX: 1 }}
                         transition={{ duration: 0.8, delay: 0.5 }}
-                        style={{ originX: 0 }}
+                        style={{ originX: 0, filter: "drop-shadow(0 0 6px rgba(59, 130, 246, 0.8))" }}
                       />
                       <motion.div
-                        className="text-cyan-500"
+                        className="text-blue-500"
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.3, delay: 1.2 }}
+                        style={{ filter: "drop-shadow(0 0 8px rgba(59, 130, 246, 0.8))" }}
                       >
                         <motion.svg 
-                          className="w-4 h-4" 
+                          className="w-6 h-6" 
                           viewBox="0 0 24 24" 
                           fill="currentColor"
-                          animate={{ x: [0, 4, 0] }}
-                          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                          animate={{ x: [0, 6, 0] }}
+                          transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
                         >
                           <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
                         </motion.svg>
@@ -574,30 +589,31 @@ export default function DashboardPage() {
 
                   {/* SBA Panel - RIGHT */}
                   <div className="flex-shrink-0 relative">
-                    {/* Leader Line with Animated Arrow */}
-                    <div className="absolute top-1/2 -left-12 -translate-y-1/2 flex items-center gap-1">
+                    {/* Leader Line with Animated Arrow - Orange */}
+                    <div className="absolute top-1/2 -left-16 -translate-y-1/2 flex items-center gap-1">
                       <motion.div
-                        className="text-emerald-500"
+                        className="text-orange-500"
                         initial={{ opacity: 0, x: 10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.3, delay: 1.2 }}
+                        style={{ filter: "drop-shadow(0 0 8px rgba(249, 115, 22, 0.8))" }}
                       >
                         <motion.svg 
-                          className="w-4 h-4 rotate-180" 
+                          className="w-6 h-6 rotate-180" 
                           viewBox="0 0 24 24" 
                           fill="currentColor"
-                          animate={{ x: [0, -4, 0] }}
-                          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                          animate={{ x: [0, -6, 0] }}
+                          transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
                         >
                           <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
                         </motion.svg>
                       </motion.div>
                       <motion.div
-                        className="w-16 h-[2px] bg-gradient-to-l from-emerald-500 to-emerald-500/20"
+                        className="w-20 h-[3px] bg-gradient-to-l from-orange-500 to-orange-500/20 rounded-full"
                         initial={{ scaleX: 0 }}
                         animate={{ scaleX: 1 }}
                         transition={{ duration: 0.8, delay: 0.5 }}
-                        style={{ originX: 1 }}
+                        style={{ originX: 1, filter: "drop-shadow(0 0 6px rgba(249, 115, 22, 0.8))" }}
                       />
                     </div>
                     <TradePanel
@@ -635,11 +651,11 @@ export default function DashboardPage() {
                 <span>Viewing: {formatDateLong(systemDate)}</span>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-cyan-500 shadow-lg shadow-cyan-500/50" />
+                    <div className="w-2 h-2 rounded-full bg-blue-500 shadow-lg shadow-blue-500/50" />
                     <span>SKA: {stats.ska}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50" />
+                    <div className="w-2 h-2 rounded-full bg-orange-500 shadow-lg shadow-orange-500/50" />
                     <span>SBA: {stats.sba}</span>
                   </div>
                 </div>
