@@ -306,7 +306,7 @@ export default function RosterPage() {
                         <tr key={`sep-${idx}`} className="bg-slate-300">
                           <td 
                             colSpan={daysInMonth.length + 1} 
-                            className="px-3 sticky left-0 z-10 border-t-2 border-b-2 border-slate-400 bg-slate-300"
+                            className="px-3 sticky left-0 z-10 border-t-2 border-b-2 border-white bg-slate-300"
                             style={{ height: '24px' }}
                           >
                             <div className="flex items-center h-full">
