@@ -54,26 +54,22 @@ export default function RosterPage() {
     });
   }, [viewDate]);
 
-  // Check if crew has any activity in selected month
   const hasActivityInMonth = (row: RosterRow) => {
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
     const monthStart = new Date(year, month, 1, 0, 0, 0, 0).getTime();
     const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999).getTime();
 
-    // OHN/IM staff are always shown (office-based)
     if (row.post?.includes("IM") || row.post?.includes("OHN")) {
       return true;
     }
 
-    // Check rotation dates for OM/EM
     for (let i = 1; i <= 24; i++) {
       const m = safeParseDate(row[`m${i}`] as string);
       const d = safeParseDate(row[`d${i}`] as string);
       if (m && d) {
         const rotationStart = m.getTime();
         const rotationEnd = d.getTime();
-        // Check if rotation overlaps with month
         if (rotationStart <= monthEnd && rotationEnd >= monthStart) {
           return true;
         }
@@ -82,7 +78,6 @@ export default function RosterPage() {
     return false;
   };
 
-  // Sort by Client -> Trade -> Location (matching Data Manager)
   const sortedData = useMemo(() => {
     return data
       .filter((row) => {
@@ -94,7 +89,6 @@ export default function RosterPage() {
           (tradeFilter === "EM" && row.post?.includes("ESCORT MEDIC")) ||
           (tradeFilter === "IMP/OHN" &&
             (row.post?.includes("IM") || row.post?.includes("OHN")));
-        // Filter out crew with no activity in selected month
         const hasActivity = hasActivityInMonth(row);
         return matchesClient && matchesTrade && hasActivity;
       })
@@ -116,7 +110,6 @@ export default function RosterPage() {
       });
   }, [data, clientFilter, tradeFilter, viewDate]);
 
-  // Group data with separators using full trade names
   const groupedData = useMemo(() => {
     const result: { type: 'separator' | 'row'; label?: string; row?: RosterRow; trade?: string }[] = [];
     let lastGroupKey = "";
@@ -150,13 +143,11 @@ export default function RosterPage() {
     const checkTime = checkDate.getTime();
     const dayOfWeek = checkDate.getDay();
 
-    // OHN/IM staff - continuous bars (weekday vs weekend coloring only)
     if (row.post?.includes("IM") || row.post?.includes("OHN")) {
       if (dayOfWeek === 0 || dayOfWeek === 6) return "OHN_WEEKEND";
       return "OHN_WEEKDAY";
     }
 
-    // OM/EM - check rotation dates
     for (let i = 1; i <= 24; i++) {
       const m = safeParseDate(row[`m${i}`] as string);
       const d = safeParseDate(row[`d${i}`] as string);
@@ -167,7 +158,6 @@ export default function RosterPage() {
     return "OFF";
   };
 
-  // OHN bars should be seamless - treat weekday/weekend as same "on" status for connectivity
   const getConnectStatus = (row: RosterRow, day: number) => {
     const status = getDayStatus(row, day);
     if (status === "OHN_WEEKDAY" || status === "OHN_WEEKEND") return "OHN";
@@ -190,7 +180,6 @@ export default function RosterPage() {
 
   return (
     <AppShell>
-      {/* CSS for bar animation */}
       <style jsx>{`
         @keyframes barSlideIn {
           from {
@@ -208,7 +197,6 @@ export default function RosterPage() {
       `}</style>
       
       <div className="space-y-4 animate-in fade-in duration-500 mt-4">
-        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight leading-none">
@@ -258,7 +246,6 @@ export default function RosterPage() {
           </div>
         </div>
 
-        {/* Table - Light Theme */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse" style={{ minWidth: '100%' }}>
@@ -301,7 +288,6 @@ export default function RosterPage() {
                 ) : (
                   groupedData.map((item, idx) => {
                     if (item.type === 'separator') {
-                      // Darker separator to separate sectors
                       return (
                         <tr key={`sep-${idx}`} className="bg-slate-300">
                           <td 
@@ -339,20 +325,15 @@ export default function RosterPage() {
                           const toNext = connectsToNext(row, d.dayNum);
                           const fromPrev = connectsFromPrev(row, d.dayNum);
 
-                          // Flat, solid bar styles - no gradients or heavy shadows
                           let barClass = "";
                           if (status === "PRIMARY" || status === "OHN_WEEKDAY") {
-                            // Medium Blue - clean solid color
                             barClass = "bg-blue-500";
                           } else if (status === "SECONDARY") {
-                            // Soft Sky Blue
                             barClass = "bg-sky-300";
                           } else if (status === "OHN_WEEKEND") {
-                            // Light Slate/Greyish Blue
                             barClass = "bg-slate-400";
                           }
 
-                          // Zero-gap continuous bars
                           const roundedLeft = !fromPrev ? "rounded-l-sm" : "";
                           const roundedRight = !toNext ? "rounded-r-sm" : "";
 
@@ -364,7 +345,6 @@ export default function RosterPage() {
                               }`}
                               style={{ height: '28px' }}
                             >
-                              {/* Clearer vertical grid line */}
                               <div className="absolute inset-y-0 right-0 w-px bg-gray-300 z-0" />
                               
                               {status !== "OFF" && (
@@ -390,7 +370,6 @@ export default function RosterPage() {
           </div>
         </div>
 
-        {/* Legend - Light Theme */}
         <div className="flex flex-wrap items-center gap-4 px-4 py-2 bg-white rounded-lg w-fit shadow-sm border border-gray-200">
           <div className="flex items-center gap-2">
             <div className="w-5 h-3 bg-blue-500 rounded-sm" />
