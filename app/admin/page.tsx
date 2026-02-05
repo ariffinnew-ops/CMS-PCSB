@@ -212,9 +212,69 @@ export default function AdminPage() {
     return alerts;
   }, [data]);
 
+  // Pending dates waiting for pair completion
+  const [pendingDates, setPendingDates] = useState<Record<string, { field: string; value: string; timestamp: number }>>({});
+
   const handleUpdate = async (id: number, field: string, value: string) => {
     // If date field is cleared, set to null
     const finalValue = value === "" ? null : value;
+    
+    // Determine if this is MOB (m) or DEMOB (d) field and get the rotation number
+    const isMob = field.startsWith("m");
+    const rotationNum = field.replace(/^[md]/, "");
+    const pairedField = isMob ? `d${rotationNum}` : `m${rotationNum}`;
+    
+    // Get current row data
+    const currentRow = data.find(r => r.id === id);
+    if (!currentRow) return;
+    
+    const pairedValue = currentRow[pairedField as keyof RosterRow] as string | null;
+    const pendingKey = `${id}-${rotationNum}`;
+    
+    // Check if we have a pending date for this rotation
+    const hasPending = pendingDates[pendingKey];
+    
+    // If clearing the date
+    if (!finalValue) {
+      // Allow clearing if both will be empty, or reject if only one remains
+      if (pairedValue && pairedValue !== "") {
+        showNotification("Cannot clear - dates must be in pairs (MOB & DEMOB)", "error");
+        return;
+      }
+    }
+    
+    // If setting a new date
+    if (finalValue) {
+      // Check if paired field has a value
+      if (!pairedValue || pairedValue === "") {
+        // No pair yet - store as pending and show warning
+        if (!hasPending) {
+          setPendingDates(prev => ({
+            ...prev,
+            [pendingKey]: { field, value: finalValue, timestamp: Date.now() }
+          }));
+          
+          // Optimistic update to show the value in UI
+          const updatedData = data.map((r) =>
+            r.id === id ? { ...r, [field]: finalValue } : r
+          );
+          setData(updatedData);
+          
+          const missingType = isMob ? "DEMOB" : "MOB";
+          showNotification(`Enter ${missingType} date to complete pair`, "error");
+          return;
+        }
+      }
+    }
+    
+    // Clear pending if completing the pair
+    if (hasPending) {
+      setPendingDates(prev => {
+        const newPending = { ...prev };
+        delete newPending[pendingKey];
+        return newPending;
+      });
+    }
     
     // Optimistic update
     const updatedData = data.map((r) =>
@@ -435,9 +495,9 @@ export default function AdminPage() {
         </div>
 
         {/* TIMELINE NAVIGATION */}
-        <div className="bg-card/50 backdrop-blur-md p-2 border-b border-border flex items-center gap-4 flex-shrink-0 shadow-sm">
+        <div className="bg-blue-600 backdrop-blur-md p-3 border-b border-blue-700 flex items-center gap-4 flex-shrink-0 shadow-lg rounded-xl mx-2 mt-2">
           <div className="flex items-center gap-3 flex-grow px-4">
-            <span className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+            <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">
               Matrix View Shift
             </span>
             <input
@@ -446,7 +506,7 @@ export default function AdminPage() {
               max={maxScroll}
               value={scrollPos}
               onChange={handleSliderChange}
-              className="flex-grow h-4 bg-gradient-to-r from-slate-200 via-slate-300 to-slate-200 rounded-full appearance-none cursor-pointer shadow-inner border border-slate-400"
+              className="flex-grow h-6 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 rounded-full appearance-none cursor-pointer shadow-lg border-2 border-blue-700"
               style={{
                 WebkitAppearance: 'none',
               }}
@@ -455,42 +515,46 @@ export default function AdminPage() {
               input[type="range"]::-webkit-slider-thumb {
                 -webkit-appearance: none;
                 appearance: none;
-                width: 28px;
-                height: 28px;
-                background: linear-gradient(145deg, #1e3a5f, #0f172a);
+                width: 36px;
+                height: 36px;
+                background: linear-gradient(145deg, #ffffff, #e0e0e0);
                 border-radius: 50%;
                 cursor: grab;
                 box-shadow: 
-                  0 4px 8px rgba(0, 0, 0, 0.4),
-                  0 2px 4px rgba(0, 0, 0, 0.3),
-                  inset 0 2px 4px rgba(255, 255, 255, 0.1),
-                  inset 0 -2px 4px rgba(0, 0, 0, 0.2);
-                border: 3px solid #334155;
+                  0 6px 12px rgba(0, 0, 0, 0.4),
+                  0 3px 6px rgba(0, 0, 0, 0.3),
+                  inset 0 3px 6px rgba(255, 255, 255, 0.9),
+                  inset 0 -3px 6px rgba(0, 0, 0, 0.15);
+                border: 3px solid #d1d5db;
                 transition: all 0.2s ease;
               }
               input[type="range"]::-webkit-slider-thumb:hover {
-                transform: scale(1.1);
-                background: linear-gradient(145deg, #2563eb, #1e40af);
+                transform: scale(1.15);
+                box-shadow: 
+                  0 8px 16px rgba(0, 0, 0, 0.5),
+                  0 4px 8px rgba(0, 0, 0, 0.4),
+                  inset 0 4px 8px rgba(255, 255, 255, 1),
+                  inset 0 -4px 8px rgba(0, 0, 0, 0.2);
               }
               input[type="range"]::-webkit-slider-thumb:active {
                 cursor: grabbing;
-                transform: scale(0.95);
+                transform: scale(1.05);
               }
               input[type="range"]::-moz-range-thumb {
-                width: 28px;
-                height: 28px;
-                background: linear-gradient(145deg, #1e3a5f, #0f172a);
+                width: 36px;
+                height: 36px;
+                background: linear-gradient(145deg, #ffffff, #e0e0e0);
                 border-radius: 50%;
                 cursor: grab;
                 box-shadow: 
-                  0 4px 8px rgba(0, 0, 0, 0.4),
-                  0 2px 4px rgba(0, 0, 0, 0.3),
-                  inset 0 2px 4px rgba(255, 255, 255, 0.1),
-                  inset 0 -2px 4px rgba(0, 0, 0, 0.2);
-                border: 3px solid #334155;
+                  0 6px 12px rgba(0, 0, 0, 0.4),
+                  0 3px 6px rgba(0, 0, 0, 0.3),
+                  inset 0 3px 6px rgba(255, 255, 255, 0.9),
+                  inset 0 -3px 6px rgba(0, 0, 0, 0.15);
+                border: 3px solid #d1d5db;
               }
             `}</style>
-            <span className="text-[9px] font-black text-foreground tabular-nums w-10 text-right">
+            <span className="text-[10px] font-black text-white tabular-nums w-12 text-right">
               {Math.round((scrollPos / (maxScroll || 1)) * 100)}%
             </span>
           </div>
@@ -535,7 +599,7 @@ export default function AdminPage() {
                       {showSeparator && (
                         <tr className="sticky top-0 z-[90] bg-slate-900 border-y border-slate-950 shadow-xl w-full">
                           <td className="px-6 py-2.5 sticky left-0 z-[95] bg-slate-900 border-r border-slate-800">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
                               <div className="text-[9px] font-black text-white uppercase tracking-widest truncate leading-none">
                                 {row.client} / {shortenPost(row.post)} /{" "}
                                 {row.location}
@@ -547,12 +611,10 @@ export default function AdminPage() {
                                   post: row.post,
                                   location: row.location,
                                 })}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[8px] font-black uppercase tracking-wide transition-all shadow-lg hover:shadow-emerald-500/30"
+                                className="flex items-center justify-center w-5 h-5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-full text-[14px] font-black transition-all shadow-md hover:shadow-emerald-500/40 hover:scale-110"
+                                title="Add Staff"
                               >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                </svg>
-                                Add Staff
+                                +
                               </button>
                             </div>
                           </td>
