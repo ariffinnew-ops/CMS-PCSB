@@ -5,7 +5,7 @@ import React from "react"
 import { useEffect, useState, useMemo, useRef, Fragment } from "react";
 import { AppShell } from "@/components/app-shell";
 import { RosterRow, TradeType } from "@/lib/types";
-import { getRosterData, updateRosterRow, createRosterRow } from "@/lib/actions";
+import { getRosterData, updateRosterRow, createRosterRow, deleteRosterRow } from "@/lib/actions";
 import { safeParseDate, getTradeRank, shortenPost } from "@/lib/logic";
 
 // Master list of staff for selection (from staff_rows concept)
@@ -95,6 +95,9 @@ export default function AdminPage() {
   } | null>(null);
   const [staffSearchQuery, setStaffSearchQuery] = useState("");
   const [selectedStaff, setSelectedStaff] = useState<typeof MASTER_STAFF_LIST[0] | null>(null);
+  
+  // Track newly added staff IDs for showing delete button
+  const [newlyAddedIds, setNewlyAddedIds] = useState<Set<number>>(new Set());
 
   const fetchData = async () => {
     setLoading(true);
@@ -373,6 +376,8 @@ export default function AdminPage() {
     if (result.success && result.data) {
       // Add to local data immediately
       setData((prev) => [...prev, result.data!]);
+      // Track as newly added for delete button
+      setNewlyAddedIds((prev) => new Set([...prev, result.data!.id]));
       setLastSynced(new Date());
       showNotification(`${staffName} added successfully`, "success");
     } else {
@@ -383,6 +388,28 @@ export default function AdminPage() {
     setAddStaffModal(null);
     setSelectedStaff(null);
     setStaffSearchQuery("");
+  };
+
+  // Delete newly added staff
+  const handleDeleteStaff = async (id: number, name: string) => {
+    if (!confirm(`Are you sure you want to delete ${name}?`)) return;
+    
+    setIsSyncing(true);
+    const result = await deleteRosterRow(id);
+    setIsSyncing(false);
+    
+    if (result.success) {
+      setData((prev) => prev.filter((row) => row.id !== id));
+      setNewlyAddedIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
+      setLastSynced(new Date());
+      showNotification(`${name} deleted`, "success");
+    } else {
+      showNotification(result.error || "Failed to delete", "error");
+    }
   };
 
   // Filter master list for modal
@@ -441,9 +468,9 @@ export default function AdminPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
-            <div className="flex flex-wrap items-center gap-3 bg-muted p-2 rounded-2xl border border-border shadow-inner">
-              <div className="flex flex-col px-3 border-r border-border">
-                <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">
+            <div className="flex flex-wrap items-center gap-4 bg-muted p-4 rounded-2xl border border-border shadow-inner">
+              <div className="flex flex-col px-4 border-r border-border">
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
                   Grade
                 </span>
                 <select
@@ -451,7 +478,7 @@ export default function AdminPage() {
                   onChange={(e) =>
                     setTradeFilter(e.target.value as TradeType | "ALL")
                   }
-                  className="bg-transparent text-[10px] font-black uppercase outline-none cursor-pointer"
+                  className="bg-transparent text-[14px] font-black uppercase outline-none cursor-pointer py-1"
                 >
                   <option value="ALL">ALL TRADES</option>
                   <option value="OM">OM</option>
@@ -459,14 +486,14 @@ export default function AdminPage() {
                   <option value="IMP/OHN">OHN</option>
                 </select>
               </div>
-              <div className="flex flex-col px-3 border-r border-border">
-                <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">
+              <div className="flex flex-col px-4 border-r border-border">
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
                   Site
                 </span>
                 <select
                   value={locationFilter}
                   onChange={(e) => setLocationFilter(e.target.value)}
-                  className="bg-transparent text-[10px] font-black uppercase outline-none cursor-pointer max-w-[150px]"
+                  className="bg-transparent text-[14px] font-black uppercase outline-none cursor-pointer max-w-[180px] py-1"
                 >
                   <option value="ALL">ALL SITES</option>
                   {locations.map((l) => (
@@ -476,16 +503,16 @@ export default function AdminPage() {
                   ))}
                 </select>
               </div>
-              <div className="flex flex-col px-3">
-                <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">
+              <div className="flex flex-col px-4">
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
                   Search
                 </span>
                 <input
                   type="text"
-                  placeholder="..."
+                  placeholder="Type name..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="bg-transparent border-none p-0 text-[10px] font-black uppercase outline-none w-28"
+                  className="bg-transparent border-none p-0 text-[14px] font-black uppercase outline-none w-36 py-1"
                 />
               </div>
             </div>
@@ -598,9 +625,9 @@ export default function AdminPage() {
                     <Fragment key={row.id}>
                       {showSeparator && (
                         <tr className="sticky top-0 z-[90] bg-slate-900 border-y border-slate-950 shadow-xl w-full">
-                          <td className="px-6 py-2.5 sticky left-0 z-[95] bg-slate-900 border-r border-slate-800">
-                            <div className="flex items-center gap-2">
-                              <div className="text-[9px] font-black text-white uppercase tracking-widest truncate leading-none">
+                          <td className="px-6 py-3 sticky left-0 z-[95] bg-slate-900 border-r border-slate-800">
+                            <div className="flex items-center gap-3">
+                              <div className="text-[13px] font-black text-white uppercase tracking-widest truncate leading-none">
                                 {row.client} / {shortenPost(row.post)} /{" "}
                                 {row.location}
                               </div>
@@ -611,21 +638,33 @@ export default function AdminPage() {
                                   post: row.post,
                                   location: row.location,
                                 })}
-                                className="flex items-center justify-center w-5 h-5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-full text-[14px] font-black transition-all shadow-md hover:shadow-emerald-500/40 hover:scale-110"
+                                className="flex items-center justify-center w-6 h-6 bg-emerald-500 hover:bg-emerald-400 text-white rounded-full text-[16px] font-black transition-all shadow-md hover:shadow-emerald-500/40 hover:scale-110"
                                 title="Add Staff"
                               >
                                 +
                               </button>
                             </div>
                           </td>
-                          <td className="bg-slate-900 py-2.5 h-10 w-full" />
+                          <td className="bg-slate-900 py-3 h-12 w-full" />
                         </tr>
                       )}
                       <tr className="transition-colors group h-14 hover:bg-blue-50/20">
                         <td className="px-6 py-2 sticky left-0 bg-card group-hover:bg-muted/50 z-50 border-r border-border shadow-sm">
-                          <span className="font-black text-foreground text-[11px] uppercase leading-tight block tracking-tight whitespace-normal break-words">
-                            {row.crew_name}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-foreground text-[11px] uppercase leading-tight block tracking-tight whitespace-normal break-words flex-1">
+                              {row.crew_name}
+                            </span>
+                            {newlyAddedIds.has(row.id) && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteStaff(row.id, row.crew_name)}
+                                className="flex items-center justify-center w-5 h-5 bg-red-500 hover:bg-red-400 text-white rounded-full text-[14px] font-black transition-all shadow-md hover:shadow-red-500/40 hover:scale-110 flex-shrink-0"
+                                title="Delete Staff"
+                              >
+                                -
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-1 whitespace-nowrap">
                           <div className="flex items-center gap-4">
