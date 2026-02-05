@@ -5,41 +5,8 @@ import { AppShell } from "@/components/app-shell";
 import { RosterRow, TradeType } from "@/lib/types";
 import { getRosterData, createRosterRow, updateRosterRow, deleteRosterRow } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 const POST_OPTIONS = [
   "OFFSHORE MEDIC",
@@ -204,6 +171,14 @@ export default function StaffManagerPage() {
     setIsDeleteOpen(true);
   };
 
+  const closeAllDialogs = () => {
+    setIsAddOpen(false);
+    setIsEditOpen(false);
+    setIsDeleteOpen(false);
+    setSelectedStaff(null);
+    resetForm();
+  };
+
   if (loading) {
     return (
       <AppShell>
@@ -216,7 +191,7 @@ export default function StaffManagerPage() {
 
   return (
     <AppShell>
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-6 mt-4">
         {/* NOTIFICATION */}
         {notification && (
           <div
@@ -331,29 +306,29 @@ export default function StaffManagerPage() {
         {/* TABLE */}
         <div className="bg-card rounded-2xl shadow-xl border border-border overflow-hidden">
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-slate-900 hover:bg-slate-900">
-                  <TableHead className="text-white font-black text-[10px] uppercase tracking-wider">Name</TableHead>
-                  <TableHead className="text-white font-black text-[10px] uppercase tracking-wider">Post</TableHead>
-                  <TableHead className="text-white font-black text-[10px] uppercase tracking-wider">Client</TableHead>
-                  <TableHead className="text-white font-black text-[10px] uppercase tracking-wider">Location</TableHead>
-                  <TableHead className="text-white font-black text-[10px] uppercase tracking-wider">Roles EM</TableHead>
-                  <TableHead className="text-white font-black text-[10px] uppercase tracking-wider text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-slate-900">
+                  <th className="text-left text-white font-black text-[10px] uppercase tracking-wider px-4 py-3">Name</th>
+                  <th className="text-left text-white font-black text-[10px] uppercase tracking-wider px-4 py-3">Post</th>
+                  <th className="text-left text-white font-black text-[10px] uppercase tracking-wider px-4 py-3">Client</th>
+                  <th className="text-left text-white font-black text-[10px] uppercase tracking-wider px-4 py-3">Location</th>
+                  <th className="text-left text-white font-black text-[10px] uppercase tracking-wider px-4 py-3">Roles EM</th>
+                  <th className="text-right text-white font-black text-[10px] uppercase tracking-wider px-4 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
                 {filteredData.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <tr>
+                    <td colSpan={6} className="text-center py-8 text-muted-foreground">
                       No staff found
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ) : (
                   filteredData.map((staff) => (
-                    <TableRow key={staff.id} className="hover:bg-muted/50">
-                      <TableCell className="font-bold text-foreground">{staff.crew_name}</TableCell>
-                      <TableCell>
+                    <tr key={staff.id} className="hover:bg-muted/50 transition-colors">
+                      <td className="px-4 py-3 font-bold text-foreground">{staff.crew_name}</td>
+                      <td className="px-4 py-3">
                         <span
                           className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${
                             staff.post?.includes("OFFSHORE MEDIC")
@@ -365,8 +340,8 @@ export default function StaffManagerPage() {
                         >
                           {staff.post}
                         </span>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td className="px-4 py-3">
                         <span
                           className={`px-2 py-1 rounded-lg text-[10px] font-black ${
                             staff.client === "SKA"
@@ -376,16 +351,14 @@ export default function StaffManagerPage() {
                         >
                           {staff.client}
                         </span>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{staff.location || "-"}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{staff.roles_em || "-"}</TableCell>
-                      <TableCell className="text-right">
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground text-sm">{staff.location || "-"}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-sm">{staff.roles_em || "-"}</td>
+                      <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
+                          <button
                             onClick={() => openEditDialog(staff)}
-                            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md flex items-center justify-center transition-colors"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path
@@ -395,12 +368,10 @@ export default function StaffManagerPage() {
                                 d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                               />
                             </svg>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
+                          </button>
+                          <button
                             onClick={() => openDeleteDialog(staff)}
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md flex items-center justify-center transition-colors"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path
@@ -410,236 +381,160 @@ export default function StaffManagerPage() {
                                 d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                               />
                             </svg>
-                          </Button>
+                          </button>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ))
                 )}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {/* ADD DIALOG */}
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle className="font-black uppercase tracking-tight">Add New Staff</DialogTitle>
-              <DialogDescription>
-                Fill in the details to add a new staff member.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="crew_name" className="text-xs font-bold uppercase">
-                  Name *
-                </Label>
-                <Input
-                  id="crew_name"
-                  value={formData.crew_name}
-                  onChange={(e) => setFormData({ ...formData, crew_name: e.target.value })}
-                  placeholder="Enter full name"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="post" className="text-xs font-bold uppercase">
-                  Post *
-                </Label>
-                <Select
-                  value={formData.post}
-                  onValueChange={(value) => setFormData({ ...formData, post: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select post" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {POST_OPTIONS.map((post) => (
-                      <SelectItem key={post} value={post}>
-                        {post}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="client" className="text-xs font-bold uppercase">
-                  Client *
-                </Label>
-                <Select
-                  value={formData.client}
-                  onValueChange={(value) => setFormData({ ...formData, client: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select client" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CLIENT_OPTIONS.map((client) => (
-                      <SelectItem key={client} value={client}>
-                        {client}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="location" className="text-xs font-bold uppercase">
-                  Location
-                </Label>
-                <Input
-                  id="location"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="e.g. FPSO PROSPERITY"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="roles_em" className="text-xs font-bold uppercase">
-                  Roles EM
-                </Label>
-                <Input
-                  id="roles_em"
-                  value={formData.roles_em}
-                  onChange={(e) => setFormData({ ...formData, roles_em: e.target.value })}
-                  placeholder="Enter roles"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleAdd}
-                disabled={isSaving}
-                className="bg-emerald-600 hover:bg-emerald-700"
+        {/* MODAL OVERLAY */}
+        {(isAddOpen || isEditOpen || isDeleteOpen) && (
+          <div 
+            className="fixed inset-0 bg-black/50 z-[1000] flex items-center justify-center p-4"
+            onClick={closeAllDialogs}
+          >
+            {/* ADD/EDIT MODAL */}
+            {(isAddOpen || isEditOpen) && (
+              <div 
+                className="bg-card rounded-2xl shadow-2xl border border-border w-full max-w-md p-6"
+                onClick={(e) => e.stopPropagation()}
               >
-                {isSaving ? "Saving..." : "Add Staff"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+                <div className="mb-6">
+                  <h3 className="text-xl font-black uppercase tracking-tight text-foreground">
+                    {isAddOpen ? "Add New Staff" : "Edit Staff"}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {isAddOpen ? "Fill in the details to add a new staff member." : "Update the staff member details."}
+                  </p>
+                </div>
 
-        {/* EDIT DIALOG */}
-        <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle className="font-black uppercase tracking-tight">Edit Staff</DialogTitle>
-              <DialogDescription>
-                Update the staff member details.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="edit_crew_name" className="text-xs font-bold uppercase">
-                  Name *
-                </Label>
-                <Input
-                  id="edit_crew_name"
-                  value={formData.crew_name}
-                  onChange={(e) => setFormData({ ...formData, crew_name: e.target.value })}
-                  placeholder="Enter full name"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit_post" className="text-xs font-bold uppercase">
-                  Post *
-                </Label>
-                <Select
-                  value={formData.post}
-                  onValueChange={(value) => setFormData({ ...formData, post: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select post" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {POST_OPTIONS.map((post) => (
-                      <SelectItem key={post} value={post}>
-                        {post}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit_client" className="text-xs font-bold uppercase">
-                  Client *
-                </Label>
-                <Select
-                  value={formData.client}
-                  onValueChange={(value) => setFormData({ ...formData, client: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select client" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CLIENT_OPTIONS.map((client) => (
-                      <SelectItem key={client} value={client}>
-                        {client}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit_location" className="text-xs font-bold uppercase">
-                  Location
-                </Label>
-                <Input
-                  id="edit_location"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="e.g. FPSO PROSPERITY"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit_roles_em" className="text-xs font-bold uppercase">
-                  Roles EM
-                </Label>
-                <Input
-                  id="edit_roles_em"
-                  value={formData.roles_em}
-                  onChange={(e) => setFormData({ ...formData, roles_em: e.target.value })}
-                  placeholder="Enter roles"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleEdit}
-                disabled={isSaving}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {isSaving ? "Saving..." : "Update Staff"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="crew_name" className="text-xs font-bold uppercase">
+                      Name *
+                    </Label>
+                    <Input
+                      id="crew_name"
+                      value={formData.crew_name}
+                      onChange={(e) => setFormData({ ...formData, crew_name: e.target.value })}
+                      placeholder="Enter full name"
+                    />
+                  </div>
 
-        {/* DELETE CONFIRMATION */}
-        <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="font-black uppercase">Delete Staff?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete <strong>{selectedStaff?.crew_name}</strong>? 
-                This action cannot be undone and will remove all rotation data associated with this staff member.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDelete}
-                className="bg-red-600 hover:bg-red-700"
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="post" className="text-xs font-bold uppercase">
+                      Post *
+                    </Label>
+                    <select
+                      id="post"
+                      value={formData.post}
+                      onChange={(e) => setFormData({ ...formData, post: e.target.value })}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      <option value="">Select post</option>
+                      {POST_OPTIONS.map((post) => (
+                        <option key={post} value={post}>
+                          {post}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="client" className="text-xs font-bold uppercase">
+                      Client *
+                    </Label>
+                    <select
+                      id="client"
+                      value={formData.client}
+                      onChange={(e) => setFormData({ ...formData, client: e.target.value })}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      <option value="">Select client</option>
+                      {CLIENT_OPTIONS.map((client) => (
+                        <option key={client} value={client}>
+                          {client}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="location" className="text-xs font-bold uppercase">
+                      Location
+                    </Label>
+                    <Input
+                      id="location"
+                      value={formData.location}
+                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                      placeholder="e.g. FPSO PROSPERITY"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="roles_em" className="text-xs font-bold uppercase">
+                      Roles EM
+                    </Label>
+                    <Input
+                      id="roles_em"
+                      value={formData.roles_em}
+                      onChange={(e) => setFormData({ ...formData, roles_em: e.target.value })}
+                      placeholder="Enter roles"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                  <Button variant="outline" onClick={closeAllDialogs}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={isAddOpen ? handleAdd : handleEdit}
+                    disabled={isSaving}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    {isSaving ? "Saving..." : isAddOpen ? "Add Staff" : "Save Changes"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* DELETE CONFIRMATION MODAL */}
+            {isDeleteOpen && selectedStaff && (
+              <div 
+                className="bg-card rounded-2xl shadow-2xl border border-border w-full max-w-md p-6"
+                onClick={(e) => e.stopPropagation()}
               >
-                {isSaving ? "Deleting..." : "Delete"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+                <div className="mb-6">
+                  <h3 className="text-xl font-black uppercase tracking-tight text-foreground">
+                    Confirm Delete
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Are you sure you want to delete <strong>{selectedStaff.crew_name}</strong>? This action cannot be undone.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <Button variant="outline" onClick={closeAllDialogs}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleDelete}
+                    disabled={isSaving}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    {isSaving ? "Deleting..." : "Delete"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </AppShell>
   );
