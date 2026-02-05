@@ -623,41 +623,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Name List Popovers - Rendered at page level for proper positioning */}
-              <AnimatePresence>
-                {hoveredTrade?.startsWith("SKA-") && (
-                  <NameListPopover
-                    client="SKA"
-                    tradeCode={hoveredTrade.split("-")[1]}
-                    tradeName={
-                      hoveredTrade === "SKA-OM" ? "Offshore Medic" :
-                      hoveredTrade === "SKA-EM" ? "Escort Medic" : "IMP / OHN"
-                    }
-                    personnel={
-                      hoveredTrade === "SKA-OM" ? skaPersonnel.filter(p => p.post?.includes("OFFSHORE")) :
-                      hoveredTrade === "SKA-EM" ? skaPersonnel.filter(p => p.post?.includes("ESCORT")) :
-                      skaPersonnel.filter(p => p.post?.includes("IM") || p.post?.includes("OHN"))
-                    }
-                    systemDate={systemDate}
-                  />
-                )}
-                {hoveredTrade?.startsWith("SBA-") && (
-                  <NameListPopover
-                    client="SBA"
-                    tradeCode={hoveredTrade.split("-")[1]}
-                    tradeName={
-                      hoveredTrade === "SBA-OM" ? "Offshore Medic" :
-                      hoveredTrade === "SBA-EM" ? "Escort Medic" : "IMP / OHN"
-                    }
-                    personnel={
-                      hoveredTrade === "SBA-OM" ? sbaPersonnel.filter(p => p.post?.includes("OFFSHORE")) :
-                      hoveredTrade === "SBA-EM" ? sbaPersonnel.filter(p => p.post?.includes("ESCORT")) :
-                      sbaPersonnel.filter(p => p.post?.includes("IM") || p.post?.includes("OHN"))
-                    }
-                    systemDate={systemDate}
-                  />
-                )}
-              </AnimatePresence>
             </motion.div>
           ) : (
             <motion.div
@@ -698,6 +663,42 @@ export default function DashboardPage() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Name List Popovers - Rendered OUTSIDE the overflow-hidden container */}
+      <AnimatePresence>
+        {hoveredTrade?.startsWith("SKA-") && (
+          <NameListPopover
+            client="SKA"
+            tradeCode={hoveredTrade.split("-")[1]}
+            tradeName={
+              hoveredTrade === "SKA-OM" ? "Offshore Medic" :
+              hoveredTrade === "SKA-EM" ? "Escort Medic" : "IMP / OHN"
+            }
+            personnel={
+              hoveredTrade === "SKA-OM" ? skaPersonnel.filter(p => p.post?.includes("OFFSHORE")) :
+              hoveredTrade === "SKA-EM" ? skaPersonnel.filter(p => p.post?.includes("ESCORT")) :
+              skaPersonnel.filter(p => p.post?.includes("IM") || p.post?.includes("OHN"))
+            }
+            systemDate={systemDate}
+          />
+        )}
+        {hoveredTrade?.startsWith("SBA-") && (
+          <NameListPopover
+            client="SBA"
+            tradeCode={hoveredTrade.split("-")[1]}
+            tradeName={
+              hoveredTrade === "SBA-OM" ? "Offshore Medic" :
+              hoveredTrade === "SBA-EM" ? "Escort Medic" : "IMP / OHN"
+            }
+            personnel={
+              hoveredTrade === "SBA-OM" ? sbaPersonnel.filter(p => p.post?.includes("OFFSHORE")) :
+              hoveredTrade === "SBA-EM" ? sbaPersonnel.filter(p => p.post?.includes("ESCORT")) :
+              sbaPersonnel.filter(p => p.post?.includes("IM") || p.post?.includes("OHN"))
+            }
+            systemDate={systemDate}
+          />
+        )}
+      </AnimatePresence>
     </AppShell>
   );
 }
