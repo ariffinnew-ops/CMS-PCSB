@@ -33,7 +33,7 @@ const COURSE_CONFIG: CourseConfig[] = [
 ];
 
 const ALL_COURSE_NAMES = COURSE_CONFIG.map((c) => c.name);
-const FIXED_COLS = 4; // #, Name, Trade, Client
+const FIXED_COLS = 2; // #, Name (Trade/Client shown in separator)
 
 // Pie chart colors: Green, Yellow, Orange (NO RED per spec)
 const PIE_GREEN = "#22c55e";
@@ -122,7 +122,7 @@ interface PersonMatrix {
   certs: Record<string, CertEntry>;
 }
 
-// ─── Mini Pie Chart for header ───
+// ─── 3D Pie Chart for header (bigger, with shadow/gradient effect) ───
 function CoursePieChart({ green, yellow, orange, planCount }: { green: number; yellow: number; orange: number; planCount: number }) {
   const data = [
     { name: "Safe", value: green },
@@ -131,46 +131,58 @@ function CoursePieChart({ green, yellow, orange, planCount }: { green: number; y
   ].filter((d) => d.value > 0);
 
   const total = green + yellow + orange;
+  const size = 80;
+  const cx = size / 2;
+  const cy = size / 2;
+
   if (total === 0) {
     return (
-      <div className="flex flex-col items-center gap-0.5">
-        <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
-          <span className="text-[8px] text-slate-400 font-bold">N/A</span>
+      <div className="flex flex-col items-center gap-1">
+        <div className="rounded-full bg-slate-200 flex items-center justify-center" style={{ width: size, height: size }}>
+          <span className="text-xs text-slate-400 font-bold">N/A</span>
         </div>
         {planCount > 0 && (
-          <span className="text-[7px] font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded-full leading-none">PLAN: {planCount}</span>
+          <span className="text-[8px] font-bold bg-blue-500 text-white px-2 py-0.5 rounded-full leading-none">PLAN: {planCount}</span>
         )}
       </div>
     );
   }
 
   const COLORS = [PIE_GREEN, PIE_YELLOW, PIE_ORANGE];
+  const DARK_COLORS = ["#16a34a", "#ca8a04", "#ea580c"];
+  const pctGreen = total > 0 ? Math.round((green / total) * 100) : 0;
 
   return (
-    <div className="flex flex-col items-center gap-0.5">
-      <div className="relative">
-        <PieChart width={44} height={44}>
-          <Pie
-            data={data}
-            cx={22}
-            cy={22}
-            innerRadius={10}
-            outerRadius={20}
-            paddingAngle={2}
-            dataKey="value"
-            stroke="none"
-          >
-            {data.map((_, i) => (
-              <Cell key={i} fill={COLORS[["Safe", "Warning", "Critical"].indexOf(data[i].name)]} />
-            ))}
-          </Pie>
-        </PieChart>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-[8px] font-black text-slate-700 tabular-nums">{total}</span>
+    <div className="flex flex-col items-center gap-1">
+      <div className="relative" style={{ width: size, height: size }}>
+        {/* 3D shadow layer - offset beneath */}
+        <div className="absolute" style={{ top: 3, left: 0 }}>
+          <PieChart width={size} height={size}>
+            <Pie data={data} cx={cx} cy={cy} innerRadius={18} outerRadius={36} paddingAngle={2} dataKey="value" stroke="none">
+              {data.map((entry, i) => (
+                <Cell key={i} fill={DARK_COLORS[["Safe", "Warning", "Critical"].indexOf(entry.name)]} opacity={0.4} />
+              ))}
+            </Pie>
+          </PieChart>
+        </div>
+        {/* Main pie layer */}
+        <div className="absolute top-0 left-0">
+          <PieChart width={size} height={size}>
+            <Pie data={data} cx={cx} cy={cy} innerRadius={18} outerRadius={36} paddingAngle={2} dataKey="value" stroke="rgba(255,255,255,0.5)" strokeWidth={1}>
+              {data.map((entry, i) => (
+                <Cell key={i} fill={COLORS[["Safe", "Warning", "Critical"].indexOf(entry.name)]} />
+              ))}
+            </Pie>
+          </PieChart>
+        </div>
+        {/* Center label */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-sm font-black text-slate-800 tabular-nums leading-none">{total}</span>
+          <span className="text-[7px] font-bold text-emerald-600 leading-none">{pctGreen}%</span>
         </div>
       </div>
       {planCount > 0 && (
-        <span className="text-[7px] font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded-full leading-none">PLAN: {planCount}</span>
+        <span className="text-[8px] font-bold bg-blue-500 text-white px-2 py-0.5 rounded-full leading-none shadow-sm">PLAN: {planCount}</span>
       )}
     </div>
   );
@@ -264,6 +276,10 @@ export default function TrainingMatrixPage() {
   const [rawData, setRawData] = useState<MatrixRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [clientFilter, setClientFilter] = useState("ALL");
+  const [tradeFilter, setTradeFilter] = useState("ALL");
+  const [locationFilter, setLocationFilter] = useState("ALL");
+  const [courseFilter, setCourseFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [search, setSearch] = useState("");
   const [user, setUser] = useState<AuthUser | null>(null);
   const today = useMemo(() => new Date(), []);
@@ -314,14 +330,36 @@ export default function TrainingMatrixPage() {
     });
   }, [rawData]);
 
+  // Get unique locations for filter
+  const locations = useMemo(() => {
+    const locs = [...new Set(personnel.map((p) => p.location).filter(Boolean))];
+    return locs.sort();
+  }, [personnel]);
+
+  // Visible courses based on courseFilter
+  const visibleCourses = useMemo(() => {
+    if (courseFilter === "ALL") return COURSE_CONFIG;
+    return COURSE_CONFIG.filter((c) => c.name === courseFilter);
+  }, [courseFilter]);
+
   // Filter
   const filtered = useMemo(() => {
     return personnel.filter((p) => {
       if (clientFilter !== "ALL" && p.client !== clientFilter) return false;
+      if (tradeFilter !== "ALL" && shortTrade(p.post) !== tradeFilter) return false;
+      if (locationFilter !== "ALL" && p.location !== locationFilter) return false;
       if (search && !p.crew_name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (statusFilter !== "ALL") {
+        // Check if person has ANY cert matching the status filter
+        const hasMatch = ALL_COURSE_NAMES.some((cn) => {
+          const st = getCellStatus(p.certs[cn]?.expiry_date || null, today);
+          return st === statusFilter;
+        });
+        if (!hasMatch) return false;
+      }
       return true;
     });
-  }, [personnel, clientFilter, search]);
+  }, [personnel, clientFilter, tradeFilter, locationFilter, search, statusFilter, today]);
 
   // Per-course stats for PIE CHARTS (3-tier: green >6m, yellow 3-6m, orange <3m)
   const courseStats = useMemo(() => {
@@ -340,7 +378,7 @@ export default function TrainingMatrixPage() {
     return stats;
   }, [personnel, today]);
 
-  const totalSubCols = COURSE_CONFIG.reduce((acc, c) => acc + c.colCount, 0);
+  const totalSubCols = visibleCourses.reduce((acc, c) => acc + c.colCount, 0);
   const totalCols = FIXED_COLS + totalSubCols;
 
   return (
@@ -360,37 +398,68 @@ export default function TrainingMatrixPage() {
 
           {/* Filter Bar */}
           <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl px-3 py-2">
-            <div className="flex items-center gap-2">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Client</label>
-              <select
-                value={clientFilter}
-                onChange={(e) => setClientFilter(e.target.value)}
-                className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs font-bold outline-none cursor-pointer"
-              >
+            {/* Client */}
+            <div className="flex items-center gap-1.5">
+              <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Client</label>
+              <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} className="bg-slate-800 border border-slate-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
                 <option value="ALL">All</option>
                 <option value="SKA">SKA</option>
                 <option value="SBA">SBA</option>
               </select>
             </div>
+            {/* Trade */}
+            <div className="flex items-center gap-1.5">
+              <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Trade</label>
+              <select value={tradeFilter} onChange={(e) => setTradeFilter(e.target.value)} className="bg-slate-800 border border-slate-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
+                <option value="ALL">All</option>
+                <option value="OM">OM</option>
+                <option value="EM">EM</option>
+                <option value="OHN">OHN</option>
+              </select>
+            </div>
+            {/* Location */}
+            <div className="flex items-center gap-1.5">
+              <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Location</label>
+              <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="bg-slate-800 border border-slate-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer min-w-[100px]">
+                <option value="ALL">All</option>
+                {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
+              </select>
+            </div>
+            {/* Course */}
+            <div className="flex items-center gap-1.5">
+              <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Course</label>
+              <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className="bg-slate-800 border border-slate-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
+                <option value="ALL">All Courses</option>
+                {ALL_COURSE_NAMES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            {/* Status */}
+            <div className="flex items-center gap-1.5">
+              <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Status</label>
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-slate-800 border border-slate-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
+                <option value="ALL">All Status</option>
+                <option value="valid">Valid</option>
+                <option value="expiring">Expiring</option>
+                <option value="expired">Expired</option>
+              </select>
+            </div>
+            {/* Record count */}
             <span className="text-[10px] text-muted-foreground font-bold">
               Showing <span className="text-foreground font-black">{filtered.length}</span> of {personnel.length}
             </span>
-            <div className="flex items-center gap-2 ml-auto">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Search</label>
+            {/* Name search - far right */}
+            <div className="flex items-center gap-1.5 ml-auto">
+              <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Name</label>
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Crew name..."
+                  placeholder="Search name..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="bg-slate-800 border border-slate-700 text-white rounded-lg pl-3 pr-8 py-1.5 text-xs font-semibold outline-none w-48 placeholder:text-slate-500"
+                  className="bg-slate-800 border border-slate-700 text-white rounded-lg pl-3 pr-8 py-1.5 text-xs font-semibold outline-none w-44 placeholder:text-slate-500"
                 />
                 {search && (
-                  <button
-                    type="button"
-                    onClick={() => setSearch("")}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-slate-600 hover:bg-slate-500 rounded p-0.5 transition-colors"
-                  >
+                  <button type="button" onClick={() => setSearch("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-slate-600 hover:bg-slate-500 rounded p-0.5 transition-colors">
                     <X className="w-3 h-3 text-white" />
                   </button>
                 )}
@@ -434,10 +503,8 @@ export default function TrainingMatrixPage() {
                 {/* Row 1: Course Name Headers with PIE CHARTS */}
                 <tr>
                   <th rowSpan={2} className="px-2 py-2 border-r border-b border-slate-300 text-[10px] font-black uppercase tracking-wider text-slate-700 bg-white sticky left-0 z-[60] w-[36px] text-center">#</th>
-                  <th rowSpan={2} className="px-2 py-2 border-r border-b border-slate-300 text-[10px] font-black uppercase tracking-wider text-slate-700 bg-white sticky left-[36px] z-[60] min-w-[170px]">Name / Location</th>
-                  <th rowSpan={2} className="px-2 py-2 border-r border-b border-slate-300 text-[10px] font-black uppercase tracking-wider text-slate-700 bg-white text-center w-[48px]">Trade</th>
-                  <th rowSpan={2} className="px-2 py-2 border-r border-b border-slate-300 text-[10px] font-black uppercase tracking-wider text-slate-700 bg-white text-center w-[48px]">Client</th>
-                  {COURSE_CONFIG.map((cc) => {
+                    <th rowSpan={2} className="px-2 py-2 border-r border-b border-slate-300 text-[10px] font-black uppercase tracking-wider text-slate-700 bg-white sticky left-[36px] z-[60] min-w-[170px]">Name</th>
+                    {visibleCourses.map((cc) => {
                     const st = courseStats[cc.name] || { green: 0, yellow: 0, orange: 0, planCount: 0 };
                     return (
                       <th
@@ -457,7 +524,7 @@ export default function TrainingMatrixPage() {
                 </tr>
                 {/* Row 2: Sub-column headers */}
                 <tr className="bg-slate-100">
-                  {COURSE_CONFIG.map((cc) => {
+                  {visibleCourses.map((cc) => {
                     if (cc.colType === "apc") {
                       return (
                         <Fragment key={cc.name}>
@@ -504,24 +571,11 @@ export default function TrainingMatrixPage() {
                       )}
                       <tr className="hover:bg-blue-50/50 transition-colors group">
                         <td className="px-2 py-1.5 border-r border-slate-200 sticky left-0 bg-white group-hover:bg-blue-50/50 z-10 text-[11px] text-slate-500 font-bold tabular-nums text-center">{idx + 1}</td>
-                        <td className="px-2 py-1.5 border-r border-slate-200 sticky left-[36px] bg-white group-hover:bg-blue-50/50 z-10">
-                          <div className="text-[11px] font-bold text-slate-900 uppercase truncate max-w-[160px]">{person.crew_name}</div>
-                          <div className="text-[9px] text-slate-400 truncate">{person.location || "-"}</div>
-                        </td>
-                        <td className="px-1 py-1.5 border-r border-slate-200 text-center">
-                          <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                            shortTrade(person.post) === "OM" ? "bg-blue-100 text-blue-700"
-                              : shortTrade(person.post) === "EM" ? "bg-emerald-100 text-emerald-700"
-                              : "bg-amber-100 text-amber-700"
-                          }`}>{shortTrade(person.post)}</span>
-                        </td>
-                        <td className="px-1 py-1.5 border-r border-slate-200 text-center">
-                          <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                            person.client === "SKA" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
-                          }`}>{person.client}</span>
+                        <td className="px-2 py-1.5 border-r border-slate-200 sticky left-[36px] bg-white group-hover:bg-blue-50/50 z-10 overflow-hidden">
+                          <div className="text-[11px] font-bold text-slate-900 uppercase truncate w-[155px]">{person.crew_name}</div>
                         </td>
                         {/* Render cells for each course */}
-                        {COURSE_CONFIG.map((cc) => {
+                        {visibleCourses.map((cc) => {
                           const cert = person.certs[cc.name];
                           const status = getCellStatus(cert?.expiry_date || null, today);
                           const expStyle = EXPIRY_CELL[status];
