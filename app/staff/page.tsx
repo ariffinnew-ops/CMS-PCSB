@@ -154,12 +154,9 @@ export default function StaffDetailPage() {
     ]);
     if (detRes.success && detRes.data) {
       setDetail(detRes.data);
-      // Also load roster by crew_name
-      const name = String(detRes.data.crew_name || "");
-      if (name) {
-        const rosRes = await getCrewRoster(name);
-        setRosterRows(rosRes.success && rosRes.data ? rosRes.data : []);
-      }
+      // Load roster by crew_id
+      const rosRes = await getCrewRoster(id);
+      setRosterRows(rosRes.success && rosRes.data ? rosRes.data : []);
     }
     if (matRes.success && matRes.data) setMatrix(matRes.data);
     if (docRes.success && docRes.data) setDocs(docRes.data);
