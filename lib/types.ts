@@ -3,12 +3,13 @@ export type TradeType = 'OM' | 'EM' | 'IMP/OHN';
 
 export interface RosterRow {
   id: number;
+  crew_id?: string;
   crew_name: string;
   post: string;
   client: string;
   location: string;
-  roles_em: string;
-  [key: string]: string | number | null; // For m1, d1, m2, d2, etc. - null for cleared dates
+  roles_em?: string;
+  [key: string]: string | number | null | undefined; // For m1, d1, m2, d2, etc.
 }
 
 export interface CrewMember {
