@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import type { RosterRow } from './types'
+import type { RosterRow, MatrixRecord } from './types'
 
 export async function getRosterData(): Promise<RosterRow[]> {
   const supabase = await createClient()
@@ -115,6 +115,51 @@ export async function getLoginLogs(): Promise<LoginLogEntry[]> {
   }
 
   return data || []
+}
+
+// Fetch training matrix data from pcsb_matrix joined with pcsb_crew_detail
+export async function getMatrixData(): Promise<{ success: boolean; data?: MatrixRecord[]; error?: string }> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('pcsb_matrix')
+    .select(`
+      id,
+      crew_id,
+      cert_type,
+      expiry_date,
+      attended_date,
+      pcsb_crew_detail (
+        crew_name,
+        post,
+        client,
+        location
+      )
+    `)
+    .order('crew_id', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching matrix data:', error)
+    return { success: false, error: error.message }
+  }
+
+  // Flatten the joined data
+  const flattened: MatrixRecord[] = (data || []).map((row: Record<string, unknown>) => {
+    const crew = row.pcsb_crew_detail as Record<string, string> | null;
+    return {
+      id: row.id as string,
+      crew_id: row.crew_id as string,
+      cert_type: row.cert_type as string,
+      expiry_date: row.expiry_date as string | null,
+      attended_date: row.attended_date as string | null,
+      crew_name: crew?.crew_name || '',
+      post: crew?.post || '',
+      client: crew?.client || '',
+      location: crew?.location || '',
+    };
+  });
+
+  return { success: true, data: flattened }
 }
 
 // Bulk update for Save Changes

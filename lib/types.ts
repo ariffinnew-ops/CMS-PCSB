@@ -39,3 +39,17 @@ export interface PersonnelStatus {
   rotationStart: Date | null;
   rotationEnd: Date | null;
 }
+
+// New schema: pcsb_matrix joined with pcsb_crew_detail
+export interface MatrixRecord {
+  id: string;
+  crew_id: string;
+  cert_type: string;
+  expiry_date: string | null;
+  attended_date: string | null;
+  // Joined from pcsb_crew_detail
+  crew_name: string;
+  post: string;
+  client: string;
+  location: string;
+}
