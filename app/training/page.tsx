@@ -208,6 +208,7 @@ export default function TrainingMatrixPage() {
   const [tradeFilter, setTradeFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [search, setSearch] = useState("");
+  const [courseSearch, setCourseSearch] = useState("");
   const [user, setUser] = useState<AuthUser | null>(null);
   const today = useMemo(() => new Date(), []);
 
@@ -265,6 +266,17 @@ export default function TrainingMatrixPage() {
     });
   }, [personnel, clientFilter, tradeFilter, statusFilter, search, today]);
 
+  // Filtered courses based on courseSearch
+  const visibleMainCourses = useMemo(() => {
+    if (!courseSearch) return MAIN_COURSES;
+    return MAIN_COURSES.filter((c) => c.toLowerCase().includes(courseSearch.toLowerCase()));
+  }, [courseSearch]);
+
+  const visibleExpiryCourses = useMemo(() => {
+    if (!courseSearch) return EXPIRY_ONLY_COURSES;
+    return EXPIRY_ONLY_COURSES.filter((c) => c.toLowerCase().includes(courseSearch.toLowerCase()));
+  }, [courseSearch]);
+
   // ─── Chart Data ───
   const { barData, pieData, stats } = useMemo(() => {
     const counts: Record<string, { valid: number; expiring: number; expired: number }> = {};
@@ -294,7 +306,7 @@ export default function TrainingMatrixPage() {
   }, [personnel, today]);
 
   // Compute column count for colSpan
-  const totalCols = 4 + MAIN_COURSES.length * 2 + EXPIRY_ONLY_COURSES.length;
+  const totalCols = 4 + visibleMainCourses.length * 2 + visibleExpiryCourses.length;
 
   return (
     <AppShell>
@@ -388,12 +400,22 @@ export default function TrainingMatrixPage() {
             </div>
           ))}
           <div className="flex items-center gap-2">
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Search</label>
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Name</label>
             <input
               type="text"
-              placeholder="Name..."
+              placeholder="Search name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs font-semibold outline-none w-40 placeholder:text-slate-500"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Course</label>
+            <input
+              type="text"
+              placeholder="Search course..."
+              value={courseSearch}
+              onChange={(e) => setCourseSearch(e.target.value)}
               className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs font-semibold outline-none w-40 placeholder:text-slate-500"
             />
           </div>
@@ -409,7 +431,7 @@ export default function TrainingMatrixPage() {
               <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            <div className="overflow-auto max-h-[calc(100vh-460px)]">
+            <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead className="sticky top-0 z-20">
                   {/* Course name row */}
@@ -418,7 +440,7 @@ export default function TrainingMatrixPage() {
                     <th rowSpan={2} className="px-2 py-2.5 border-r border-slate-700 text-[10px] font-black uppercase tracking-wider sticky left-[36px] bg-slate-900 z-30 min-w-[160px]">Name</th>
                     <th rowSpan={2} className="px-2 py-2.5 border-r border-slate-700 text-[10px] font-black uppercase tracking-wider text-center w-[48px]">Trade</th>
                     <th rowSpan={2} className="px-2 py-2.5 border-r border-slate-700 text-[10px] font-black uppercase tracking-wider text-center w-[48px]">Client</th>
-                    {MAIN_COURSES.map((c) => (
+                    {visibleMainCourses.map((c) => (
                       <th key={c} colSpan={2} className="px-1 py-2 border-r border-slate-700 text-center border-b border-slate-600">
                         <div className="flex items-center justify-center gap-1">
                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COURSE_COLORS[c] }} />
@@ -426,7 +448,7 @@ export default function TrainingMatrixPage() {
                         </div>
                       </th>
                     ))}
-                    {EXPIRY_ONLY_COURSES.map((c) => (
+                    {visibleExpiryCourses.map((c) => (
                       <th key={c} className="px-1 py-2 border-r border-slate-700 text-center border-b border-slate-600">
                         <div className="flex items-center justify-center gap-1">
                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COURSE_COLORS[c] }} />
@@ -437,13 +459,13 @@ export default function TrainingMatrixPage() {
                   </tr>
                   {/* Sub-header row */}
                   <tr className="bg-slate-800 text-[8px] font-bold text-slate-400 uppercase">
-                    {MAIN_COURSES.map((c) => (
+                    {visibleMainCourses.map((c) => (
                       <Fragment key={c}>
                         <th className="px-1 py-1 text-center border-r border-slate-700/50 min-w-[68px]">Attended</th>
                         <th className="px-1 py-1 text-center border-r border-slate-700 min-w-[68px]">Expiry</th>
                       </Fragment>
                     ))}
-                    {EXPIRY_ONLY_COURSES.map((c) => (
+                    {visibleExpiryCourses.map((c) => (
                       <th key={c} className="px-1 py-1 text-center border-r border-slate-700 min-w-[68px]">Expiry</th>
                     ))}
                   </tr>
@@ -486,7 +508,7 @@ export default function TrainingMatrixPage() {
                             }`}>{person.client}</span>
                           </td>
                           {/* Main courses: Attended + Expiry */}
-                          {MAIN_COURSES.map((course) => {
+                          {visibleMainCourses.map((course) => {
                             const cert = person.certs[course];
                             const status = getStatus(cert?.expiry_date || null, today);
                             return (
@@ -517,7 +539,7 @@ export default function TrainingMatrixPage() {
                             );
                           })}
                           {/* Expiry-only courses */}
-                          {EXPIRY_ONLY_COURSES.map((course) => {
+                          {visibleExpiryCourses.map((course) => {
                             const cert = person.certs[course];
                             const status = getStatus(cert?.expiry_date || null, today);
                             return (
