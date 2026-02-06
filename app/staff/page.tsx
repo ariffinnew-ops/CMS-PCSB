@@ -132,14 +132,20 @@ export default function StaffDetailPage() {
   // Load user + crew list
   useEffect(() => {
     const u = getUser();
+    console.log("[v0] user:", u);
     setUser(u);
     getCrewList().then((res) => {
+      console.log("[v0] getCrewList success:", res.success, "count:", res.data?.length, "error:", res.error);
+      if (res.data && res.data.length > 0) {
+        console.log("[v0] first crew:", JSON.stringify(res.data[0]));
+      }
       if (res.success && res.data) {
         setCrewList(res.data);
         if (res.data.length > 0) setSelectedId(res.data[0].id);
       }
       setLoading(false);
-    }).catch(() => {
+    }).catch((err) => {
+      console.log("[v0] getCrewList CATCH:", err);
       setLoading(false);
     });
   }, []);
@@ -147,12 +153,15 @@ export default function StaffDetailPage() {
   // Load detail when selectedId changes
   const loadDetail = useCallback(async (id: string) => {
     if (!id) return;
+    console.log("[v0] loadDetail for id:", id);
     const [detRes, matRes, docRes] = await Promise.all([
       getCrewDetail(id),
       getCrewMatrix(id),
       listCrewDocuments(id),
     ]);
+    console.log("[v0] detRes:", detRes.success, detRes.error, "matRes:", matRes.success, matRes.error, "docRes:", docRes.success, docRes.error);
     if (detRes.success && detRes.data) {
+      console.log("[v0] detail keys:", Object.keys(detRes.data).join(", "));
       setDetail(detRes.data);
       // Also load roster by crew_name
       const name = String(detRes.data.crew_name || "");
