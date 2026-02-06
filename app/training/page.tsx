@@ -50,24 +50,24 @@ function toInputDate(d: string | null): string {
 }
 
 const STATUS_BG: Record<string, string> = {
-  valid: "bg-emerald-500/10",
-  expiring: "bg-amber-500/10",
-  expired: "bg-red-500/10",
-  "no-data": "",
+  valid: "bg-emerald-100",
+  expiring: "bg-amber-100",
+  expired: "bg-red-100",
+  "no-data": "bg-slate-50",
 };
 
 const STATUS_TEXT: Record<string, string> = {
-  valid: "text-emerald-400",
-  expiring: "text-amber-400",
-  expired: "text-red-400",
-  "no-data": "text-slate-600",
+  valid: "text-emerald-800",
+  expiring: "text-amber-800",
+  expired: "text-red-800",
+  "no-data": "text-slate-400",
 };
 
 const STATUS_EXPIRY_BG: Record<string, string> = {
-  valid: "bg-emerald-500/15 border-l border-emerald-500/30",
-  expiring: "bg-amber-500/15 border-l border-amber-500/30",
-  expired: "bg-red-500/15 border-l border-red-500/30",
-  "no-data": "",
+  valid: "bg-emerald-200 border-l-2 border-emerald-500",
+  expiring: "bg-amber-200 border-l-2 border-amber-500",
+  expired: "bg-red-200 border-l-2 border-red-500",
+  "no-data": "bg-slate-100",
 };
 
 // ─── Trade helpers ───
@@ -172,7 +172,7 @@ function DateCell({
 
   if (editing && canEdit) {
     return (
-      <td className={`px-0.5 py-0.5 text-center border-r border-slate-700/30 ${bgClass}`}>
+      <td className={`px-0.5 py-0.5 text-center border-r border-slate-200 ${bgClass}`}>
         <input
           type="date"
           defaultValue={toInputDate(value)}
@@ -182,7 +182,7 @@ function DateCell({
             if (e.key === "Enter") handleChange((e.target as HTMLInputElement).value);
             if (e.key === "Escape") setEditing(false);
           }}
-          className="bg-slate-800 text-white text-[9px] border border-blue-500 rounded px-1 py-0.5 w-[90px] outline-none"
+          className="bg-white text-slate-900 text-xs font-bold border-2 border-blue-500 rounded-md px-1.5 py-1 w-[110px] outline-none shadow-lg"
         />
       </td>
     );
@@ -190,9 +190,9 @@ function DateCell({
 
   return (
     <td
-      className={`px-1 py-2 text-[9px] text-center tabular-nums border-r border-slate-700/30 ${bgClass} ${textClass} ${
-        canEdit ? "cursor-pointer hover:ring-1 hover:ring-blue-500/50 hover:ring-inset" : ""
-      } ${saving ? "opacity-50" : ""} ${isExpiry ? "font-bold" : ""}`}
+      className={`px-1.5 py-2 text-xs text-center tabular-nums border-r border-slate-200 ${bgClass} ${textClass} ${
+        canEdit ? "cursor-pointer hover:ring-2 hover:ring-blue-400 hover:ring-inset" : ""
+      } ${saving ? "opacity-50" : ""} ${isExpiry ? "font-black" : "font-semibold"}`}
       onDoubleClick={() => canEdit && setEditing(true)}
       title={canEdit ? "Double-click to edit" : undefined}
     >
@@ -208,7 +208,7 @@ export default function TrainingMatrixPage() {
   const [tradeFilter, setTradeFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [search, setSearch] = useState("");
-  const [courseSearch, setCourseSearch] = useState("");
+  const [courseFilter, setCourseFilter] = useState("ALL");
   const [user, setUser] = useState<AuthUser | null>(null);
   const today = useMemo(() => new Date(), []);
 
@@ -266,16 +266,16 @@ export default function TrainingMatrixPage() {
     });
   }, [personnel, clientFilter, tradeFilter, statusFilter, search, today]);
 
-  // Filtered courses based on courseSearch
+  // Filtered courses based on courseFilter dropdown
   const visibleMainCourses = useMemo(() => {
-    if (!courseSearch) return MAIN_COURSES;
-    return MAIN_COURSES.filter((c) => c.toLowerCase().includes(courseSearch.toLowerCase()));
-  }, [courseSearch]);
+    if (courseFilter === "ALL") return MAIN_COURSES;
+    return MAIN_COURSES.filter((c) => c === courseFilter);
+  }, [courseFilter]);
 
   const visibleExpiryCourses = useMemo(() => {
-    if (!courseSearch) return EXPIRY_ONLY_COURSES;
-    return EXPIRY_ONLY_COURSES.filter((c) => c.toLowerCase().includes(courseSearch.toLowerCase()));
-  }, [courseSearch]);
+    if (courseFilter === "ALL") return EXPIRY_ONLY_COURSES;
+    return EXPIRY_ONLY_COURSES.filter((c) => c === courseFilter);
+  }, [courseFilter]);
 
   // ─── Chart Data ───
   const { barData, pieData, stats } = useMemo(() => {
@@ -386,7 +386,6 @@ export default function TrainingMatrixPage() {
           {[
             { label: "Client", value: clientFilter, set: setClientFilter, opts: [["ALL", "All"], ["SKA", "SKA"], ["SBA", "SBA"]] },
             { label: "Trade", value: tradeFilter, set: setTradeFilter, opts: [["ALL", "All"], ["OM", "OM"], ["EM", "EM"], ["OHN", "OHN"]] },
-            { label: "Status", value: statusFilter, set: setStatusFilter, opts: [["ALL", "All Status"], ["valid", "Valid"], ["expiring", "Expiring"], ["expired", "Expired"]] },
           ].map((f) => (
             <div key={f.label} className="flex items-center gap-2">
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{f.label}</label>
@@ -400,28 +399,42 @@ export default function TrainingMatrixPage() {
             </div>
           ))}
           <div className="flex items-center gap-2">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Course</label>
+            <select
+              value={courseFilter}
+              onChange={(e) => setCourseFilter(e.target.value)}
+              className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs font-bold outline-none cursor-pointer"
+            >
+              <option value="ALL">All Courses</option>
+              {ALL_COURSES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs font-bold outline-none cursor-pointer"
+            >
+              <option value="ALL">All Status</option>
+              <option value="valid">Valid</option>
+              <option value="expiring">Expiring</option>
+              <option value="expired">Expired</option>
+            </select>
+          </div>
+          <span className="text-[10px] text-muted-foreground font-bold">
+            Showing <span className="text-foreground font-black">{filtered.length}</span> of {personnel.length} records
+          </span>
+          <div className="flex items-center gap-2 ml-auto">
             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Name</label>
             <input
               type="text"
               placeholder="Search name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs font-semibold outline-none w-40 placeholder:text-slate-500"
+              className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs font-semibold outline-none w-44 placeholder:text-slate-500"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Course</label>
-            <input
-              type="text"
-              placeholder="Search course..."
-              value={courseSearch}
-              onChange={(e) => setCourseSearch(e.target.value)}
-              className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs font-semibold outline-none w-40 placeholder:text-slate-500"
-            />
-          </div>
-          <span className="ml-auto text-[10px] text-muted-foreground font-bold">
-            Showing <span className="text-foreground">{filtered.length}</span> of {personnel.length}
-          </span>
         </div>
 
         {/* Matrix Table */}
@@ -435,42 +448,42 @@ export default function TrainingMatrixPage() {
               <table className="w-full text-left border-collapse">
                 <thead className="sticky top-0 z-20">
                   {/* Course name row */}
-                  <tr className="bg-slate-900 text-white">
-                    <th rowSpan={2} className="px-2 py-2.5 border-r border-slate-700 text-[10px] font-black uppercase tracking-wider sticky left-0 bg-slate-900 z-30 w-[36px]">#</th>
-                    <th rowSpan={2} className="px-2 py-2.5 border-r border-slate-700 text-[10px] font-black uppercase tracking-wider sticky left-[36px] bg-slate-900 z-30 min-w-[160px]">Name</th>
-                    <th rowSpan={2} className="px-2 py-2.5 border-r border-slate-700 text-[10px] font-black uppercase tracking-wider text-center w-[48px]">Trade</th>
-                    <th rowSpan={2} className="px-2 py-2.5 border-r border-slate-700 text-[10px] font-black uppercase tracking-wider text-center w-[48px]">Client</th>
+                  <tr className="bg-slate-800 text-white">
+                    <th rowSpan={2} className="px-2 py-2.5 border-r border-slate-600 text-[10px] font-black uppercase tracking-wider sticky left-0 bg-slate-800 z-30 w-[36px]">#</th>
+                    <th rowSpan={2} className="px-2 py-2.5 border-r border-slate-600 text-[10px] font-black uppercase tracking-wider sticky left-[36px] bg-slate-800 z-30 min-w-[160px]">Name</th>
+                    <th rowSpan={2} className="px-2 py-2.5 border-r border-slate-600 text-[10px] font-black uppercase tracking-wider text-center w-[48px]">Trade</th>
+                    <th rowSpan={2} className="px-2 py-2.5 border-r border-slate-600 text-[10px] font-black uppercase tracking-wider text-center w-[48px]">Client</th>
                     {visibleMainCourses.map((c) => (
-                      <th key={c} colSpan={2} className="px-1 py-2 border-r border-slate-700 text-center border-b border-slate-600">
+                      <th key={c} colSpan={2} className="px-1 py-2 border-r border-slate-600 text-center border-b border-slate-600">
                         <div className="flex items-center justify-center gap-1">
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COURSE_COLORS[c] }} />
-                          <span className="text-[9px] font-black uppercase tracking-widest">{c}</span>
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COURSE_COLORS[c] }} />
+                          <span className="text-[10px] font-black uppercase tracking-widest">{c}</span>
                         </div>
                       </th>
                     ))}
                     {visibleExpiryCourses.map((c) => (
-                      <th key={c} className="px-1 py-2 border-r border-slate-700 text-center border-b border-slate-600">
+                      <th key={c} className="px-1 py-2 border-r border-slate-600 text-center border-b border-slate-600">
                         <div className="flex items-center justify-center gap-1">
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COURSE_COLORS[c] }} />
-                          <span className="text-[9px] font-black uppercase tracking-widest">{c}</span>
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COURSE_COLORS[c] }} />
+                          <span className="text-[10px] font-black uppercase tracking-widest">{c}</span>
                         </div>
                       </th>
                     ))}
                   </tr>
                   {/* Sub-header row */}
-                  <tr className="bg-slate-800 text-[8px] font-bold text-slate-400 uppercase">
+                  <tr className="bg-slate-700 text-[9px] font-bold text-slate-200 uppercase">
                     {visibleMainCourses.map((c) => (
                       <Fragment key={c}>
-                        <th className="px-1 py-1 text-center border-r border-slate-700/50 min-w-[68px]">Attended</th>
-                        <th className="px-1 py-1 text-center border-r border-slate-700 min-w-[68px]">Expiry</th>
+                        <th className="px-1 py-1.5 text-center border-r border-slate-600 min-w-[78px]">Attended</th>
+                        <th className="px-1 py-1.5 text-center border-r border-slate-500 min-w-[78px]">Expiry</th>
                       </Fragment>
                     ))}
                     {visibleExpiryCourses.map((c) => (
-                      <th key={c} className="px-1 py-1 text-center border-r border-slate-700 min-w-[68px]">Expiry</th>
+                      <th key={c} className="px-1 py-1.5 text-center border-r border-slate-500 min-w-[78px]">Expiry</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/50">
+                <tbody className="divide-y divide-slate-200">
                   {filtered.map((person, idx) => {
                     const prev = filtered[idx - 1];
                     const showSep = !prev || prev.client !== person.client || tradeRank(prev.post) !== tradeRank(person.post);
@@ -478,33 +491,33 @@ export default function TrainingMatrixPage() {
                     return (
                       <Fragment key={person.crew_id}>
                         {showSep && (
-                          <tr className="bg-slate-800/40">
-                            <td colSpan={totalCols} className="px-3 py-2 sticky left-0">
+                          <tr className="bg-slate-200">
+                            <td colSpan={totalCols} className="px-3 py-2 sticky left-0 bg-slate-200">
                               <span className={`inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-wider ${
-                                person.client === "SKA" ? "text-blue-400" : "text-orange-400"
+                                person.client === "SKA" ? "text-blue-700" : "text-orange-700"
                               }`}>
-                                <span className={`w-2.5 h-2.5 rounded-full ${person.client === "SKA" ? "bg-blue-500" : "bg-orange-500"}`} />
+                                <span className={`w-2.5 h-2.5 rounded-full ${person.client === "SKA" ? "bg-blue-600" : "bg-orange-600"}`} />
                                 {person.client} - {fullTrade(person.post)}
                               </span>
                             </td>
                           </tr>
                         )}
-                        <tr className="hover:bg-slate-800/30 transition-colors group">
-                          <td className="px-2 py-1.5 border-r border-slate-800/50 sticky left-0 bg-card group-hover:bg-slate-800/30 z-10 text-[10px] text-slate-500 font-bold tabular-nums">{idx + 1}</td>
-                          <td className="px-2 py-1.5 border-r border-slate-800/50 sticky left-[36px] bg-card group-hover:bg-slate-800/30 z-10">
-                            <div className="text-[11px] font-bold text-white uppercase truncate">{person.crew_name}</div>
+                        <tr className="hover:bg-blue-50 transition-colors group bg-white even:bg-slate-50">
+                          <td className="px-2 py-2 border-r border-slate-200 sticky left-0 bg-white group-hover:bg-blue-50 group-even:bg-slate-50 z-10 text-xs text-slate-600 font-bold tabular-nums">{idx + 1}</td>
+                          <td className="px-2 py-2 border-r border-slate-200 sticky left-[36px] bg-white group-hover:bg-blue-50 group-even:bg-slate-50 z-10">
+                            <div className="text-xs font-bold text-slate-900 uppercase truncate">{person.crew_name}</div>
                             <div className="text-[9px] text-slate-500 truncate">{person.location || "-"}</div>
                           </td>
-                          <td className="px-1 py-1.5 border-r border-slate-800/50 text-center">
-                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold ${
-                              shortTrade(person.post) === "OM" ? "bg-blue-500/15 text-blue-400 border border-blue-500/30"
-                                : shortTrade(person.post) === "EM" ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
-                                : "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                          <td className="px-1 py-2 border-r border-slate-200 text-center">
+                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                              shortTrade(person.post) === "OM" ? "bg-blue-100 text-blue-700 border border-blue-300"
+                                : shortTrade(person.post) === "EM" ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
+                                : "bg-amber-100 text-amber-700 border border-amber-300"
                             }`}>{shortTrade(person.post)}</span>
                           </td>
-                          <td className="px-1 py-1.5 border-r border-slate-800/50 text-center">
-                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold ${
-                              person.client === "SKA" ? "bg-blue-500/15 text-blue-400 border border-blue-500/30" : "bg-orange-500/15 text-orange-400 border border-orange-500/30"
+                          <td className="px-1 py-2 border-r border-slate-200 text-center">
+                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                              person.client === "SKA" ? "bg-blue-100 text-blue-700 border border-blue-300" : "bg-orange-100 text-orange-700 border border-orange-300"
                             }`}>{person.client}</span>
                           </td>
                           {/* Main courses: Attended + Expiry */}
@@ -579,15 +592,15 @@ export default function TrainingMatrixPage() {
         {/* Legend */}
         <div className="flex items-center gap-6 px-4 py-2.5 bg-card rounded-xl border border-border w-fit text-[10px] font-bold uppercase text-muted-foreground">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-emerald-500/15 rounded border border-emerald-500/30" />
+            <div className="w-4 h-4 bg-emerald-200 rounded border-2 border-emerald-500" />
             <span className="text-emerald-400">{"Valid (> 90 days)"}</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-amber-500/15 rounded border border-amber-500/30" />
+            <div className="w-4 h-4 bg-amber-200 rounded border-2 border-amber-500" />
             <span className="text-amber-400">{"Expiring (< 90 days)"}</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-red-500/15 rounded border border-red-500/30" />
+            <div className="w-4 h-4 bg-red-200 rounded border-2 border-red-500" />
             <span className="text-red-400">Expired</span>
           </div>
           {canEdit && (
