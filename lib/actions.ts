@@ -238,6 +238,114 @@ export async function createMatrixRecord(
   return { success: true, id: data?.id }
 }
 
+// ─── Staff Detail Actions ───
+
+// Get all crew members list (for dropdown)
+export async function getCrewList(): Promise<{ success: boolean; data?: { id: string; crew_name: string; post: string; client: string; location: string; status?: string }[]; error?: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('pcsb_crew_detail')
+    .select('id, crew_name, post, client, location, status')
+    .order('crew_name', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching crew list:', error)
+    return { success: false, error: error.message }
+  }
+  return { success: true, data: data || [] }
+}
+
+// Get single crew detail
+export async function getCrewDetail(crewId: string): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('pcsb_crew_detail')
+    .select('*')
+    .eq('id', crewId)
+    .single()
+
+  if (error) {
+    console.error('Error fetching crew detail:', error)
+    return { success: false, error: error.message }
+  }
+  return { success: true, data: data || {} }
+}
+
+// Update crew detail fields
+export async function updateCrewDetail(crewId: string, updates: Record<string, unknown>): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('pcsb_crew_detail')
+    .update(updates)
+    .eq('id', crewId)
+
+  if (error) {
+    console.error('Error updating crew detail:', error)
+    return { success: false, error: error.message }
+  }
+  return { success: true }
+}
+
+// Get crew training matrix
+export async function getCrewMatrix(crewId: string): Promise<{ success: boolean; data?: { id: string; cert_type: string; cert_no: string | null; expiry_date: string | null; attended_date: string | null; plan_date: string | null }[]; error?: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('pcsb_matrix')
+    .select('id, cert_type, cert_no, expiry_date, attended_date, plan_date')
+    .eq('crew_id', crewId)
+    .order('cert_type', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching crew matrix:', error)
+    return { success: false, error: error.message }
+  }
+  return { success: true, data: data || [] }
+}
+
+// Get crew roster/movement history
+export async function getCrewRoster(crewName: string): Promise<{ success: boolean; data?: RosterRow[]; error?: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('staffing_roster')
+    .select('*')
+    .ilike('crew_name', `%${crewName}%`)
+    .order('id', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching crew roster:', error)
+    return { success: false, error: error.message }
+  }
+  return { success: true, data: data || [] }
+}
+
+// List crew documents
+export async function listCrewDocuments(crewId: string): Promise<{ success: boolean; data?: { name: string; size: number; created_at: string }[]; error?: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.storage
+    .from('crew-documents')
+    .list(crewId, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } })
+
+  if (error) {
+    console.error('Error listing crew documents:', error)
+    return { success: false, error: error.message }
+  }
+  return { success: true, data: (data || []).map(f => ({ name: f.name, size: f.metadata?.size || 0, created_at: f.created_at || '' })) }
+}
+
+// Delete crew document
+export async function deleteCrewDocument(crewId: string, fileName: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase.storage
+    .from('crew-documents')
+    .remove([`${crewId}/${fileName}`])
+
+  if (error) {
+    console.error('Error deleting crew document:', error)
+    return { success: false, error: error.message }
+  }
+  return { success: true }
+}
+
 // Bulk update for Save Changes
 export async function bulkUpdateRosterRows(updates: { id: number; updates: Partial<RosterRow> }[]): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
