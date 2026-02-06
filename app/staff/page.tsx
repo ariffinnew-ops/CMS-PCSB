@@ -271,7 +271,7 @@ export default function StaffDetailPage() {
     setUploading(true);
     const supabase = createClient();
     const path = `${selectedId}/${file.name}`;
-    const { error } = await supabase.storage.from("crew-documents").upload(path, file, { upsert: true });
+    const { error } = await supabase.storage.from("pcsb-doc").upload(path, file, { upsert: true });
     setUploading(false);
     if (error) {
       showNotification("error", error.message);
@@ -299,7 +299,7 @@ export default function StaffDetailPage() {
   const handleDownload = async (fileName: string) => {
     if (!selectedId) return;
     const supabase = createClient();
-    const { data, error } = await supabase.storage.from("crew-documents").download(`${selectedId}/${fileName}`);
+    const { data, error } = await supabase.storage.from("pcsb-doc").download(`${selectedId}/${fileName}`);
     if (error || !data) {
       showNotification("error", "Download failed.");
       return;

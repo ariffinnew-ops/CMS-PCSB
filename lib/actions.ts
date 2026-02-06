@@ -322,7 +322,7 @@ export async function getCrewRoster(crewName: string): Promise<{ success: boolea
 export async function listCrewDocuments(crewId: string): Promise<{ success: boolean; data?: { name: string; size: number; created_at: string }[]; error?: string }> {
   const supabase = await createClient()
   const { data, error } = await supabase.storage
-    .from('crew-documents')
+    .from('pcsb-doc')
     .list(crewId, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } })
 
   if (error) {
@@ -336,7 +336,7 @@ export async function listCrewDocuments(crewId: string): Promise<{ success: bool
 export async function deleteCrewDocument(crewId: string, fileName: string): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
   const { error } = await supabase.storage
-    .from('crew-documents')
+    .from('pcsb-doc')
     .remove([`${crewId}/${fileName}`])
 
   if (error) {
