@@ -519,7 +519,6 @@ export default function StaffDetailPage() {
                     </FieldGroup>
                   </CardContent>
                 </Card>
-              </Card>
             )}
 
             {/* ─── TAB 2: Training Matrix ─── */}
