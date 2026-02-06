@@ -13,7 +13,6 @@ import {
   deleteCrewDocument,
 } from "@/lib/actions";
 import { createClient } from "@/lib/supabase/client";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -125,6 +124,7 @@ export default function StaffDetailPage() {
   const [statusSaving, setStatusSaving] = useState(false);
   const [notification, setNotification] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("personal");
 
   const lvl = roleLevel(user);
   const canEdit = lvl <= 2; // L1 or L2
@@ -132,17 +132,14 @@ export default function StaffDetailPage() {
   // Load user + crew list
   useEffect(() => {
     const u = getUser();
-    console.log("[v0] Staff page user:", u);
     setUser(u);
     getCrewList().then((res) => {
-      console.log("[v0] getCrewList result:", JSON.stringify(res).slice(0, 500));
       if (res.success && res.data) {
         setCrewList(res.data);
         if (res.data.length > 0) setSelectedId(res.data[0].id);
       }
       setLoading(false);
-    }).catch((err) => {
-      console.error("[v0] getCrewList error:", err);
+    }).catch(() => {
       setLoading(false);
     });
   }, []);
@@ -150,15 +147,11 @@ export default function StaffDetailPage() {
   // Load detail when selectedId changes
   const loadDetail = useCallback(async (id: string) => {
     if (!id) return;
-    console.log("[v0] Loading detail for:", id);
     const [detRes, matRes, docRes] = await Promise.all([
       getCrewDetail(id),
       getCrewMatrix(id),
       listCrewDocuments(id),
     ]);
-    console.log("[v0] Detail result:", detRes.success, detRes.error);
-    console.log("[v0] Matrix result:", matRes.success, matRes.data?.length, matRes.error);
-    console.log("[v0] Docs result:", docRes.success, docRes.error);
     if (detRes.success && detRes.data) {
       setDetail(detRes.data);
       // Also load roster by crew_name
@@ -438,17 +431,43 @@ export default function StaffDetailPage() {
 
         {/* Tabs */}
         {detail && (
-          <Tabs defaultValue="personal" className="space-y-4">
-            <TabsList className="bg-slate-200 border border-slate-300">
-              {lvl <= 2 && <TabsTrigger value="personal" className="text-xs font-bold uppercase data-[state=active]:bg-white">Personal Info</TabsTrigger>}
-              <TabsTrigger value="training" className="text-xs font-bold uppercase data-[state=active]:bg-white">Training Matrix</TabsTrigger>
-              <TabsTrigger value="movement" className="text-xs font-bold uppercase data-[state=active]:bg-white">Movement History</TabsTrigger>
-              <TabsTrigger value="documents" className="text-xs font-bold uppercase data-[state=active]:bg-white">Documents</TabsTrigger>
-            </TabsList>
+          <div className="space-y-4">
+            {/* Tab buttons */}
+            <div className="flex gap-1 bg-slate-200 border border-slate-300 rounded-lg p-1 w-fit">
+              {lvl <= 2 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("personal")}
+                  className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase transition-all ${activeTab === "personal" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                >
+                  Personal Info
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setActiveTab("training")}
+                className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase transition-all ${activeTab === "training" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+              >
+                Training Matrix
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("movement")}
+                className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase transition-all ${activeTab === "movement" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+              >
+                Movement History
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("documents")}
+                className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase transition-all ${activeTab === "documents" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+              >
+                Documents
+              </button>
+            </div>
 
             {/* ─── TAB 1: Personal Info (L1/L2 only) ─── */}
-            {lvl <= 2 && (
-              <TabsContent value="personal">
+            {lvl <= 2 && activeTab === "personal" && (
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <h4 className="text-sm font-bold uppercase tracking-wider text-foreground">Personal Information</h4>
@@ -500,11 +519,11 @@ export default function StaffDetailPage() {
                     </FieldGroup>
                   </CardContent>
                 </Card>
-              </TabsContent>
+              </Card>
             )}
 
             {/* ─── TAB 2: Training Matrix ─── */}
-            <TabsContent value="training">
+            {activeTab === "training" && (
               <Card>
                 <CardHeader className="pb-2">
                   <h4 className="text-sm font-bold uppercase tracking-wider text-foreground">Training Certificates</h4>
@@ -547,10 +566,10 @@ export default function StaffDetailPage() {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
+            )}
 
             {/* ─── TAB 3: Movement History ─── */}
-            <TabsContent value="movement">
+            {activeTab === "movement" && (
               <Card>
                 <CardHeader className="pb-2">
                   <h4 className="text-sm font-bold uppercase tracking-wider text-foreground">Rotation / Movement History</h4>
@@ -582,10 +601,10 @@ export default function StaffDetailPage() {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
+            )}
 
             {/* ─── TAB 4: Documents ─── */}
-            <TabsContent value="documents">
+            {activeTab === "documents" && (
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <h4 className="text-sm font-bold uppercase tracking-wider text-foreground">Documents</h4>
@@ -649,8 +668,8 @@ export default function StaffDetailPage() {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
-          </Tabs>
+            )}
+          </div>
         )}
       </div>
     </AppShell>
