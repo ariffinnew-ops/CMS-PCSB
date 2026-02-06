@@ -243,9 +243,10 @@ export async function createMatrixRecord(
 // Get all crew members list (for dropdown)
 export async function getCrewList(): Promise<{ success: boolean; data?: { id: string; crew_name: string; post: string; client: string; location: string; status?: string }[]; error?: string }> {
   const supabase = await createClient()
+  // Only select columns known to exist; status is optional
   const { data, error } = await supabase
     .from('pcsb_crew_detail')
-    .select('id, crew_name, post, client, location, status')
+    .select('*')
     .order('crew_name', { ascending: true })
 
   if (error) {
