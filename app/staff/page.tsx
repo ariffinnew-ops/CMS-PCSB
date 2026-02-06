@@ -132,12 +132,17 @@ export default function StaffDetailPage() {
   // Load user + crew list
   useEffect(() => {
     const u = getUser();
+    console.log("[v0] Staff page user:", u);
     setUser(u);
     getCrewList().then((res) => {
+      console.log("[v0] getCrewList result:", JSON.stringify(res).slice(0, 500));
       if (res.success && res.data) {
         setCrewList(res.data);
         if (res.data.length > 0) setSelectedId(res.data[0].id);
       }
+      setLoading(false);
+    }).catch((err) => {
+      console.error("[v0] getCrewList error:", err);
       setLoading(false);
     });
   }, []);
@@ -145,11 +150,15 @@ export default function StaffDetailPage() {
   // Load detail when selectedId changes
   const loadDetail = useCallback(async (id: string) => {
     if (!id) return;
+    console.log("[v0] Loading detail for:", id);
     const [detRes, matRes, docRes] = await Promise.all([
       getCrewDetail(id),
       getCrewMatrix(id),
       listCrewDocuments(id),
     ]);
+    console.log("[v0] Detail result:", detRes.success, detRes.error);
+    console.log("[v0] Matrix result:", matRes.success, matRes.data?.length, matRes.error);
+    console.log("[v0] Docs result:", docRes.success, docRes.error);
     if (detRes.success && detRes.data) {
       setDetail(detRes.data);
       // Also load roster by crew_name
