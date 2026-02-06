@@ -60,10 +60,12 @@ export function isPersonnelOnBoard(row: RosterRow, targetDate: Date): boolean {
     return day !== 0 && day !== 6;
   }
 
+  // Crew on DEMOB date (d*) is excluded from POB.
+  // On board from MOB date up to but NOT including DEMOB date.
   for (let i = 1; i <= 24; i++) {
     const m = safeParseDate(row[`m${i}`] as string);
     const d = safeParseDate(row[`d${i}`] as string);
-    if (m && d && checkTime >= m.getTime() && checkTime <= d.getTime()) {
+    if (m && d && checkTime >= m.getTime() && checkTime < d.getTime()) {
       return true;
     }
   }
@@ -78,10 +80,11 @@ export function getActiveRotationRange(row: RosterRow, targetDate: Date): { star
     return { start: null, end: null };
   }
 
+  // Exclude DEMOB date - on board from MOB up to but NOT including DEMOB
   for (let i = 1; i <= 24; i++) {
     const m = safeParseDate(row[`m${i}`] as string);
     const d = safeParseDate(row[`d${i}`] as string);
-    if (m && d && checkTime >= m.getTime() && checkTime <= d.getTime()) {
+    if (m && d && checkTime >= m.getTime() && checkTime < d.getTime()) {
       return { start: m, end: d };
     }
   }
