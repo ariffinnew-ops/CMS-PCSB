@@ -122,16 +122,16 @@ interface PersonMatrix {
   certs: Record<string, CertEntry>;
 }
 
-// ─── 3D Pie Chart for header (bigger, with shadow/gradient effect) ───
+// ─── 3D Pie Chart for header (120x120, total in center, % on slices via labels) ───
 function CoursePieChart({ green, yellow, orange, planCount }: { green: number; yellow: number; orange: number; planCount: number }) {
   const data = [
-    { name: "Safe", value: green },
-    { name: "Warning", value: yellow },
-    { name: "Critical", value: orange },
+    { name: "Safe", value: green, color: PIE_GREEN, dark: "#16a34a" },
+    { name: "Warning", value: yellow, color: PIE_YELLOW, dark: "#ca8a04" },
+    { name: "Critical", value: orange, color: PIE_ORANGE, dark: "#ea580c" },
   ].filter((d) => d.value > 0);
 
   const total = green + yellow + orange;
-  const size = 80;
+  const size = 120;
   const cx = size / 2;
   const cy = size / 2;
 
@@ -139,56 +139,79 @@ function CoursePieChart({ green, yellow, orange, planCount }: { green: number; y
     return (
       <div className="flex flex-col items-center gap-1">
         <div className="rounded-full bg-slate-200 flex items-center justify-center" style={{ width: size, height: size }}>
-          <span className="text-xs text-slate-400 font-bold">N/A</span>
+          <span className="text-sm text-slate-400 font-bold">N/A</span>
         </div>
         {planCount > 0 && (
-          <span className="text-[8px] font-bold bg-blue-500 text-white px-2 py-0.5 rounded-full leading-none">PLAN: {planCount}</span>
+          <span className="text-[9px] font-bold bg-blue-500 text-white px-2.5 py-0.5 rounded-full leading-none">PLAN: {planCount}</span>
         )}
       </div>
     );
   }
 
-  const COLORS = [PIE_GREEN, PIE_YELLOW, PIE_ORANGE];
-  const DARK_COLORS = ["#16a34a", "#ca8a04", "#ea580c"];
-  const pctGreen = total > 0 ? Math.round((green / total) * 100) : 0;
+  // Custom label to show % on each slice
+  const renderLabel = ({ cx: lx, cy: ly, midAngle, innerRadius, outerRadius, index }: { cx: number; cy: number; midAngle: number; innerRadius: number; outerRadius: number; index: number }) => {
+    const RADIAN = Math.PI / 180;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = lx + radius * Math.cos(-midAngle * RADIAN);
+    const y = ly + radius * Math.sin(-midAngle * RADIAN);
+    const pct = Math.round((data[index].value / total) * 100);
+    if (pct < 5) return null; // too small to show label
+    return (
+      <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight="bold" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>
+        {pct}%
+      </text>
+    );
+  };
 
   return (
     <div className="flex flex-col items-center gap-1">
       <div className="relative" style={{ width: size, height: size }}>
-        {/* 3D shadow layer - offset beneath */}
-        <div className="absolute" style={{ top: 3, left: 0 }}>
+        {/* 3D shadow layer */}
+        <div className="absolute" style={{ top: 4, left: 0 }}>
           <PieChart width={size} height={size}>
-            <Pie data={data} cx={cx} cy={cy} innerRadius={18} outerRadius={36} paddingAngle={2} dataKey="value" stroke="none">
+            <Pie data={data} cx={cx} cy={cy} innerRadius={24} outerRadius={54} paddingAngle={2} dataKey="value" stroke="none" isAnimationActive={false}>
               {data.map((entry, i) => (
-                <Cell key={i} fill={DARK_COLORS[["Safe", "Warning", "Critical"].indexOf(entry.name)]} opacity={0.4} />
+                <Cell key={i} fill={entry.dark} opacity={0.35} />
               ))}
             </Pie>
           </PieChart>
         </div>
-        {/* Main pie layer */}
+        {/* Main pie layer with % labels */}
         <div className="absolute top-0 left-0">
           <PieChart width={size} height={size}>
-            <Pie data={data} cx={cx} cy={cy} innerRadius={18} outerRadius={36} paddingAngle={2} dataKey="value" stroke="rgba(255,255,255,0.5)" strokeWidth={1}>
+            <Pie
+              data={data}
+              cx={cx}
+              cy={cy}
+              innerRadius={24}
+              outerRadius={54}
+              paddingAngle={2}
+              dataKey="value"
+              stroke="rgba(255,255,255,0.6)"
+              strokeWidth={2}
+              label={renderLabel}
+              labelLine={false}
+              isAnimationActive={false}
+            >
               {data.map((entry, i) => (
-                <Cell key={i} fill={COLORS[["Safe", "Warning", "Critical"].indexOf(entry.name)]} />
+                <Cell key={i} fill={entry.color} />
               ))}
             </Pie>
           </PieChart>
         </div>
-        {/* Center label */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-sm font-black text-slate-800 tabular-nums leading-none">{total}</span>
-          <span className="text-[7px] font-bold text-emerald-600 leading-none">{pctGreen}%</span>
+        {/* Center: total crew only */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-lg font-black text-slate-800 tabular-nums leading-none">{total}</span>
         </div>
       </div>
       {planCount > 0 && (
-        <span className="text-[8px] font-bold bg-blue-500 text-white px-2 py-0.5 rounded-full leading-none shadow-sm">PLAN: {planCount}</span>
+        <span className="text-[9px] font-bold bg-blue-500 text-white px-2.5 py-0.5 rounded-full leading-none shadow-sm">PLAN: {planCount}</span>
       )}
     </div>
   );
 }
 
-// ─── Editable Cell ───
+// ─── Editable Cell (supports date and text fields) ───
 function EditableCell({
   value,
   displayValue,
@@ -196,6 +219,7 @@ function EditableCell({
   crewId,
   certType,
   field,
+  inputType = "date",
   canEdit,
   className,
   onSaved,
@@ -205,7 +229,8 @@ function EditableCell({
   matrixId: string | null;
   crewId: string;
   certType: string;
-  field: "attended_date" | "expiry_date" | "plan_date";
+  field: "attended_date" | "expiry_date" | "plan_date" | "cert_no";
+  inputType?: "date" | "text";
   canEdit: boolean;
   className: string;
   onSaved: () => void;
@@ -215,8 +240,9 @@ function EditableCell({
 
   const handleChange = async (newVal: string) => {
     setEditing(false);
+    const oldVal = inputType === "date" ? toInputDate(value) : (value || "");
     if (!newVal && !value) return;
-    if (newVal === toInputDate(value)) return;
+    if (newVal === oldVal) return;
     setSaving(true);
     try {
       if (matrixId) {
@@ -234,15 +260,15 @@ function EditableCell({
     return (
       <td className="px-0.5 py-0.5 text-center border-r border-slate-200">
         <input
-          type="date"
-          defaultValue={toInputDate(value)}
+          type={inputType}
+          defaultValue={inputType === "date" ? toInputDate(value) : (value || "")}
           autoFocus
           onBlur={(e) => handleChange(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") handleChange((e.target as HTMLInputElement).value);
             if (e.key === "Escape") setEditing(false);
           }}
-          className="bg-white text-slate-900 text-[11px] font-bold border-2 border-blue-500 rounded px-1 py-0.5 w-[108px] outline-none shadow-lg"
+          className={`bg-white text-slate-900 text-[11px] font-bold border-2 border-blue-500 rounded px-1 py-0.5 outline-none shadow-lg ${inputType === "date" ? "w-[108px]" : "w-[90px]"}`}
         />
       </td>
     );
@@ -257,14 +283,6 @@ function EditableCell({
       title={canEdit ? "Double-click to edit" : undefined}
     >
       {saving ? "..." : displayValue}
-    </td>
-  );
-}
-
-function TextCell({ value, className }: { value: string | null; className: string }) {
-  return (
-    <td className={`px-1 py-1.5 text-[11px] text-center tabular-nums border-r border-slate-200 font-semibold text-slate-800 ${className}`}>
-      {value || "-"}
     </td>
   );
 }
@@ -361,12 +379,12 @@ export default function TrainingMatrixPage() {
     });
   }, [personnel, clientFilter, tradeFilter, locationFilter, search, statusFilter, today]);
 
-  // Per-course stats for PIE CHARTS (3-tier: green >6m, yellow 3-6m, orange <3m)
+  // Per-course stats for PIE CHARTS - based on FILTERED data (reacts to client/trade/location)
   const courseStats = useMemo(() => {
     const stats: Record<string, { green: number; yellow: number; orange: number; planCount: number }> = {};
     for (const cc of COURSE_CONFIG) {
       const st = { green: 0, yellow: 0, orange: 0, planCount: 0 };
-      for (const p of personnel) {
+      for (const p of filtered) {
         const tier = getStatusTier(p.certs[cc.name]?.expiry_date || null, today);
         if (tier === "green") st.green++;
         else if (tier === "yellow") st.yellow++;
@@ -376,7 +394,7 @@ export default function TrainingMatrixPage() {
       stats[cc.name] = st;
     }
     return stats;
-  }, [personnel, today]);
+  }, [filtered, today]);
 
   const totalSubCols = visibleCourses.reduce((acc, c) => acc + c.colCount, 0);
   const totalCols = FIXED_COLS + totalSubCols;
@@ -397,11 +415,11 @@ export default function TrainingMatrixPage() {
           </div>
 
           {/* Filter Bar */}
-          <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl px-3 py-2">
+          <div className="flex flex-wrap items-center gap-3 bg-slate-600 border border-slate-900 rounded-xl px-3 py-2">
             {/* Client */}
             <div className="flex items-center gap-1.5">
-              <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Client</label>
-              <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} className="bg-slate-800 border border-slate-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
+              <label className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">Client</label>
+              <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} className="bg-slate-700 border border-slate-900 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
                 <option value="ALL">All</option>
                 <option value="SKA">SKA</option>
                 <option value="SBA">SBA</option>
@@ -409,8 +427,8 @@ export default function TrainingMatrixPage() {
             </div>
             {/* Trade */}
             <div className="flex items-center gap-1.5">
-              <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Trade</label>
-              <select value={tradeFilter} onChange={(e) => setTradeFilter(e.target.value)} className="bg-slate-800 border border-slate-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
+              <label className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">Trade</label>
+              <select value={tradeFilter} onChange={(e) => setTradeFilter(e.target.value)} className="bg-slate-700 border border-slate-900 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
                 <option value="ALL">All</option>
                 <option value="OM">OM</option>
                 <option value="EM">EM</option>
@@ -419,24 +437,24 @@ export default function TrainingMatrixPage() {
             </div>
             {/* Location */}
             <div className="flex items-center gap-1.5">
-              <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Location</label>
-              <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="bg-slate-800 border border-slate-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer min-w-[100px]">
+              <label className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">Location</label>
+              <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="bg-slate-700 border border-slate-900 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer min-w-[100px]">
                 <option value="ALL">All</option>
                 {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
               </select>
             </div>
             {/* Course */}
             <div className="flex items-center gap-1.5">
-              <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Course</label>
-              <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className="bg-slate-800 border border-slate-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
+              <label className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">Course</label>
+              <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className="bg-slate-700 border border-slate-900 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
                 <option value="ALL">All Courses</option>
                 {ALL_COURSE_NAMES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             {/* Status */}
             <div className="flex items-center gap-1.5">
-              <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Status</label>
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-slate-800 border border-slate-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
+              <label className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">Status</label>
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-slate-700 border border-slate-900 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
                 <option value="ALL">All Status</option>
                 <option value="valid">Valid</option>
                 <option value="expiring">Expiring</option>
@@ -444,25 +462,28 @@ export default function TrainingMatrixPage() {
               </select>
             </div>
             {/* Record count */}
-            <span className="text-[10px] text-muted-foreground font-bold">
-              Showing <span className="text-foreground font-black">{filtered.length}</span> of {personnel.length}
+            <span className="text-[10px] text-slate-300 font-bold">
+              Showing <span className="text-white font-black">{filtered.length}</span> of {personnel.length}
             </span>
             {/* Name search - far right */}
             <div className="flex items-center gap-1.5 ml-auto">
-              <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Name</label>
+              <label className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">Name</label>
               <div className="relative">
                 <input
                   type="text"
                   placeholder="Search name..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="bg-slate-800 border border-slate-700 text-white rounded-lg pl-3 pr-8 py-1.5 text-xs font-semibold outline-none w-44 placeholder:text-slate-500"
+                  className="bg-slate-700 border border-slate-900 text-white rounded-lg pl-3 pr-8 py-1.5 text-xs font-semibold outline-none w-44 placeholder:text-slate-400"
                 />
-                {search && (
-                  <button type="button" onClick={() => setSearch("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-slate-600 hover:bg-slate-500 rounded p-0.5 transition-colors">
-                    <X className="w-3 h-3 text-white" />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className={`absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 transition-all ${search ? "bg-red-500 hover:bg-red-400" : "bg-slate-600 opacity-40 cursor-default"}`}
+                  disabled={!search}
+                >
+                  <X className="w-3 h-3 text-white" />
+                </button>
               </div>
             </div>
           </div>
@@ -583,7 +604,18 @@ export default function TrainingMatrixPage() {
                           if (cc.colType === "apc") {
                             return (
                               <Fragment key={cc.name}>
-                                <TextCell value={cert?.cert_no || null} className="" />
+                                <EditableCell
+                                  value={cert?.cert_no || null}
+                                  displayValue={cert?.cert_no || "-"}
+                                  matrixId={cert?.matrix_id || null}
+                                  crewId={person.crew_id}
+                                  certType={cc.name}
+                                  field="cert_no"
+                                  inputType="text"
+                                  canEdit={!!canEdit}
+                                  className="font-semibold text-slate-800"
+                                  onSaved={loadData}
+                                />
                                 <EditableCell
                                   value={cert?.expiry_date || null}
                                   displayValue={fmtDate(cert?.expiry_date || null)}

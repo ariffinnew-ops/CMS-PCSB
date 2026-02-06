@@ -19,6 +19,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -30,6 +31,7 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setNotification(null);
 
     await new Promise((resolve) => setTimeout(resolve, 500));
 
@@ -49,17 +51,10 @@ export default function LoginPage() {
     }
 
     if (user) {
-      toast({
-        title: "Login Successful",
-        description: `Welcome back, ${user.username}!`,
-      });
-      router.push("/dashboard");
+      setNotification({ type: "success", message: `Login successful. Welcome back, ${user.username}!` });
+      setTimeout(() => router.push("/dashboard"), 800);
     } else {
-      toast({
-        title: "Invalid Credentials",
-        description: "Please check your username and password.",
-        variant: "destructive",
-      });
+      setNotification({ type: "error", message: "Login unsuccessful. Please check your username and password." });
     }
 
     setIsLoading(false);
@@ -67,25 +62,25 @@ export default function LoginPage() {
 
   if (!mounted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+      <div className="h-screen flex items-center justify-center bg-slate-950">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4">
+    <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 overflow-hidden">
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMyMDIwMjAiIGZpbGwtb3BhY2l0eT0iMC4xIj48cGF0aCBkPSJNMzYgMzRoLTJ2LTRoMnY0em0wLTZ2LTRoLTJ2NGgyek0zNCAyNGgtMnY0aDJ2LTR6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-20" />
       
       <Card className="w-full max-w-md border-slate-800 bg-slate-900/90 backdrop-blur-sm shadow-2xl">
-        <CardHeader className="text-center pb-2 pt-8">
-          <div className="mx-auto mb-6 bg-white px-8 py-5 rounded-xl shadow-lg inline-block">
+        <CardHeader className="text-center pb-2 pt-6">
+          <div className="mx-auto mb-4 bg-white px-8 py-4 rounded-xl shadow-lg inline-block">
             <Image
               src="https://cptffqgvibhwjzvklual.supabase.co/storage/v1/object/public/branding/BOSH%20LOGO-trf.png"
               alt="Company Logo"
               width={280}
               height={70}
-              className="h-16 w-auto"
+              className="h-14 w-auto"
               style={{ objectFit: 'contain' }}
               priority
             />
@@ -98,8 +93,8 @@ export default function LoginPage() {
           </p>
         </CardHeader>
         
-        <CardContent className="pt-6 pb-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
+        <CardContent className="pt-4 pb-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username" className="text-slate-300 text-sm font-medium">
                 Username
@@ -134,7 +129,7 @@ export default function LoginPage() {
 
             <Button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 h-11 mt-2"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 h-11 mt-1"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -151,9 +146,20 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="text-xs text-slate-500 text-center mt-6">
+          <p className="text-xs text-slate-500 text-center mt-5">
             Contact your administrator if you need access
           </p>
+
+          {/* Login notification - appears below "contact your admin" */}
+          {notification && (
+            <div className={`mt-3 px-4 py-2.5 rounded-lg text-sm font-semibold text-center animate-in fade-in slide-in-from-bottom-2 duration-300 ${
+              notification.type === "success"
+                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                : "bg-red-500/15 text-red-400 border border-red-500/30"
+            }`}>
+              {notification.message}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
