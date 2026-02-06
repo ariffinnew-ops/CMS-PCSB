@@ -134,6 +134,8 @@ function CoursePieChart({ green, yellow, orange, planCount }: { green: number; y
   const size = 120;
   const cx = size / 2;
   const cy = size / 2;
+  const ir = 26;
+  const or = 54;
 
   if (total === 0) {
     return (
@@ -155,7 +157,7 @@ function CoursePieChart({ green, yellow, orange, planCount }: { green: number; y
     const x = lx + radius * Math.cos(-midAngle * RADIAN);
     const y = ly + radius * Math.sin(-midAngle * RADIAN);
     const pct = Math.round((data[index].value / total) * 100);
-    if (pct < 5) return null; // too small to show label
+    if (pct < 5) return null;
     return (
       <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight="bold" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>
         {pct}%
@@ -169,7 +171,7 @@ function CoursePieChart({ green, yellow, orange, planCount }: { green: number; y
         {/* 3D shadow layer */}
         <div className="absolute" style={{ top: 4, left: 0 }}>
           <PieChart width={size} height={size}>
-            <Pie data={data} cx={cx} cy={cy} innerRadius={24} outerRadius={54} paddingAngle={2} dataKey="value" stroke="none" isAnimationActive={false}>
+            <Pie data={data} cx={cx} cy={cy} innerRadius={ir} outerRadius={or} paddingAngle={2} dataKey="value" stroke="none" isAnimationActive={false}>
               {data.map((entry, i) => (
                 <Cell key={i} fill={entry.dark} opacity={0.35} />
               ))}
@@ -179,34 +181,89 @@ function CoursePieChart({ green, yellow, orange, planCount }: { green: number; y
         {/* Main pie layer with % labels */}
         <div className="absolute top-0 left-0">
           <PieChart width={size} height={size}>
-            <Pie
-              data={data}
-              cx={cx}
-              cy={cy}
-              innerRadius={24}
-              outerRadius={54}
-              paddingAngle={2}
-              dataKey="value"
-              stroke="rgba(255,255,255,0.6)"
-              strokeWidth={2}
-              label={renderLabel}
-              labelLine={false}
-              isAnimationActive={false}
-            >
+            <Pie data={data} cx={cx} cy={cy} innerRadius={ir} outerRadius={or} paddingAngle={2} dataKey="value" stroke="rgba(255,255,255,0.6)" strokeWidth={2} label={renderLabel} labelLine={false} isAnimationActive={false}>
               {data.map((entry, i) => (
                 <Cell key={i} fill={entry.color} />
               ))}
             </Pie>
           </PieChart>
         </div>
-        {/* Center: total crew only */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-lg font-black text-slate-800 tabular-nums leading-none">{total}</span>
-        </div>
+        {/* Center: total crew only - use SVG text for perfect centering */}
+        <svg className="absolute top-0 left-0" width={size} height={size} style={{ pointerEvents: "none" }}>
+          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={20} fontWeight="900" fill="#1e293b">
+            {total}
+          </text>
+        </svg>
       </div>
       {planCount > 0 && (
         <span className="text-[9px] font-bold bg-blue-500 text-white px-2.5 py-0.5 rounded-full leading-none shadow-sm">PLAN: {planCount}</span>
       )}
+    </div>
+  );
+}
+
+// ─── Overall Pie Chart (180x180, shown in top-left of table) ───
+function OverallPieChart({ green, yellow, orange, total }: { green: number; yellow: number; orange: number; total: number }) {
+  const data = [
+    { name: "Safe", value: green, color: PIE_GREEN, dark: "#16a34a" },
+    { name: "Warning", value: yellow, color: PIE_YELLOW, dark: "#ca8a04" },
+    { name: "Critical", value: orange, color: PIE_ORANGE, dark: "#ea580c" },
+  ].filter((d) => d.value > 0);
+
+  const size = 180;
+  const cx = size / 2;
+  const cy = size / 2;
+
+  if (total === 0) {
+    return (
+      <div className="rounded-full bg-slate-200 flex items-center justify-center" style={{ width: size, height: size }}>
+        <span className="text-lg text-slate-400 font-bold">N/A</span>
+      </div>
+    );
+  }
+
+  const renderLabel = ({ cx: lx, cy: ly, midAngle, innerRadius, outerRadius, index }: { cx: number; cy: number; midAngle: number; innerRadius: number; outerRadius: number; index: number }) => {
+    const RADIAN = Math.PI / 180;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = lx + radius * Math.cos(-midAngle * RADIAN);
+    const y = ly + radius * Math.sin(-midAngle * RADIAN);
+    const pct = Math.round((data[index].value / total) * 100);
+    if (pct < 3) return null;
+    return (
+      <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={13} fontWeight="bold" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.6)" }}>
+        {pct}%
+      </text>
+    );
+  };
+
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      {/* 3D shadow */}
+      <div className="absolute" style={{ top: 5, left: 0 }}>
+        <PieChart width={size} height={size}>
+          <Pie data={data} cx={cx} cy={cy} innerRadius={38} outerRadius={82} paddingAngle={2} dataKey="value" stroke="none" isAnimationActive={false}>
+            {data.map((entry, i) => (
+              <Cell key={i} fill={entry.dark} opacity={0.3} />
+            ))}
+          </Pie>
+        </PieChart>
+      </div>
+      {/* Main */}
+      <div className="absolute top-0 left-0">
+        <PieChart width={size} height={size}>
+          <Pie data={data} cx={cx} cy={cy} innerRadius={38} outerRadius={82} paddingAngle={2} dataKey="value" stroke="rgba(255,255,255,0.6)" strokeWidth={2} label={renderLabel} labelLine={false} isAnimationActive={false}>
+            {data.map((entry, i) => (
+              <Cell key={i} fill={entry.color} />
+            ))}
+          </Pie>
+        </PieChart>
+      </div>
+      {/* Center number - SVG for perfect centering */}
+      <svg className="absolute top-0 left-0" width={size} height={size} style={{ pointerEvents: "none" }}>
+        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={32} fontWeight="900" fill="#1e293b">
+          {total}
+        </text>
+      </svg>
     </div>
   );
 }
@@ -396,6 +453,20 @@ export default function TrainingMatrixPage() {
     return stats;
   }, [filtered, today]);
 
+  // Overall stats across all courses for the big pie
+  const overallStats = useMemo(() => {
+    let green = 0, yellow = 0, orange = 0;
+    for (const p of filtered) {
+      for (const cc of COURSE_CONFIG) {
+        const tier = getStatusTier(p.certs[cc.name]?.expiry_date || null, today);
+        if (tier === "green") green++;
+        else if (tier === "yellow") yellow++;
+        else if (tier === "orange") orange++;
+      }
+    }
+    return { green, yellow, orange };
+  }, [filtered, today]);
+
   const totalSubCols = visibleCourses.reduce((acc, c) => acc + c.colCount, 0);
   const totalCols = FIXED_COLS + totalSubCols;
 
@@ -419,7 +490,7 @@ export default function TrainingMatrixPage() {
             {/* Client */}
             <div className="flex items-center gap-1.5">
               <label className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">Client</label>
-              <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} className="bg-slate-700 border border-slate-900 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
+              <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} className="bg-slate-200 border border-slate-400 text-slate-900 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
                 <option value="ALL">All</option>
                 <option value="SKA">SKA</option>
                 <option value="SBA">SBA</option>
@@ -428,7 +499,7 @@ export default function TrainingMatrixPage() {
             {/* Trade */}
             <div className="flex items-center gap-1.5">
               <label className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">Trade</label>
-              <select value={tradeFilter} onChange={(e) => setTradeFilter(e.target.value)} className="bg-slate-700 border border-slate-900 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
+              <select value={tradeFilter} onChange={(e) => setTradeFilter(e.target.value)} className="bg-slate-200 border border-slate-400 text-slate-900 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
                 <option value="ALL">All</option>
                 <option value="OM">OM</option>
                 <option value="EM">EM</option>
@@ -438,7 +509,7 @@ export default function TrainingMatrixPage() {
             {/* Location */}
             <div className="flex items-center gap-1.5">
               <label className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">Location</label>
-              <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="bg-slate-700 border border-slate-900 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer min-w-[100px]">
+              <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="bg-slate-200 border border-slate-400 text-slate-900 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer min-w-[100px]">
                 <option value="ALL">All</option>
                 {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
               </select>
@@ -446,7 +517,7 @@ export default function TrainingMatrixPage() {
             {/* Course */}
             <div className="flex items-center gap-1.5">
               <label className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">Course</label>
-              <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className="bg-slate-700 border border-slate-900 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
+              <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className="bg-slate-200 border border-slate-400 text-slate-900 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
                 <option value="ALL">All Courses</option>
                 {ALL_COURSE_NAMES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -454,7 +525,7 @@ export default function TrainingMatrixPage() {
             {/* Status */}
             <div className="flex items-center gap-1.5">
               <label className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">Status</label>
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-slate-700 border border-slate-900 text-white rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-slate-200 border border-slate-400 text-slate-900 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
                 <option value="ALL">All Status</option>
                 <option value="valid">Valid</option>
                 <option value="expiring">Expiring</option>
@@ -474,12 +545,12 @@ export default function TrainingMatrixPage() {
                   placeholder="Search name..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="bg-slate-700 border border-slate-900 text-white rounded-lg pl-3 pr-8 py-1.5 text-xs font-semibold outline-none w-44 placeholder:text-slate-400"
+                  className="bg-slate-200 border border-slate-400 text-slate-900 rounded-lg pl-3 pr-8 py-1.5 text-xs font-semibold outline-none w-44 placeholder:text-slate-500"
                 />
                 <button
                   type="button"
                   onClick={() => setSearch("")}
-                  className={`absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 transition-all ${search ? "bg-red-500 hover:bg-red-400" : "bg-slate-600 opacity-40 cursor-default"}`}
+                  className={`absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 transition-all ${search ? "bg-red-500 hover:bg-red-400" : "bg-slate-400 opacity-40 cursor-default"}`}
                   disabled={!search}
                 >
                   <X className="w-3 h-3 text-white" />
@@ -521,10 +592,18 @@ export default function TrainingMatrixPage() {
           ) : (
             <table className="w-full text-left border-collapse min-w-max">
               <thead className="sticky top-0 z-50">
-                {/* Row 1: Course Name Headers with PIE CHARTS */}
+                {/* Row 1: Overall Pie on left, Course Pie Charts across top */}
                 <tr>
-                  <th rowSpan={2} className="px-2 py-2 border-r border-b border-slate-300 text-[10px] font-black uppercase tracking-wider text-slate-700 bg-white sticky left-0 z-[60] w-[36px] text-center">#</th>
-                    <th rowSpan={2} className="px-2 py-2 border-r border-b border-slate-300 text-[10px] font-black uppercase tracking-wider text-slate-700 bg-white sticky left-[36px] z-[60] min-w-[170px]">Name</th>
+                  <th rowSpan={2} colSpan={2} className="border-r border-b border-slate-300 bg-white sticky left-0 z-[60] align-middle" style={{ minWidth: 210 }}>
+                    <div className="flex items-center justify-center py-1">
+                      <OverallPieChart
+                        green={overallStats.green}
+                        yellow={overallStats.yellow}
+                        orange={overallStats.orange}
+                        total={filtered.length}
+                      />
+                    </div>
+                  </th>
                     {visibleCourses.map((cc) => {
                     const st = courseStats[cc.name] || { green: 0, yellow: 0, orange: 0, planCount: 0 };
                     return (
