@@ -167,33 +167,27 @@ function CoursePieChart({ green, yellow, orange, planCount }: { green: number; y
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <div className="relative" style={{ width: size, height: size }}>
-        {/* 3D shadow layer */}
-        <div className="absolute" style={{ top: 4, left: 0 }}>
-          <PieChart width={size} height={size}>
-            <Pie data={data} cx={cx} cy={cy} innerRadius={ir} outerRadius={or} paddingAngle={2} dataKey="value" stroke="none" isAnimationActive={false}>
-              {data.map((entry, i) => (
-                <Cell key={i} fill={entry.dark} opacity={0.35} />
-              ))}
-            </Pie>
-          </PieChart>
-        </div>
-        {/* Main pie layer with % labels */}
-        <div className="absolute top-0 left-0">
-          <PieChart width={size} height={size}>
-            <Pie data={data} cx={cx} cy={cy} innerRadius={ir} outerRadius={or} paddingAngle={2} dataKey="value" stroke="rgba(255,255,255,0.6)" strokeWidth={2} label={renderLabel} labelLine={false} isAnimationActive={false}>
-              {data.map((entry, i) => (
-                <Cell key={i} fill={entry.color} />
-              ))}
-            </Pie>
-          </PieChart>
-        </div>
-        {/* Center: total crew only - use SVG text for perfect centering */}
-        <svg className="absolute top-0 left-0" width={size} height={size} style={{ pointerEvents: "none" }}>
-          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={20} fontWeight="900" fill="#1e293b">
+      <div style={{ width: size, height: size + 4, position: "relative" }}>
+        {/* 3D shadow layer - shifted down */}
+        <PieChart width={size} height={size} style={{ position: "absolute", top: 4, left: 0 }}>
+          <Pie data={data} cx={cx} cy={cy} innerRadius={ir} outerRadius={or} paddingAngle={2} dataKey="value" stroke="none" isAnimationActive={false}>
+            {data.map((entry, i) => (
+              <Cell key={i} fill={entry.dark} opacity={0.35} />
+            ))}
+          </Pie>
+        </PieChart>
+        {/* Main pie + center text in same SVG for perfect centering */}
+        <PieChart width={size} height={size} style={{ position: "absolute", top: 0, left: 0 }}>
+          <Pie data={data} cx={cx} cy={cy} innerRadius={ir} outerRadius={or} paddingAngle={2} dataKey="value" stroke="rgba(255,255,255,0.6)" strokeWidth={2} label={renderLabel} labelLine={false} isAnimationActive={false}>
+            {data.map((entry, i) => (
+              <Cell key={i} fill={entry.color} />
+            ))}
+          </Pie>
+          {/* Center number inside the same SVG */}
+          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={22} fontWeight="900" fill="#1e293b">
             {total}
           </text>
-        </svg>
+        </PieChart>
       </div>
       {planCount > 0 && (
         <span className="text-[9px] font-bold bg-blue-500 text-white px-2.5 py-0.5 rounded-full leading-none shadow-sm">PLAN: {planCount}</span>
@@ -203,7 +197,9 @@ function CoursePieChart({ green, yellow, orange, planCount }: { green: number; y
 }
 
 // ─── Overall Pie Chart (180x180, shown in top-left of table) ───
+// total = crew count (center number), green/yellow/orange = certificate counts for % slices
 function OverallPieChart({ green, yellow, orange, total }: { green: number; yellow: number; orange: number; total: number }) {
+  const certTotal = green + yellow + orange;
   const data = [
     { name: "Safe", value: green, color: PIE_GREEN, dark: "#16a34a" },
     { name: "Warning", value: yellow, color: PIE_YELLOW, dark: "#ca8a04" },
@@ -222,12 +218,13 @@ function OverallPieChart({ green, yellow, orange, total }: { green: number; yell
     );
   }
 
+  // % based on total certificates, not crew count
   const renderLabel = ({ cx: lx, cy: ly, midAngle, innerRadius, outerRadius, index }: { cx: number; cy: number; midAngle: number; innerRadius: number; outerRadius: number; index: number }) => {
     const RADIAN = Math.PI / 180;
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = lx + radius * Math.cos(-midAngle * RADIAN);
     const y = ly + radius * Math.sin(-midAngle * RADIAN);
-    const pct = Math.round((data[index].value / total) * 100);
+    const pct = certTotal > 0 ? Math.round((data[index].value / certTotal) * 100) : 0;
     if (pct < 3) return null;
     return (
       <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={13} fontWeight="bold" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.6)" }}>
@@ -237,33 +234,29 @@ function OverallPieChart({ green, yellow, orange, total }: { green: number; yell
   };
 
   return (
-    <div className="relative" style={{ width: size, height: size }}>
-      {/* 3D shadow */}
-      <div className="absolute" style={{ top: 5, left: 0 }}>
-        <PieChart width={size} height={size}>
-          <Pie data={data} cx={cx} cy={cy} innerRadius={38} outerRadius={82} paddingAngle={2} dataKey="value" stroke="none" isAnimationActive={false}>
+    <div style={{ width: size, height: size + 6, position: "relative" }}>
+      {/* 3D shadow - shifted down 5px, same SVG coordinates */}
+      <svg style={{ position: "absolute", top: 5, left: 0 }} width={size} height={size}>
+        <PieChart width={size} height={size} style={{ position: "absolute", top: 0, left: 0 }}>
+          <Pie data={data} cx={cx} cy={cy} innerRadius={40} outerRadius={84} paddingAngle={2} dataKey="value" stroke="none" isAnimationActive={false}>
             {data.map((entry, i) => (
               <Cell key={i} fill={entry.dark} opacity={0.3} />
             ))}
           </Pie>
         </PieChart>
-      </div>
-      {/* Main */}
-      <div className="absolute top-0 left-0">
-        <PieChart width={size} height={size}>
-          <Pie data={data} cx={cx} cy={cy} innerRadius={38} outerRadius={82} paddingAngle={2} dataKey="value" stroke="rgba(255,255,255,0.6)" strokeWidth={2} label={renderLabel} labelLine={false} isAnimationActive={false}>
-            {data.map((entry, i) => (
-              <Cell key={i} fill={entry.color} />
-            ))}
-          </Pie>
-        </PieChart>
-      </div>
-      {/* Center number - SVG for perfect centering */}
-      <svg className="absolute top-0 left-0" width={size} height={size} style={{ pointerEvents: "none" }}>
-        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={32} fontWeight="900" fill="#1e293b">
+      </svg>
+      {/* Main pie + center text in same coordinate space */}
+      <PieChart width={size} height={size} style={{ position: "absolute", top: 0, left: 0 }}>
+        <Pie data={data} cx={cx} cy={cy} innerRadius={40} outerRadius={84} paddingAngle={2} dataKey="value" stroke="rgba(255,255,255,0.6)" strokeWidth={2} label={renderLabel} labelLine={false} isAnimationActive={false}>
+          {data.map((entry, i) => (
+            <Cell key={i} fill={entry.color} />
+          ))}
+        </Pie>
+        {/* Center text rendered in the same SVG for perfect centering */}
+        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={34} fontWeight="900" fill="#1e293b">
           {total}
         </text>
-      </svg>
+      </PieChart>
     </div>
   );
 }
@@ -453,10 +446,10 @@ export default function TrainingMatrixPage() {
     return stats;
   }, [filtered, today]);
 
-  // Overall stats across all courses for the big pie
+  // Overall stats across ALL courses for ALL personnel (not affected by filters)
   const overallStats = useMemo(() => {
     let green = 0, yellow = 0, orange = 0;
-    for (const p of filtered) {
+    for (const p of personnel) {
       for (const cc of COURSE_CONFIG) {
         const tier = getStatusTier(p.certs[cc.name]?.expiry_date || null, today);
         if (tier === "green") green++;
@@ -465,7 +458,7 @@ export default function TrainingMatrixPage() {
       }
     }
     return { green, yellow, orange };
-  }, [filtered, today]);
+  }, [personnel, today]);
 
   const totalSubCols = visibleCourses.reduce((acc, c) => acc + c.colCount, 0);
   const totalCols = FIXED_COLS + totalSubCols;
@@ -600,7 +593,7 @@ export default function TrainingMatrixPage() {
                         green={overallStats.green}
                         yellow={overallStats.yellow}
                         orange={overallStats.orange}
-                        total={filtered.length}
+                        total={personnel.length}
                       />
                     </div>
                   </th>
