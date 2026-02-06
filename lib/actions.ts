@@ -134,7 +134,7 @@ export async function getMatrixData(): Promise<{ success: boolean; data?: Matrix
   // Fetch matrix records
   const { data: matrixData, error: matrixError } = await supabase
     .from('pcsb_matrix')
-    .select('id, crew_id, cert_type, expiry_date, attended_date')
+    .select('id, crew_id, cert_type, cert_no, expiry_date, attended_date, plan_date')
 
   if (matrixError) {
     console.error('Error fetching matrix data:', matrixError)
@@ -155,8 +155,10 @@ export async function getMatrixData(): Promise<{ success: boolean; data?: Matrix
         id: row.id,
         crew_id: row.crew_id,
         cert_type: row.cert_type || '',
+        cert_no: row.cert_no || null,
         expiry_date: row.expiry_date || null,
         attended_date: row.attended_date || null,
+        plan_date: row.plan_date || null,
         crew_name: crew?.crew_name || '',
         post: crew?.post || '',
         client: crew?.client || '',
@@ -173,8 +175,10 @@ export async function getMatrixData(): Promise<{ success: boolean; data?: Matrix
       id: c.id,
       crew_id: c.id,
       cert_type: '',
+      cert_no: null,
       expiry_date: null,
       attended_date: null,
+      plan_date: null,
       crew_name: c.crew_name || '',
       post: c.post || '',
       client: c.client || '',

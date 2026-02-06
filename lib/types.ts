@@ -45,8 +45,10 @@ export interface MatrixRecord {
   id: string;
   crew_id: string;
   cert_type: string;
+  cert_no: string | null;
   expiry_date: string | null;
   attended_date: string | null;
+  plan_date: string | null;
   // Joined from pcsb_crew_detail
   crew_name: string;
   post: string;
