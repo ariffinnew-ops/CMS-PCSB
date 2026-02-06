@@ -1,135 +1,330 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, Fragment } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { AppShell } from "@/components/app-shell";
-import { getUser, type AuthUser } from "@/lib/auth";
+import { getUser, ROLE_LEVELS, type AuthUser } from "@/lib/auth";
 import {
   getCrewList,
   getCrewDetail,
-  updateCrewDetail,
   getCrewMatrix,
   getCrewRoster,
+  updateCrewDetail,
+  createCrewMember,
   listCrewDocuments,
-  deleteCrewDocument,
 } from "@/lib/actions";
 import { createClient } from "@/lib/supabase/client";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 // ─── Types ───
-interface CrewListItem {
-  id: string;
-  crew_name: string;
-  post: string;
-  client: string;
-  location: string;
-  status?: string;
-}
-
-interface MatrixRow {
-  id: string;
-  cert_type: string;
-  cert_no: string | null;
-  expiry_date: string | null;
-  attended_date: string | null;
-  plan_date: string | null;
-}
-
-interface DocFile {
-  name: string;
-  size: number;
-  created_at: string;
-}
+interface CrewListItem { id: string; crew_name: string; post: string; client: string; location: string; status?: string }
+interface MatrixRow { id: string; cert_type: string; cert_no: string | null; expiry_date: string | null; attended_date: string | null; plan_date: string | null }
+interface DocItem { name: string; size: number; created_at: string }
 
 // ─── Helpers ───
-function roleLevel(user: AuthUser | null): number {
-  if (!user) return 3;
-  if (user.role === "admin") return 1;
-  if (user.role === "datalogger") return 2;
-  return 3;
+function roleLevel(u: AuthUser | null): number { return u ? (ROLE_LEVELS[u.role] ?? 99) : 99; }
+function fmtDate(d: string | null | undefined): string {
+  if (!d) return "-";
+  try { return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); } catch { return String(d); }
 }
-
-function formatCurrency(val: unknown): string {
-  const n = Number(val);
-  if (isNaN(n)) return "-";
+function fmtRM(v: unknown): string {
+  const n = Number(v);
+  if (!v || isNaN(n)) return "-";
   return `RM ${n.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
-
-function formatDate(d: string | null): string {
-  if (!d) return "-";
-  try {
-    return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  } catch {
-    return d;
-  }
+function certStatus(expiry: string | null): { label: string; cls: string } {
+  if (!expiry) return { label: "N/A", cls: "bg-slate-100 text-slate-400 border-slate-200" };
+  const diff = (new Date(expiry).getTime() - Date.now()) / 86400000;
+  if (diff < 0) return { label: "EXPIRED", cls: "bg-red-50 text-red-600 border-red-200" };
+  if (diff < 90) return { label: "EXPIRING", cls: "bg-amber-50 text-amber-600 border-amber-200" };
+  return { label: "VALID", cls: "bg-emerald-50 text-emerald-600 border-emerald-200" };
+}
+function daysUntil(d: string | null | undefined): number | null {
+  if (!d) return null;
+  return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
 }
 
-function certStatus(expiry: string | null): { label: string; color: string } {
-  if (!expiry) return { label: "N/A", color: "bg-slate-100 text-slate-500" };
-  const now = new Date();
-  const exp = new Date(expiry);
-  const diffMs = exp.getTime() - now.getTime();
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
-  if (diffDays < 0) return { label: "Expired", color: "bg-red-100 text-red-700" };
-  if (diffDays < 90) return { label: "Expiring", color: "bg-amber-100 text-amber-700" };
-  return { label: "Valid", color: "bg-emerald-100 text-emerald-700" };
-}
-
-function fileIcon(name: string): string {
-  if (name.match(/\.pdf$/i)) return "PDF";
-  if (name.match(/\.(jpg|jpeg|png)$/i)) return "IMG";
-  return "DOC";
-}
-
-function fileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-// ─── Movement Timeline extraction ───
-function extractMovements(rosterRows: Record<string, unknown>[]): { date: string; type: string; location: string }[] {
-  const moves: { date: string; type: string; location: string }[] = [];
-  for (const row of rosterRows) {
-    const location = String(row.location || "");
-    for (let i = 1; i <= 20; i++) {
-      const mKey = `m${i}`;
-      const dKey = `d${i}`;
-      const mVal = row[mKey] as string | null;
-      const dVal = row[dKey] as string | null;
-      if (mVal) moves.push({ date: mVal, type: "Mobilize", location });
-      if (dVal) moves.push({ date: dVal, type: "Demobilize", location });
+// ─── Roster Strip (Section C) ───
+function RosterStrip({ rosterRows }: { rosterRows: Record<string, unknown>[] }) {
+  const entries = useMemo(() => {
+    const result: { date: Date; type: "M" | "D" }[] = [];
+    for (const row of rosterRows) {
+      for (let i = 1; i <= 24; i++) {
+        const mVal = row[`m${i}`] as string | null;
+        const dVal = row[`d${i}`] as string | null;
+        if (mVal) try { result.push({ date: new Date(mVal), type: "M" }); } catch {/* */}
+        if (dVal) try { result.push({ date: new Date(dVal), type: "D" }); } catch {/* */}
+      }
     }
-  }
-  moves.sort((a, b) => b.date.localeCompare(a.date));
-  return moves;
+    result.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return result;
+  }, [rosterRows]);
+
+  const months = useMemo(() => {
+    if (entries.length === 0) return [];
+    const monthSet = new Map<string, { year: number; month: number }>();
+    for (const e of entries) {
+      const key = `${e.date.getFullYear()}-${e.date.getMonth()}`;
+      if (!monthSet.has(key)) monthSet.set(key, { year: e.date.getFullYear(), month: e.date.getMonth() });
+    }
+    return Array.from(monthSet.values()).sort((a, b) => a.year - b.year || a.month - b.month);
+  }, [entries]);
+
+  const MO = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  if (months.length === 0) return <p className="text-xs text-muted-foreground italic p-2">No roster data available.</p>;
+
+  return (
+    <div className="overflow-auto max-h-full">
+      <table className="w-full border-collapse" style={{ fontSize: "10px" }}>
+        <thead className="sticky top-0 z-10">
+          <tr className="bg-slate-100">
+            <th className="px-2 py-1 text-left font-bold text-slate-500 uppercase tracking-wider sticky left-0 bg-slate-100 min-w-[72px] border-b border-r border-slate-200">Month</th>
+            {Array.from({ length: 31 }, (_, i) => (
+              <th key={i} className="px-0 py-1 text-center font-bold text-slate-400 min-w-[20px] border-b border-r border-slate-200">{i + 1}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {months.map(({ year, month }, mi) => {
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const monthEntries = entries.filter(e => e.date.getFullYear() === year && e.date.getMonth() === month);
+            const dayMap = new Map<number, "M" | "D" | "W">();
+            for (const e of monthEntries) dayMap.set(e.date.getDate(), e.type);
+            let working = false;
+            for (let day = 1; day <= daysInMonth; day++) {
+              const ev = monthEntries.find(e => e.date.getDate() === day);
+              if (ev?.type === "M") working = true;
+              if (working && !dayMap.has(day)) dayMap.set(day, "W");
+              if (ev?.type === "D") working = false;
+            }
+            return (
+              <tr key={`${year}-${month}`} className={mi > 0 ? "border-t-4 border-slate-200" : ""}>
+                <td className="px-2 py-1 font-bold text-slate-600 sticky left-0 bg-white border-b border-r border-slate-200 whitespace-nowrap">
+                  {MO[month]} {year}
+                </td>
+                {Array.from({ length: 31 }, (_, i) => {
+                  const day = i + 1;
+                  if (day > daysInMonth) return <td key={day} className="bg-slate-50 border-b border-r border-slate-100" />;
+                  const ev = dayMap.get(day);
+                  let bg = "bg-white";
+                  if (ev === "M" || ev === "D" || ev === "W") bg = "bg-blue-500";
+                  return (
+                    <td key={day} className={`${bg} border-b border-r border-slate-200`} style={{ height: "18px" }} />
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
-// ─── Main Page ───
+// ─── Change Status Dialog ───
+function ChangeStatusDialog({ currentStatus, onSave, onClose }: { currentStatus: string; onSave: (s: string) => void; onClose: () => void }) {
+  const [selected, setSelected] = useState(currentStatus);
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-background border border-border rounded-xl w-full max-w-sm shadow-2xl">
+        <div className="px-5 py-3 border-b border-border flex items-center justify-between">
+          <h3 className="text-sm font-black uppercase tracking-wider text-foreground">Change Status</h3>
+          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground text-lg font-bold">&times;</button>
+        </div>
+        <div className="px-5 py-5 space-y-3">
+          {["Active", "On Notice", "Resigned"].map((s) => (
+            <label key={s} className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-colors ${selected === s ? "border-blue-500 bg-blue-50" : "border-border hover:bg-accent"}`}>
+              <input type="radio" name="status" checked={selected === s} onChange={() => setSelected(s)} className="accent-blue-600" />
+              <span className="text-sm font-bold text-foreground">{s}</span>
+            </label>
+          ))}
+        </div>
+        <div className="px-5 py-3 border-t border-border flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-bold text-muted-foreground hover:text-foreground">Cancel</button>
+          <button type="button" onClick={() => onSave(selected)} className="px-5 py-2 rounded-lg text-xs font-black uppercase bg-blue-600 text-white hover:bg-blue-500">Save</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SEE DETAIL Overlay (covers Section B + C area) ───
+function DetailOverlay({ detail, onClose }: { detail: Record<string, unknown>; onClose: () => void }) {
+  const d = detail;
+  const fields: { section: string; items: { label: string; key: string; fmt?: (v: unknown) => string }[] }[] = [
+    {
+      section: "Personal & Contact",
+      items: [
+        { label: "Full Name", key: "crew_name" },
+        { label: "Clean Name", key: "clean_name" },
+        { label: "Passport Number", key: "passport_number" },
+        { label: "Address", key: "address" },
+        { label: "Phone", key: "phone" },
+        { label: "Email 1", key: "email1" },
+        { label: "Email 2", key: "email2" },
+      ],
+    },
+    {
+      section: "Employment Info",
+      items: [
+        { label: "Trade / Post", key: "post" },
+        { label: "Client", key: "client" },
+        { label: "Location", key: "location" },
+        { label: "Hire Date", key: "hire_date", fmt: (v) => fmtDate(v as string) },
+        { label: "Resign Date", key: "resign_date", fmt: (v) => fmtDate(v as string) },
+        { label: "Status", key: "status" },
+      ],
+    },
+    {
+      section: "Next of Kin (Emergency)",
+      items: [
+        { label: "NOK Name", key: "nok_name" },
+        { label: "NOK Relation", key: "nok_relation" },
+        { label: "NOK Phone", key: "nok_phone" },
+      ],
+    },
+  ];
+
+  return (
+    <div className="absolute inset-0 z-50 bg-background border border-border rounded-xl overflow-y-auto animate-in fade-in duration-200 shadow-xl">
+      <div className="p-5">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-base font-black uppercase tracking-wider text-foreground">Full Staff Details</h3>
+          <button type="button" onClick={onClose} className="px-4 py-1.5 rounded-lg text-xs font-black uppercase bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors">Close</button>
+        </div>
+        <div className="space-y-6">
+          {fields.map((sec) => (
+            <div key={sec.section}>
+              <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 mb-3 border-b border-border pb-2">{sec.section}</h4>
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3">
+                {sec.items.map((it) => {
+                  const val = d[it.key];
+                  const display = (val !== undefined && val !== null && val !== "") ? (it.fmt ? it.fmt(val) : String(val)) : "-";
+                  return (
+                    <div key={it.key}>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{it.label}</p>
+                      <p className="text-sm font-semibold text-foreground">{display}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Add Staff Overlay (covers Section B + C area) ───
+function AddStaffOverlay({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+  const [form, setForm] = useState<Record<string, string>>({
+    crew_name: "", clean_name: "", passport_number: "", address: "", phone: "", email1: "", email2: "",
+    post: "", client: "", location: "", hire_date: "", resign_date: "", status: "Active",
+    nok_name: "", nok_relation: "", nok_phone: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
+  const handleSave = async () => {
+    if (!form.crew_name.trim()) return;
+    setSaving(true);
+    const payload: Record<string, string> = {};
+    for (const [k, v] of Object.entries(form)) { if (v.trim()) payload[k] = v.trim(); }
+    const res = await createCrewMember(payload);
+    setSaving(false);
+    if (res.success && res.id) onCreated(res.id);
+    else alert(res.error || "Failed to create");
+  };
+
+  const inputCls = "w-full bg-accent border border-border rounded-lg px-3 py-1.5 text-xs text-foreground outline-none focus:border-blue-500";
+  const labelCls = "text-[9px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5";
+
+  return (
+    <div className="absolute inset-0 z-50 bg-background border border-border rounded-xl overflow-y-auto animate-in fade-in duration-200 shadow-xl flex flex-col">
+      <div className="px-5 py-3 border-b border-border flex items-center justify-between shrink-0">
+        <h3 className="text-base font-black uppercase tracking-wider text-foreground">Add New Staff</h3>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={onClose} className="px-4 py-1.5 rounded-lg text-xs font-black uppercase bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors">Cancel</button>
+          <button type="button" onClick={handleSave} disabled={saving || !form.crew_name.trim()} className="px-5 py-1.5 rounded-lg text-xs font-black uppercase bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 transition-colors">
+            {saving ? "Saving..." : "Create Staff"}
+          </button>
+        </div>
+      </div>
+      <div className="px-5 py-5 space-y-6 flex-1 overflow-y-auto">
+        {/* Personal & Contact */}
+        <div>
+          <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 mb-3 border-b border-border pb-2">Personal & Contact</h4>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+            <div><label className={labelCls}>Full Name *</label><input value={form.crew_name} onChange={(e) => set("crew_name", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Clean Name</label><input value={form.clean_name} onChange={(e) => set("clean_name", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Passport Number</label><input value={form.passport_number} onChange={(e) => set("passport_number", e.target.value)} className={inputCls} /></div>
+            <div className="col-span-2 lg:col-span-3"><label className={labelCls}>Address</label><input value={form.address} onChange={(e) => set("address", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Phone</label><input value={form.phone} onChange={(e) => set("phone", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Email 1</label><input value={form.email1} onChange={(e) => set("email1", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Email 2</label><input value={form.email2} onChange={(e) => set("email2", e.target.value)} className={inputCls} /></div>
+          </div>
+        </div>
+        {/* Employment Info */}
+        <div>
+          <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 mb-3 border-b border-border pb-2">Employment Info</h4>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+            <div><label className={labelCls}>Trade / Post</label><input value={form.post} onChange={(e) => set("post", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Client</label><input value={form.client} onChange={(e) => set("client", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Location</label><input value={form.location} onChange={(e) => set("location", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Status</label>
+              <select value={form.status} onChange={(e) => set("status", e.target.value)} className={inputCls}>
+                <option>Active</option><option>On Notice</option><option>Resigned</option>
+              </select>
+            </div>
+            <div><label className={labelCls}>Hire Date</label><input type="date" value={form.hire_date} onChange={(e) => set("hire_date", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Resign Date</label><input type="date" value={form.resign_date} onChange={(e) => set("resign_date", e.target.value)} className={inputCls} /></div>
+          </div>
+        </div>
+        {/* Next of Kin */}
+        <div>
+          <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 mb-3 border-b border-border pb-2">Next of Kin (Emergency)</h4>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+            <div><label className={labelCls}>NOK Name</label><input value={form.nok_name} onChange={(e) => set("nok_name", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>NOK Relation</label><input value={form.nok_relation} onChange={(e) => set("nok_relation", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>NOK Phone</label><input value={form.nok_phone} onChange={(e) => set("nok_phone", e.target.value)} className={inputCls} /></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// ─── MAIN PAGE ───
+// ════════════════════════════════════��══
 export default function StaffDetailPage() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [crewList, setCrewList] = useState<CrewListItem[]>([]);
-  const [selectedId, setSelectedId] = useState<string>("");
+  const [selectedId, setSelectedId] = useState("");
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
   const [matrix, setMatrix] = useState<MatrixRow[]>([]);
   const [rosterRows, setRosterRows] = useState<Record<string, unknown>[]>([]);
-  const [docs, setDocs] = useState<DocFile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [editFields, setEditFields] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [statusSaving, setStatusSaving] = useState(false);
-  const [notification, setNotification] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState("personal");
+  const [showAutoComplete, setShowAutoComplete] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [showStatusDialog, setShowStatusDialog] = useState(false);
+  const [showDetailOverlay, setShowDetailOverlay] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   const lvl = roleLevel(user);
-  const canEdit = lvl <= 2; // L1 or L2
+  const isL1L2 = lvl <= 2;
 
-  // Load user + crew list
+  // Close autocomplete on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowAutoComplete(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Init
   useEffect(() => {
     const u = getUser();
     setUser(u);
@@ -139,626 +334,295 @@ export default function StaffDetailPage() {
         if (res.data.length > 0) setSelectedId(res.data[0].id);
       }
       setLoading(false);
-    }).catch(() => {
-      setLoading(false);
-    });
+    }).catch(() => setLoading(false));
   }, []);
 
-  // Load detail when selectedId changes
+  // Load detail
   const loadDetail = useCallback(async (id: string) => {
     if (!id) return;
-    const [detRes, matRes, docRes] = await Promise.all([
+    const [detRes, matRes, rosRes] = await Promise.all([
       getCrewDetail(id),
       getCrewMatrix(id),
-      listCrewDocuments(id),
+      getCrewRoster(id),
     ]);
-    if (detRes.success && detRes.data) {
-      setDetail(detRes.data);
-      // Load roster by crew_id
-      const rosRes = await getCrewRoster(id);
-      setRosterRows(rosRes.success && rosRes.data ? rosRes.data : []);
-    }
+    if (detRes.success && detRes.data) setDetail(detRes.data);
     if (matRes.success && matRes.data) setMatrix(matRes.data);
-    if (docRes.success && docRes.data) setDocs(docRes.data);
+    if (rosRes.success && rosRes.data) setRosterRows(rosRes.data as Record<string, unknown>[]);
   }, []);
 
-  useEffect(() => {
-    if (selectedId) loadDetail(selectedId);
-  }, [selectedId, loadDetail]);
+  useEffect(() => { if (selectedId) { setShowDetailOverlay(false); loadDetail(selectedId); } }, [selectedId, loadDetail]);
 
-  // Filtered crew list for search
+  // Filtered crew
   const filteredCrew = useMemo(() => {
-    if (!search) return crewList;
+    if (!search.trim()) return crewList;
     const q = search.toLowerCase();
-    return crewList.filter((c) => c.crew_name.toLowerCase().includes(q));
+    return crewList.filter((c) => c.crew_name.toLowerCase().includes(q) || c.post.toLowerCase().includes(q));
   }, [crewList, search]);
 
-  // Movement timeline
-  const movements = useMemo(() => extractMovements(rosterRows), [rosterRows]);
+  // Contract expiry
+  const expDays = daysUntil(detail?.exp_date as string | null);
 
-  // Status change handler
-  const handleStatusChange = async (newStatus: string) => {
-    if (!detail || !selectedId) return;
-    if (newStatus === "Resigned") {
-      const resignDate = prompt("Enter resign date (YYYY-MM-DD):");
-      if (!resignDate) return;
-      setStatusSaving(true);
-      const res = await updateCrewDetail(selectedId, { status: newStatus, resign_date: resignDate });
-      setStatusSaving(false);
-      if (res.success) {
-        setDetail({ ...detail, status: newStatus, resign_date: resignDate });
-        showNotification("success", "Status updated to Resigned.");
-      } else {
-        showNotification("error", res.error || "Failed to update status.");
-      }
-    } else {
-      setStatusSaving(true);
-      const res = await updateCrewDetail(selectedId, { status: newStatus });
-      setStatusSaving(false);
-      if (res.success) {
-        setDetail({ ...detail, status: newStatus });
-        showNotification("success", `Status updated to ${newStatus}.`);
-      } else {
-        showNotification("error", res.error || "Failed to update status.");
-      }
-    }
-  };
-
-  // Edit mode
-  const startEdit = () => {
-    if (!detail) return;
-    setEditFields({
-      passport_no: String(detail.passport_no || ""),
-      clean_name: String(detail.clean_name || ""),
-      address: String(detail.address || ""),
-      phone: String(detail.phone || ""),
-      email1: String(detail.email1 || ""),
-      email2: String(detail.email2 || ""),
-      hire_date: String(detail.hire_date || ""),
-      nok_name: String(detail.nok_name || ""),
-      nok_relation: String(detail.nok_relation || ""),
-      nok_phone: String(detail.nok_phone || ""),
-      basic: String(detail.basic || ""),
-      fixed_all: String(detail.fixed_all || ""),
-      oa_rate: String(detail.oa_rate || ""),
-    });
-    setEditing(true);
-  };
-
-  const cancelEdit = () => {
-    setEditing(false);
-    setEditFields({});
-  };
-
-  const saveEdit = async () => {
+  // Status change
+  const handleStatusSave = async (newStatus: string) => {
     if (!selectedId) return;
-    setSaving(true);
-    const updates: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(editFields)) {
-      if (["basic", "fixed_all", "oa_rate"].includes(k)) {
-        updates[k] = v ? parseFloat(v) : null;
-      } else {
-        updates[k] = v || null;
-      }
-    }
-    const res = await updateCrewDetail(selectedId, updates);
-    setSaving(false);
+    setShowStatusDialog(false);
+    const res = await updateCrewDetail(selectedId, { status: newStatus });
     if (res.success) {
-      setEditing(false);
-      loadDetail(selectedId);
-      showNotification("success", "Personal info updated.");
-    } else {
-      showNotification("error", res.error || "Failed to save.");
+      setDetail((prev) => prev ? { ...prev, status: newStatus } : prev);
+      setCrewList((prev) => prev.map((c) => c.id === selectedId ? { ...c, status: newStatus } : c));
     }
   };
 
-  // File upload
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !selectedId) return;
-    // Validate
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    const allowed = ["application/pdf", "image/jpeg", "image/png"];
-    if (file.size > maxSize) {
-      showNotification("error", "File size must be under 5MB.");
-      return;
-    }
-    if (!allowed.includes(file.type)) {
-      showNotification("error", "Only PDF, JPG, PNG files are allowed.");
-      return;
-    }
+  // Upload Doc
+  const handleUpload = async (file: File) => {
+    if (!selectedId || !file) return;
+    if (file.size > 5 * 1024 * 1024) { alert("Max 5MB"); return; }
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (!["pdf", "jpg", "jpeg", "png"].includes(ext || "")) { alert("Only PDF/JPG/PNG"); return; }
     setUploading(true);
     const supabase = createClient();
-    const path = `${selectedId}/${file.name}`;
-    const { error } = await supabase.storage.from("pcsb-doc").upload(path, file, { upsert: true });
+    const path = `${selectedId}/${Date.now()}_${file.name}`;
+    const { error } = await supabase.storage.from("pcsb-doc").upload(path, file);
     setUploading(false);
-    if (error) {
-      showNotification("error", error.message);
-    } else {
-      showNotification("success", `${file.name} uploaded.`);
-      const res = await listCrewDocuments(selectedId);
-      if (res.success && res.data) setDocs(res.data);
-    }
-    e.target.value = "";
+    if (error) alert(error.message);
+    else alert("Uploaded successfully!");
   };
 
-  // File delete
-  const handleDelete = async (fileName: string) => {
-    if (!selectedId || !confirm(`Delete ${fileName}?`)) return;
-    const res = await deleteCrewDocument(selectedId, fileName);
-    if (res.success) {
-      setDocs((prev) => prev.filter((f) => f.name !== fileName));
-      showNotification("success", `${fileName} deleted.`);
-    } else {
-      showNotification("error", res.error || "Failed to delete.");
-    }
+  // Add staff
+  const handleCreated = (id: string) => {
+    setShowAdd(false);
+    getCrewList().then((res) => {
+      if (res.success && res.data) { setCrewList(res.data); setSelectedId(id); }
+    });
   };
-
-  // File download
-  const handleDownload = async (fileName: string) => {
-    if (!selectedId) return;
-    const supabase = createClient();
-    const { data, error } = await supabase.storage.from("pcsb-doc").download(`${selectedId}/${fileName}`);
-    if (error || !data) {
-      showNotification("error", "Download failed.");
-      return;
-    }
-    const url = URL.createObjectURL(data);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const showNotification = (type: "success" | "error", msg: string) => {
-    setNotification({ type, msg });
-    setTimeout(() => setNotification(null), 3000);
-  };
-
-  const selectedCrew = crewList.find((c) => c.id === selectedId);
 
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
+        <div className="flex items-center justify-center h-[calc(100vh-80px)]">
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500" />
         </div>
       </AppShell>
     );
   }
 
-  if (crewList.length === 0) {
-    return (
-      <AppShell>
-        <div className="space-y-4 animate-in fade-in duration-500">
-          <h2 className="text-2xl font-bold text-foreground tracking-tight">Staff Profile</h2>
-          <Card className="border-slate-200">
-            <CardContent className="py-10 text-center">
-              <p className="text-sm text-muted-foreground font-semibold">No staff records found.</p>
-              <p className="text-xs text-muted-foreground mt-1">Ensure pcsb_crew_detail table has data.</p>
-            </CardContent>
-          </Card>
-        </div>
-      </AppShell>
-    );
-  }
+  const d = detail;
+  const statusVal = String(d?.status || "Active");
+  const statusColor = statusVal === "Resigned" ? "bg-red-100 text-red-700 border-red-200" : statusVal === "On Notice" ? "bg-amber-100 text-amber-700 border-amber-200" : "bg-emerald-100 text-emerald-700 border-emerald-200";
 
   return (
     <AppShell>
-      <div className="space-y-4 animate-in fade-in duration-500">
-        {/* Notification */}
-        {notification && (
-          <div className={`fixed top-16 right-4 z-[100] px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg animate-in slide-in-from-right-5 duration-300 ${
-            notification.type === "success"
-              ? "bg-emerald-600 text-white"
-              : "bg-red-600 text-white"
-          }`}>
-            {notification.msg}
-          </div>
-        )}
+      <div className="grid grid-cols-1 lg:grid-cols-[30%_1fr] gap-3 h-[calc(100vh-80px)] animate-in fade-in duration-500">
 
-        {/* Top bar: Staff selector + search */}
-        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-          <h2 className="text-2xl font-bold text-foreground tracking-tight">Staff Profile</h2>
-          <div className="flex items-center gap-2 ml-auto">
+        {/* ═══ SECTION A: PROFILE SIDEBAR (30%) ═══ */}
+        <div className="bg-background border border-border rounded-xl overflow-y-auto flex flex-col">
+
+          {/* Search + Autocomplete */}
+          <div className="p-3 border-b border-border" ref={searchRef}>
             <div className="relative">
               <input
                 type="text"
                 placeholder="Search staff..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="bg-slate-200 border border-slate-400 text-slate-900 rounded-lg pl-3 pr-8 py-1.5 text-xs font-semibold outline-none w-48 placeholder:text-slate-500"
+                onChange={(e) => { setSearch(e.target.value); setShowAutoComplete(true); }}
+                onFocus={() => setShowAutoComplete(true)}
+                className="w-full bg-gray-200 rounded-lg px-3 py-2 text-sm text-black font-semibold outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
               />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch("")}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-red-500 hover:bg-red-400 rounded p-0.5 transition-all"
-                >
-                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
+              {/* Autocomplete list */}
+              {showAutoComplete && search.trim() && filteredCrew.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50">
+                  {filteredCrew.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => { setSelectedId(c.id); setSearch(""); setShowAutoComplete(false); }}
+                      className="w-full text-left px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent transition-colors border-b border-border last:border-0"
+                    >
+                      {c.crew_name}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
-            <select
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-              className="bg-slate-200 border border-slate-400 text-slate-900 rounded-lg px-3 py-1.5 text-xs font-bold outline-none cursor-pointer max-w-[320px]"
-            >
-              {filteredCrew.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.crew_name} ({c.client} - {c.post})
-                </option>
-              ))}
-            </select>
           </div>
-        </div>
 
-        {/* Header Card */}
-        {detail && (
-          <Card className="border-slate-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-slate-800 to-slate-700 h-20" />
-            <CardContent className="relative px-6 pb-5 pt-0">
-              <div className="flex flex-col md:flex-row md:items-end gap-4 -mt-10">
-                {/* Avatar */}
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl border-4 border-card flex items-center justify-center text-3xl font-black text-white shadow-lg shrink-0">
-                  {String(detail.crew_name || "").charAt(0)}
+          {d && (
+            <>
+              {/* Avatar + Status */}
+              <div className="flex flex-col items-center pt-5 pb-3 px-4">
+                {/* Silhouette avatar */}
+                <div className="w-20 h-20 rounded-full bg-slate-200 flex items-center justify-center shadow-md border-2 border-slate-300 overflow-hidden">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="text-slate-400">
+                    <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v2h20v-2c0-3.33-6.67-5-10-5z" fill="currentColor" />
+                  </svg>
                 </div>
-                {/* Info */}
-                <div className="flex-1 min-w-0 pt-2">
-                  <h3 className="text-xl font-black text-foreground uppercase truncate">{String(detail.crew_name || "-")}</h3>
-                  <div className="flex flex-wrap items-center gap-3 mt-1">
-                    <span className="text-sm font-bold text-blue-600">{String(detail.post || "-")}</span>
-                    <span className="text-xs font-semibold text-muted-foreground">{String(detail.location || "-")}</span>
-                    <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                      String(detail.client) === "SKA" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"
-                    }`}>{String(detail.client || "-")}</span>
+                <span className={`mt-2.5 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${statusColor}`}>
+                  {statusVal}
+                </span>
+              </div>
+
+              {/* Name & Trade */}
+              <div className="px-4 pb-2 text-center">
+                <h3 className="text-base font-black text-foreground uppercase leading-tight">{String(d.crew_name || "-")}</h3>
+                <p className="text-sm font-bold text-blue-600 mt-0.5">{String(d.post || "-")}</p>
+              </div>
+
+              <div className="border-t border-border mx-4" />
+
+              {/* Compact Core Info */}
+              <div className="px-4 py-3 space-y-2.5 flex-1">
+                <div className="text-center">
+                  <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Assignment</p>
+                  <p className="text-sm font-semibold text-foreground">{String(d.client || "-")} / {String(d.location || "-")}</p>
+                </div>
+
+                {/* Contract Expiry */}
+                {d.exp_date && (
+                  <div>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Contract Expiry</p>
+                    <p className="text-sm font-semibold text-foreground">{fmtDate(String(d.exp_date))}</p>
+                    {expDays !== null && expDays >= 0 && expDays < 90 && (
+                      <div className="mt-1 px-2 py-0.5 bg-red-100 border border-red-200 rounded-md inline-block">
+                        <span className="text-[10px] font-black text-red-600 uppercase">Expiring in {expDays} days</span>
+                      </div>
+                    )}
+                    {expDays !== null && expDays < 0 && (
+                      <div className="mt-1 px-2 py-0.5 bg-red-100 border border-red-200 rounded-md inline-block">
+                        <span className="text-[10px] font-black text-red-600 uppercase">Expired</span>
+                      </div>
+                    )}
                   </div>
-                </div>
-                {/* Status Dropdown (L1/L2 only) */}
-                {canEdit && (
-                  <div className="flex items-center gap-2 shrink-0">
-                    <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Status</label>
-                    <select
-                      value={String(detail.status || "Active")}
-                      onChange={(e) => handleStatusChange(e.target.value)}
-                      disabled={statusSaving}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-bold outline-none cursor-pointer border ${
-                        String(detail.status) === "Resigned"
-                          ? "bg-red-100 border-red-300 text-red-700"
-                          : String(detail.status) === "On Notice"
-                          ? "bg-amber-100 border-amber-300 text-amber-700"
-                          : "bg-emerald-100 border-emerald-300 text-emerald-700"
-                      } ${statusSaving ? "opacity-50" : ""}`}
-                    >
-                      <option value="Active">Active</option>
-                      <option value="On Notice">On Notice</option>
-                      <option value="Resigned">Resigned</option>
-                    </select>
+                )}
+
+                {d.phone && (
+                  <div>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Phone</p>
+                    <p className="text-xs font-semibold text-foreground">{String(d.phone)}</p>
+                  </div>
+                )}
+                {d.email1 && (
+                  <div>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Email</p>
+                    <p className="text-xs font-semibold text-foreground break-all">{String(d.email1)}</p>
                   </div>
                 )}
               </div>
-            </CardContent>
-          </Card>
-        )}
 
-        {/* Tabs */}
-        {detail && (
-          <div className="space-y-4">
-            {/* Tab buttons */}
-            <div className="flex gap-1 bg-slate-200 border border-slate-300 rounded-lg p-1 w-fit">
-              {lvl <= 2 && (
+              {/* Action Buttons */}
+              <div className="p-3 border-t border-border space-y-2">
                 <button
                   type="button"
-                  onClick={() => setActiveTab("personal")}
-                  className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase transition-all ${activeTab === "personal" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                  onClick={() => setShowDetailOverlay(true)}
+                  className="w-full px-3 py-2 rounded-lg text-xs font-black uppercase bg-blue-600 text-white hover:bg-blue-500 transition-colors"
                 >
-                  Personal Info
+                  See Detail
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setActiveTab("training")}
-                className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase transition-all ${activeTab === "training" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
-              >
-                Training Matrix
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("movement")}
-                className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase transition-all ${activeTab === "movement" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
-              >
-                Movement History
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("documents")}
-                className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase transition-all ${activeTab === "documents" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
-              >
-                Documents
-              </button>
+
+                <div className="border-t border-border my-1" />
+
+                <button
+                  type="button"
+                  onClick={() => isL1L2 && setShowStatusDialog(true)}
+                  disabled={!isL1L2}
+                  className={`w-full px-3 py-2 rounded-lg text-xs font-black uppercase transition-colors border ${
+                    isL1L2 ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100" : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                  }`}
+                >
+                  Change Status
+                </button>
+                <button
+                  type="button"
+                  onClick={() => isL1L2 && setShowAdd(true)}
+                  disabled={!isL1L2}
+                  className={`w-full px-3 py-2 rounded-lg text-xs font-black uppercase transition-colors border ${
+                    isL1L2 ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100" : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                  }`}
+                >
+                  + Add New Staff
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ═══ RIGHT PANEL (70%) - Section B + C ═══ */}
+        <div className="flex flex-col gap-3 min-h-0 relative">
+
+          {/* Detail Overlay (covers B+C) */}
+          {showDetailOverlay && detail && (
+            <DetailOverlay detail={detail} onClose={() => setShowDetailOverlay(false)} />
+          )}
+
+          {/* Add Staff Overlay (covers B+C) */}
+          {showAdd && (
+            <AddStaffOverlay onClose={() => setShowAdd(false)} onCreated={handleCreated} />
+          )}
+
+          {/* ═══ SECTION B: CERTIFICATES (Top) ═══ */}
+          <div className="bg-background border border-border rounded-xl flex-1 min-h-0 flex flex-col overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-border flex items-center justify-between shrink-0">
+              <h4 className="text-xs font-black uppercase tracking-wider text-foreground">Certification List</h4>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-muted-foreground font-bold">{matrix.length} certs</span>
+                {/* Upload Doc */}
+                <label className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase cursor-pointer transition-colors ${
+                  isL1L2 ? "bg-blue-600 text-white hover:bg-blue-500" : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                }`}>
+                  {uploading ? "Uploading..." : "Upload Doc"}
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    disabled={!isL1L2 || uploading}
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ""; }}
+                  />
+                </label>
+              </div>
             </div>
-
-            {/* ─── TAB 1: Personal Info (L1/L2 only) ─── */}
-            {lvl <= 2 && activeTab === "personal" && (
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <h4 className="text-sm font-bold uppercase tracking-wider text-foreground">Personal Information</h4>
-                    {canEdit && !editing && (
-                      <Button variant="outline" size="sm" onClick={startEdit} className="text-xs font-bold">
-                        <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                        Edit
-                      </Button>
-                    )}
-                    {editing && (
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={cancelEdit} className="text-xs font-bold">Cancel</Button>
-                        <Button size="sm" onClick={saveEdit} disabled={saving} className="text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white">
-                          {saving ? "Saving..." : "Save Changes"}
-                        </Button>
+            <div className="flex-1 overflow-auto p-3">
+              {matrix.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">No certifications found.</p>
+              ) : (
+                <div className="grid grid-cols-3 gap-1.5">
+                  {matrix.map((cert) => {
+                    const st = certStatus(cert.expiry_date);
+                    return (
+                      <div key={cert.id} className="flex items-center justify-between px-2 py-1.5 rounded-md border border-border bg-accent/30 hover:bg-accent/60 transition-colors">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-bold text-foreground uppercase truncate">{cert.cert_type}</p>
+                          <p className="text-[9px] text-muted-foreground">{fmtDate(cert.expiry_date)}</p>
+                        </div>
+                        <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-black border shrink-0 ml-1 ${st.cls}`}>
+                          {st.label}
+                        </span>
                       </div>
-                    )}
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* A. Identity */}
-                    <FieldGroup title="Identity">
-                      <FieldRow label="Passport No" value={detail.passport_no} field="passport_no" editing={editing} editFields={editFields} setEditFields={setEditFields} />
-                      <FieldRow label="Clean Name" value={detail.clean_name} field="clean_name" editing={editing} editFields={editFields} setEditFields={setEditFields} />
-                      <FieldRow label="Address" value={detail.address} field="address" editing={editing} editFields={editFields} setEditFields={setEditFields} wide />
-                    </FieldGroup>
-                    {/* B. Contacts */}
-                    <FieldGroup title="Contacts">
-                      <FieldRow label="Phone" value={detail.phone} field="phone" editing={editing} editFields={editFields} setEditFields={setEditFields} />
-                      <FieldRow label="Email 1" value={detail.email1} field="email1" editing={editing} editFields={editFields} setEditFields={setEditFields} />
-                      <FieldRow label="Email 2" value={detail.email2} field="email2" editing={editing} editFields={editFields} setEditFields={setEditFields} />
-                    </FieldGroup>
-                    {/* C. Employment */}
-                    <FieldGroup title="Employment">
-                      <ReadOnlyField label="Client" value={String(detail.client || "-")} />
-                      <FieldRow label="Hire Date" value={detail.hire_date} field="hire_date" editing={editing} editFields={editFields} setEditFields={setEditFields} inputType="date" />
-                      <ReadOnlyField label="Status" value={String(detail.status || "Active")} badge />
-                    </FieldGroup>
-                    {/* D. Emergency Contact */}
-                    <FieldGroup title="Emergency Contact (NOK)">
-                      <FieldRow label="Name" value={detail.nok_name} field="nok_name" editing={editing} editFields={editFields} setEditFields={setEditFields} />
-                      <FieldRow label="Relationship" value={detail.nok_relation} field="nok_relation" editing={editing} editFields={editFields} setEditFields={setEditFields} />
-                      <FieldRow label="Phone" value={detail.nok_phone} field="nok_phone" editing={editing} editFields={editFields} setEditFields={setEditFields} />
-                    </FieldGroup>
-                    {/* E. Financials */}
-                    <FieldGroup title="Financials">
-                      <FieldRow label="Basic Salary" value={detail.basic} field="basic" editing={editing} editFields={editFields} setEditFields={setEditFields} formatFn={formatCurrency} />
-                      <FieldRow label="Fixed Allowance" value={detail.fixed_all} field="fixed_all" editing={editing} editFields={editFields} setEditFields={setEditFields} formatFn={formatCurrency} />
-                      <FieldRow label="OA Rate" value={detail.oa_rate} field="oa_rate" editing={editing} editFields={editFields} setEditFields={setEditFields} formatFn={formatCurrency} />
-                    </FieldGroup>
-                  </CardContent>
-                </Card>
-            )}
-
-            {/* ─── TAB 2: Training Matrix ─── */}
-            {activeTab === "training" && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <h4 className="text-sm font-bold uppercase tracking-wider text-foreground">Training Certificates</h4>
-                </CardHeader>
-                <CardContent>
-                  {matrix.length > 0 ? (
-                    <div className="overflow-x-auto rounded-lg border border-slate-200">
-                      <table className="w-full text-left">
-                        <thead>
-                          <tr className="bg-slate-100">
-                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600 border-b border-slate-200">Cert Type</th>
-                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600 border-b border-slate-200">Cert No</th>
-                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600 border-b border-slate-200">Attended</th>
-                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600 border-b border-slate-200">Expiry</th>
-                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600 border-b border-slate-200">Plan</th>
-                            <th className="px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600 border-b border-slate-200">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {matrix.map((row) => {
-                            const st = certStatus(row.expiry_date);
-                            return (
-                              <tr key={row.id} className="hover:bg-blue-50/50 transition-colors border-b border-slate-100 last:border-0">
-                                <td className="px-3 py-2 text-xs font-bold text-slate-900">{row.cert_type}</td>
-                                <td className="px-3 py-2 text-xs font-semibold text-slate-700 tabular-nums">{row.cert_no || "-"}</td>
-                                <td className="px-3 py-2 text-xs text-slate-600 tabular-nums">{formatDate(row.attended_date)}</td>
-                                <td className="px-3 py-2 text-xs font-bold text-slate-800 tabular-nums">{formatDate(row.expiry_date)}</td>
-                                <td className="px-3 py-2 text-xs text-blue-600 font-semibold tabular-nums">{formatDate(row.plan_date)}</td>
-                                <td className="px-3 py-2">
-                                  <span className={`inline-flex px-2 py-0.5 rounded text-[9px] font-bold uppercase ${st.color}`}>{st.label}</span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="text-center py-10 text-sm text-muted-foreground font-medium">No training records found for this crew member.</div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* ─── TAB 3: Movement History ─── */}
-            {activeTab === "movement" && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <h4 className="text-sm font-bold uppercase tracking-wider text-foreground">Rotation / Movement History</h4>
-                </CardHeader>
-                <CardContent>
-                  {movements.length > 0 ? (
-                    <div className="space-y-0 relative">
-                      {/* Timeline line */}
-                      <div className="absolute left-[7px] top-2 bottom-2 w-px bg-slate-200" />
-                      {movements.map((m, i) => (
-                        <div key={i} className="flex gap-4 relative py-2">
-                          <div className={`w-3.5 h-3.5 rounded-full shrink-0 mt-0.5 z-10 border-2 border-white ${
-                            m.type === "Mobilize" ? "bg-emerald-500" : "bg-red-400"
-                          }`} />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-baseline gap-3">
-                              <span className={`text-xs font-bold uppercase ${
-                                m.type === "Mobilize" ? "text-emerald-700" : "text-red-600"
-                              }`}>{m.type}</span>
-                              <span className="text-[10px] text-slate-500 font-semibold">{m.location}</span>
-                            </div>
-                            <p className="text-xs text-slate-600 font-semibold tabular-nums mt-0.5">{formatDate(m.date)}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-10 text-sm text-muted-foreground font-medium">No movement records found.</div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* ─── TAB 4: Documents ─── */}
-            {activeTab === "documents" && (
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <h4 className="text-sm font-bold uppercase tracking-wider text-foreground">Documents</h4>
-                  {canEdit && (
-                    <div className="relative">
-                      <input
-                        type="file"
-                        id="file-upload"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={handleUpload}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        disabled={uploading}
-                      />
-                      <Button variant="outline" size="sm" className="text-xs font-bold pointer-events-none" disabled={uploading}>
-                        <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                        {uploading ? "Uploading..." : "Upload File"}
-                      </Button>
-                    </div>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  <p className="text-[10px] text-muted-foreground mb-4 font-medium">Max 5MB. Allowed: PDF, JPG, PNG.</p>
-                  {docs.length > 0 ? (
-                    <div className="space-y-2">
-                      {docs.map((f) => (
-                        <div key={f.name} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors">
-                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-[9px] font-black text-white shrink-0 ${
-                            fileIcon(f.name) === "PDF" ? "bg-red-500" : fileIcon(f.name) === "IMG" ? "bg-blue-500" : "bg-slate-500"
-                          }`}>
-                            {fileIcon(f.name)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-slate-900 truncate">{f.name}</p>
-                            <p className="text-[10px] text-muted-foreground">{fileSize(f.size)} &middot; {formatDate(f.created_at)}</p>
-                          </div>
-                          <div className="flex gap-1.5 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => handleDownload(f.name)}
-                              className="p-1.5 rounded-lg hover:bg-blue-100 transition-colors"
-                              title="Download"
-                            >
-                              <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                            </button>
-                            {canEdit && (
-                              <button
-                                type="button"
-                                onClick={() => handleDelete(f.name)}
-                                className="p-1.5 rounded-lg hover:bg-red-100 transition-colors"
-                                title="Delete"
-                              >
-                                <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-10 text-sm text-muted-foreground font-medium">No documents uploaded yet.</div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
-        )}
+
+          {/* ═══ SECTION C: MOVEMENT GRID (Bottom) ═══ */}
+          <div className="bg-background border border-border rounded-xl flex-1 min-h-0 flex flex-col overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-border flex items-center justify-between shrink-0">
+              <h4 className="text-xs font-black uppercase tracking-wider text-foreground">Movement Grid</h4>
+              <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground">
+                <span className="flex items-center gap-1"><span className="w-3 h-2 rounded-sm bg-blue-500 inline-block" /> On Board</span>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto p-2">
+              <RosterStrip rosterRows={rosterRows} />
+            </div>
+          </div>
+        </div>
       </div>
-    </AppShell>
-  );
-}
 
-// ─── Sub-components ───
-
-function FieldGroup({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <h5 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-3 pb-1 border-b border-slate-200">{title}</h5>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{children}</div>
-    </div>
-  );
-}
-
-function FieldRow({
-  label,
-  value,
-  field,
-  editing,
-  editFields,
-  setEditFields,
-  wide,
-  inputType = "text",
-  formatFn,
-}: {
-  label: string;
-  value: unknown;
-  field: string;
-  editing: boolean;
-  editFields: Record<string, string>;
-  setEditFields: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  wide?: boolean;
-  inputType?: string;
-  formatFn?: (v: unknown) => string;
-}) {
-  if (editing) {
-    return (
-      <div className={wide ? "md:col-span-3" : ""}>
-        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{label}</Label>
-        <Input
-          type={inputType}
-          value={editFields[field] || ""}
-          onChange={(e) => setEditFields((prev) => ({ ...prev, [field]: e.target.value }))}
-          className="mt-1 h-9 text-sm font-semibold"
-        />
-      </div>
-    );
-  }
-
-  const display = formatFn ? formatFn(value) : (String(value || "") || "-");
-  return (
-    <div className={wide ? "md:col-span-3" : ""}>
-      <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{label}</Label>
-      <p className="text-sm font-bold text-foreground mt-1">{display}</p>
-    </div>
-  );
-}
-
-function ReadOnlyField({ label, value, badge }: { label: string; value: string; badge?: boolean }) {
-  return (
-    <div>
-      <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{label}</Label>
-      {badge ? (
-        <p className="mt-1">
-          <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-            value === "Active" ? "bg-emerald-100 text-emerald-700"
-              : value === "On Notice" ? "bg-amber-100 text-amber-700"
-              : value === "Resigned" ? "bg-red-100 text-red-700"
-              : "bg-slate-100 text-slate-600"
-          }`}>{value}</span>
-        </p>
-      ) : (
-        <p className="text-sm font-bold text-foreground mt-1">{value}</p>
+      {/* Modals */}
+      {showStatusDialog && detail && (
+        <ChangeStatusDialog currentStatus={statusVal} onSave={handleStatusSave} onClose={() => setShowStatusDialog(false)} />
       )}
-    </div>
+
+    </AppShell>
   );
 }
