@@ -185,42 +185,38 @@ function DetailOverlay({ detail, onClose }: { detail: Record<string, unknown>; o
   ];
 
   return (
-    <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-sm rounded-xl overflow-y-auto animate-in fade-in duration-200">
+    <div className="absolute inset-0 z-50 bg-background border border-border rounded-xl overflow-y-auto animate-in fade-in duration-200 shadow-xl">
       <div className="p-5">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-base font-black uppercase tracking-wider text-foreground">Full Staff Details</h3>
           <button type="button" onClick={onClose} className="px-4 py-1.5 rounded-lg text-xs font-black uppercase bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors">Close</button>
         </div>
         <div className="space-y-6">
-          {fields.map((sec) => {
-            const hasData = sec.items.some((it) => d[it.key] !== undefined && d[it.key] !== null && d[it.key] !== "");
-            if (!hasData) return null;
-            return (
-              <div key={sec.section}>
-                <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 mb-3 border-b border-border pb-2">{sec.section}</h4>
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2.5">
-                  {sec.items.map((it) => {
-                    const val = d[it.key];
-                    if (val === undefined || val === null || val === "") return null;
-                    return (
-                      <div key={it.key}>
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{it.label}</p>
-                        <p className="text-sm font-semibold text-foreground">{it.fmt ? it.fmt(val) : String(val)}</p>
-                      </div>
-                    );
-                  })}
-                </div>
+          {fields.map((sec) => (
+            <div key={sec.section}>
+              <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 mb-3 border-b border-border pb-2">{sec.section}</h4>
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3">
+                {sec.items.map((it) => {
+                  const val = d[it.key];
+                  const display = (val !== undefined && val !== null && val !== "") ? (it.fmt ? it.fmt(val) : String(val)) : "-";
+                  return (
+                    <div key={it.key}>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{it.label}</p>
+                      <p className="text-sm font-semibold text-foreground">{display}</p>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Add Staff Modal ───
-function AddStaffModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+// ─── Add Staff Overlay (covers Section B + C area) ───
+function AddStaffOverlay({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const [form, setForm] = useState<Record<string, string>>({
     crew_name: "", clean_name: "", passport_number: "", address: "", phone: "", email1: "", email2: "",
     post: "", client: "", location: "", hire_date: "", resign_date: "", status: "Active",
@@ -231,7 +227,6 @@ function AddStaffModal({ onClose, onCreated }: { onClose: () => void; onCreated:
   const handleSave = async () => {
     if (!form.crew_name.trim()) return;
     setSaving(true);
-    // Remove empty strings before sending
     const payload: Record<string, string> = {};
     for (const [k, v] of Object.entries(form)) { if (v.trim()) payload[k] = v.trim(); }
     const res = await createCrewMember(payload);
@@ -244,57 +239,54 @@ function AddStaffModal({ onClose, onCreated }: { onClose: () => void; onCreated:
   const labelCls = "text-[9px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5";
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-background border border-border rounded-xl w-full max-w-lg shadow-2xl max-h-[85vh] flex flex-col">
-        <div className="px-5 py-3 border-b border-border flex items-center justify-between shrink-0">
-          <h3 className="text-sm font-black uppercase tracking-wider text-foreground">Add New Staff</h3>
-          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground text-lg font-bold">&times;</button>
-        </div>
-        <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1">
-          {/* Personal & Contact */}
-          <div>
-            <h4 className="text-[10px] font-black uppercase tracking-wider text-blue-600 mb-2 border-b border-border pb-1">Personal & Contact</h4>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-              <div className="col-span-2"><label className={labelCls}>Full Name *</label><input value={form.crew_name} onChange={(e) => set("crew_name", e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>Clean Name</label><input value={form.clean_name} onChange={(e) => set("clean_name", e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>Passport Number</label><input value={form.passport_number} onChange={(e) => set("passport_number", e.target.value)} className={inputCls} /></div>
-              <div className="col-span-2"><label className={labelCls}>Address</label><input value={form.address} onChange={(e) => set("address", e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>Phone</label><input value={form.phone} onChange={(e) => set("phone", e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>Email 1</label><input value={form.email1} onChange={(e) => set("email1", e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>Email 2</label><input value={form.email2} onChange={(e) => set("email2", e.target.value)} className={inputCls} /></div>
-            </div>
-          </div>
-          {/* Employment Info */}
-          <div>
-            <h4 className="text-[10px] font-black uppercase tracking-wider text-blue-600 mb-2 border-b border-border pb-1">Employment Info</h4>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-              <div><label className={labelCls}>Trade / Post</label><input value={form.post} onChange={(e) => set("post", e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>Client</label><input value={form.client} onChange={(e) => set("client", e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>Location</label><input value={form.location} onChange={(e) => set("location", e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>Status</label>
-                <select value={form.status} onChange={(e) => set("status", e.target.value)} className={inputCls}>
-                  <option>Active</option><option>On Notice</option><option>Resigned</option>
-                </select>
-              </div>
-              <div><label className={labelCls}>Hire Date</label><input type="date" value={form.hire_date} onChange={(e) => set("hire_date", e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>Resign Date</label><input type="date" value={form.resign_date} onChange={(e) => set("resign_date", e.target.value)} className={inputCls} /></div>
-            </div>
-          </div>
-          {/* Next of Kin */}
-          <div>
-            <h4 className="text-[10px] font-black uppercase tracking-wider text-blue-600 mb-2 border-b border-border pb-1">Next of Kin (Emergency)</h4>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-              <div><label className={labelCls}>NOK Name</label><input value={form.nok_name} onChange={(e) => set("nok_name", e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>NOK Relation</label><input value={form.nok_relation} onChange={(e) => set("nok_relation", e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>NOK Phone</label><input value={form.nok_phone} onChange={(e) => set("nok_phone", e.target.value)} className={inputCls} /></div>
-            </div>
-          </div>
-        </div>
-        <div className="px-5 py-3 border-t border-border flex justify-end gap-2 shrink-0">
-          <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-bold text-muted-foreground hover:text-foreground">Cancel</button>
-          <button type="button" onClick={handleSave} disabled={saving || !form.crew_name.trim()} className="px-5 py-2 rounded-lg text-xs font-black uppercase bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40">
-            {saving ? "Saving..." : "Create"}
+    <div className="absolute inset-0 z-50 bg-background border border-border rounded-xl overflow-y-auto animate-in fade-in duration-200 shadow-xl flex flex-col">
+      <div className="px-5 py-3 border-b border-border flex items-center justify-between shrink-0">
+        <h3 className="text-base font-black uppercase tracking-wider text-foreground">Add New Staff</h3>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={onClose} className="px-4 py-1.5 rounded-lg text-xs font-black uppercase bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors">Cancel</button>
+          <button type="button" onClick={handleSave} disabled={saving || !form.crew_name.trim()} className="px-5 py-1.5 rounded-lg text-xs font-black uppercase bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 transition-colors">
+            {saving ? "Saving..." : "Create Staff"}
           </button>
+        </div>
+      </div>
+      <div className="px-5 py-5 space-y-6 flex-1 overflow-y-auto">
+        {/* Personal & Contact */}
+        <div>
+          <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 mb-3 border-b border-border pb-2">Personal & Contact</h4>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+            <div><label className={labelCls}>Full Name *</label><input value={form.crew_name} onChange={(e) => set("crew_name", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Clean Name</label><input value={form.clean_name} onChange={(e) => set("clean_name", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Passport Number</label><input value={form.passport_number} onChange={(e) => set("passport_number", e.target.value)} className={inputCls} /></div>
+            <div className="col-span-2 lg:col-span-3"><label className={labelCls}>Address</label><input value={form.address} onChange={(e) => set("address", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Phone</label><input value={form.phone} onChange={(e) => set("phone", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Email 1</label><input value={form.email1} onChange={(e) => set("email1", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Email 2</label><input value={form.email2} onChange={(e) => set("email2", e.target.value)} className={inputCls} /></div>
+          </div>
+        </div>
+        {/* Employment Info */}
+        <div>
+          <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 mb-3 border-b border-border pb-2">Employment Info</h4>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+            <div><label className={labelCls}>Trade / Post</label><input value={form.post} onChange={(e) => set("post", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Client</label><input value={form.client} onChange={(e) => set("client", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Location</label><input value={form.location} onChange={(e) => set("location", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Status</label>
+              <select value={form.status} onChange={(e) => set("status", e.target.value)} className={inputCls}>
+                <option>Active</option><option>On Notice</option><option>Resigned</option>
+              </select>
+            </div>
+            <div><label className={labelCls}>Hire Date</label><input type="date" value={form.hire_date} onChange={(e) => set("hire_date", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Resign Date</label><input type="date" value={form.resign_date} onChange={(e) => set("resign_date", e.target.value)} className={inputCls} /></div>
+          </div>
+        </div>
+        {/* Next of Kin */}
+        <div>
+          <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 mb-3 border-b border-border pb-2">Next of Kin (Emergency)</h4>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+            <div><label className={labelCls}>NOK Name</label><input value={form.nok_name} onChange={(e) => set("nok_name", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>NOK Relation</label><input value={form.nok_relation} onChange={(e) => set("nok_relation", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>NOK Phone</label><input value={form.nok_phone} onChange={(e) => set("nok_phone", e.target.value)} className={inputCls} /></div>
+          </div>
         </div>
       </div>
     </div>
@@ -561,6 +553,11 @@ export default function StaffDetailPage() {
             <DetailOverlay detail={detail} onClose={() => setShowDetailOverlay(false)} />
           )}
 
+          {/* Add Staff Overlay (covers B+C) */}
+          {showAdd && (
+            <AddStaffOverlay onClose={() => setShowAdd(false)} onCreated={handleCreated} />
+          )}
+
           {/* ═══ SECTION B: CERTIFICATES (Top) ═══ */}
           <div className="bg-background border border-border rounded-xl flex-1 min-h-0 flex flex-col overflow-hidden">
             <div className="px-4 py-2.5 border-b border-border flex items-center justify-between shrink-0">
@@ -625,7 +622,7 @@ export default function StaffDetailPage() {
       {showStatusDialog && detail && (
         <ChangeStatusDialog currentStatus={statusVal} onSave={handleStatusSave} onClose={() => setShowStatusDialog(false)} />
       )}
-      {showAdd && <AddStaffModal onClose={() => setShowAdd(false)} onCreated={handleCreated} />}
+
     </AppShell>
   );
 }
