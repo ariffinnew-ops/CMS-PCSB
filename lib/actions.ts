@@ -190,10 +190,10 @@ export async function getMatrixData(): Promise<{ success: boolean; data?: Matrix
   return { success: true, data: [] }
 }
 
-// Update a single matrix cell (attended_date or expiry_date)
+// Update a single matrix cell
 export async function updateMatrixCell(
   matrixId: string,
-  field: 'attended_date' | 'expiry_date',
+  field: 'attended_date' | 'expiry_date' | 'plan_date' | 'cert_no',
   value: string | null
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
@@ -215,7 +215,7 @@ export async function updateMatrixCell(
 export async function createMatrixRecord(
   crewId: string,
   certType: string,
-  field: 'attended_date' | 'expiry_date',
+  field: 'attended_date' | 'expiry_date' | 'plan_date' | 'cert_no',
   value: string
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   const supabase = await createClient()
