@@ -194,10 +194,10 @@ function CoursePieChart({ green, yellow, orange, planCount }: { green: number; y
               <Cell key={i} fill={entry.color} />
             ))}
           </Pie>
-          {/* 3D sphere background */}
-          <circle cx={cx} cy={cy} r={ir - 2} fill="url(#sphereSmall)" filter="url(#sphereShadowSmall)" />
+          {/* 3D sphere background - matches innerRadius exactly, no gap */}
+          <circle cx={cx} cy={cy} r={ir} fill="url(#sphereSmall)" filter="url(#sphereShadowSmall)" />
           {/* Glossy highlight */}
-          <ellipse cx={cx - 3} cy={cy - 5} rx={10} ry={6} fill="white" opacity={0.35} />
+          <ellipse cx={cx - 3} cy={cy - 4} rx={9} ry={5} fill="white" opacity={0.4} />
           {/* Center number */}
           <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={22} fontWeight="900" fill="#1e293b">
             {total}
@@ -278,10 +278,10 @@ function OverallPieChart({ green, yellow, orange, total }: { green: number; yell
             <Cell key={i} fill={entry.color} />
           ))}
         </Pie>
-        {/* 3D sphere background */}
-        <circle cx={cx} cy={cy} r={37} fill="url(#sphereLarge)" filter="url(#sphereShadowLarge)" />
+        {/* 3D sphere background - matches innerRadius=40 exactly, no gap */}
+        <circle cx={cx} cy={cy} r={40} fill="url(#sphereLarge)" filter="url(#sphereShadowLarge)" />
         {/* Glossy highlight */}
-        <ellipse cx={cx - 5} cy={cy - 8} rx={16} ry={9} fill="white" opacity={0.4} />
+        <ellipse cx={cx - 4} cy={cy - 7} rx={14} ry={8} fill="white" opacity={0.4} />
         {/* Center text */}
         <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={34} fontWeight="900" fill="#1e293b">
           {total}
@@ -369,7 +369,7 @@ function EditableCell({
 
 // ═══════════════════════════════════════
 // MAIN PAGE
-// ═══════════════════════════════════════
+// ════════════════════════════���══════════
 export default function TrainingMatrixPage() {
   const [rawData, setRawData] = useState<MatrixRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -682,11 +682,11 @@ export default function TrainingMatrixPage() {
                     <Fragment key={person.crew_id}>
                       {showSep && (
                         <tr className="bg-slate-200">
-                          <td colSpan={totalCols} className="px-3 py-1.5 sticky left-0 bg-slate-200 z-10">
-                            <span className={`inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-wider ${
+                          <td colSpan={totalCols} className="px-3 py-0.5 sticky left-0 bg-slate-200 z-10">
+                            <span className={`inline-flex items-center gap-2 text-sm font-black uppercase tracking-wider ${
                               person.client === "SKA" ? "text-blue-700" : "text-orange-700"
                             }`}>
-                              <span className={`w-2 h-2 rounded-full ${person.client === "SKA" ? "bg-blue-600" : "bg-orange-600"}`} />
+                              <span className={`w-2.5 h-2.5 rounded-full ${person.client === "SKA" ? "bg-blue-600" : "bg-orange-600"}`} />
                               {person.client} - {fullTrade(person.post)}
                             </span>
                           </td>
