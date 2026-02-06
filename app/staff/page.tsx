@@ -152,59 +152,34 @@ function DetailOverlay({ detail, onClose }: { detail: Record<string, unknown>; o
   const d = detail;
   const fields: { section: string; items: { label: string; key: string; fmt?: (v: unknown) => string }[] }[] = [
     {
-      section: "Personal Information",
+      section: "Personal & Contact",
       items: [
         { label: "Full Name", key: "crew_name" },
-        { label: "IC Number", key: "ic_no" },
-        { label: "Passport No", key: "passport_no" },
-        { label: "Passport Expiry", key: "passport_exp", fmt: (v) => fmtDate(v as string) },
-        { label: "Date of Birth", key: "dob", fmt: (v) => fmtDate(v as string) },
-        { label: "Nationality", key: "nationality" },
-        { label: "Race", key: "race" },
-        { label: "Religion", key: "religion" },
-        { label: "Gender", key: "gender" },
-      ],
-    },
-    {
-      section: "Contact Information",
-      items: [
+        { label: "Clean Name", key: "clean_name" },
+        { label: "Passport Number", key: "passport_number" },
+        { label: "Address", key: "address" },
         { label: "Phone", key: "phone" },
         { label: "Email 1", key: "email1" },
         { label: "Email 2", key: "email2" },
-        { label: "Address", key: "address" },
       ],
     },
     {
-      section: "Employment",
+      section: "Employment Info",
       items: [
         { label: "Trade / Post", key: "post" },
         { label: "Client", key: "client" },
         { label: "Location", key: "location" },
-        { label: "Status", key: "status" },
         { label: "Hire Date", key: "hire_date", fmt: (v) => fmtDate(v as string) },
-        { label: "Contract Expiry", key: "exp_date", fmt: (v) => fmtDate(v as string) },
-        { label: "Roles EM", key: "roles_em" },
+        { label: "Resign Date", key: "resign_date", fmt: (v) => fmtDate(v as string) },
+        { label: "Status", key: "status" },
       ],
     },
     {
-      section: "Next of Kin",
+      section: "Next of Kin (Emergency)",
       items: [
         { label: "NOK Name", key: "nok_name" },
         { label: "NOK Relation", key: "nok_relation" },
         { label: "NOK Phone", key: "nok_phone" },
-      ],
-    },
-    {
-      section: "Financials (Restricted)",
-      items: [
-        { label: "Basic Salary", key: "basic", fmt: (v) => fmtRM(v) },
-        { label: "OA Rate", key: "oa_rate", fmt: (v) => fmtRM(v) },
-        { label: "Fixed Allowance", key: "fixed_all", fmt: (v) => fmtRM(v) },
-        { label: "Bank Name", key: "bank_name" },
-        { label: "Bank Account", key: "bank_acc" },
-        { label: "EPF No", key: "epf_no" },
-        { label: "SOCSO No", key: "socso_no" },
-        { label: "Tax No", key: "tax_no" },
       ],
     },
   ];
@@ -246,49 +221,76 @@ function DetailOverlay({ detail, onClose }: { detail: Record<string, unknown>; o
 
 // ─── Add Staff Modal ───
 function AddStaffModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
-  const [form, setForm] = useState({ crew_name: "", post: "OM", client: "SBA", location: "", status: "Active" });
+  const [form, setForm] = useState<Record<string, string>>({
+    crew_name: "", clean_name: "", passport_number: "", address: "", phone: "", email1: "", email2: "",
+    post: "", client: "", location: "", hire_date: "", resign_date: "", status: "Active",
+    nok_name: "", nok_relation: "", nok_phone: "",
+  });
   const [saving, setSaving] = useState(false);
   const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
   const handleSave = async () => {
     if (!form.crew_name.trim()) return;
     setSaving(true);
-    const res = await createCrewMember(form);
+    // Remove empty strings before sending
+    const payload: Record<string, string> = {};
+    for (const [k, v] of Object.entries(form)) { if (v.trim()) payload[k] = v.trim(); }
+    const res = await createCrewMember(payload);
     setSaving(false);
     if (res.success && res.id) onCreated(res.id);
     else alert(res.error || "Failed to create");
   };
+
+  const inputCls = "w-full bg-accent border border-border rounded-lg px-3 py-1.5 text-xs text-foreground outline-none focus:border-blue-500";
+  const labelCls = "text-[9px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5";
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-background border border-border rounded-xl w-full max-w-md shadow-2xl">
-        <div className="px-5 py-3 border-b border-border flex items-center justify-between">
+      <div className="bg-background border border-border rounded-xl w-full max-w-lg shadow-2xl max-h-[85vh] flex flex-col">
+        <div className="px-5 py-3 border-b border-border flex items-center justify-between shrink-0">
           <h3 className="text-sm font-black uppercase tracking-wider text-foreground">Add New Staff</h3>
           <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground text-lg font-bold">&times;</button>
         </div>
-        <div className="px-5 py-5 space-y-4">
+        <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1">
+          {/* Personal & Contact */}
           <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Full Name *</label>
-            <input value={form.crew_name} onChange={(e) => set("crew_name", e.target.value)} className="w-full bg-accent border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none focus:border-blue-500" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Trade</label>
-              <select value={form.post} onChange={(e) => set("post", e.target.value)} className="w-full bg-accent border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none">
-                <option>OM</option><option>EM</option><option>OHN</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Client</label>
-              <select value={form.client} onChange={(e) => set("client", e.target.value)} className="w-full bg-accent border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none">
-                <option>SBA</option><option>SKA</option>
-              </select>
+            <h4 className="text-[10px] font-black uppercase tracking-wider text-blue-600 mb-2 border-b border-border pb-1">Personal & Contact</h4>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+              <div className="col-span-2"><label className={labelCls}>Full Name *</label><input value={form.crew_name} onChange={(e) => set("crew_name", e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Clean Name</label><input value={form.clean_name} onChange={(e) => set("clean_name", e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Passport Number</label><input value={form.passport_number} onChange={(e) => set("passport_number", e.target.value)} className={inputCls} /></div>
+              <div className="col-span-2"><label className={labelCls}>Address</label><input value={form.address} onChange={(e) => set("address", e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Phone</label><input value={form.phone} onChange={(e) => set("phone", e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Email 1</label><input value={form.email1} onChange={(e) => set("email1", e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Email 2</label><input value={form.email2} onChange={(e) => set("email2", e.target.value)} className={inputCls} /></div>
             </div>
           </div>
+          {/* Employment Info */}
           <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Location</label>
-            <input value={form.location} onChange={(e) => set("location", e.target.value)} className="w-full bg-accent border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none focus:border-blue-500" />
+            <h4 className="text-[10px] font-black uppercase tracking-wider text-blue-600 mb-2 border-b border-border pb-1">Employment Info</h4>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+              <div><label className={labelCls}>Trade / Post</label><input value={form.post} onChange={(e) => set("post", e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Client</label><input value={form.client} onChange={(e) => set("client", e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Location</label><input value={form.location} onChange={(e) => set("location", e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Status</label>
+                <select value={form.status} onChange={(e) => set("status", e.target.value)} className={inputCls}>
+                  <option>Active</option><option>On Notice</option><option>Resigned</option>
+                </select>
+              </div>
+              <div><label className={labelCls}>Hire Date</label><input type="date" value={form.hire_date} onChange={(e) => set("hire_date", e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Resign Date</label><input type="date" value={form.resign_date} onChange={(e) => set("resign_date", e.target.value)} className={inputCls} /></div>
+            </div>
+          </div>
+          {/* Next of Kin */}
+          <div>
+            <h4 className="text-[10px] font-black uppercase tracking-wider text-blue-600 mb-2 border-b border-border pb-1">Next of Kin (Emergency)</h4>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+              <div><label className={labelCls}>NOK Name</label><input value={form.nok_name} onChange={(e) => set("nok_name", e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>NOK Relation</label><input value={form.nok_relation} onChange={(e) => set("nok_relation", e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>NOK Phone</label><input value={form.nok_phone} onChange={(e) => set("nok_phone", e.target.value)} className={inputCls} /></div>
+            </div>
           </div>
         </div>
-        <div className="px-5 py-3 border-t border-border flex justify-end gap-2">
+        <div className="px-5 py-3 border-t border-border flex justify-end gap-2 shrink-0">
           <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-bold text-muted-foreground hover:text-foreground">Cancel</button>
           <button type="button" onClick={handleSave} disabled={saving || !form.crew_name.trim()} className="px-5 py-2 rounded-lg text-xs font-black uppercase bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40">
             {saving ? "Saving..." : "Create"}
@@ -301,7 +303,7 @@ function AddStaffModal({ onClose, onCreated }: { onClose: () => void; onCreated:
 
 // ═══════════════════════════════════════
 // ─── MAIN PAGE ───
-// ═══════════════════════════════════════
+// ════════════════════════════════════��══
 export default function StaffDetailPage() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [crewList, setCrewList] = useState<CrewListItem[]>([]);
@@ -442,9 +444,9 @@ export default function StaffDetailPage() {
                       key={c.id}
                       type="button"
                       onClick={() => { setSelectedId(c.id); setSearch(""); setShowAutoComplete(false); }}
-                      className="w-full text-left px-3 py-2 text-sm font-semibold text-foreground hover:bg-accent transition-colors border-b border-border last:border-0"
+                      className="w-full text-left px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent transition-colors border-b border-border last:border-0"
                     >
-                      {c.crew_name} <span className="text-muted-foreground font-normal">- {c.post}</span>
+                      {c.crew_name}
                     </button>
                   ))}
                 </div>
@@ -477,7 +479,7 @@ export default function StaffDetailPage() {
 
               {/* Compact Core Info */}
               <div className="px-4 py-3 space-y-2.5 flex-1">
-                <div>
+                <div className="text-center">
                   <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Assignment</p>
                   <p className="text-sm font-semibold text-foreground">{String(d.client || "-")} / {String(d.location || "-")}</p>
                 </div>
@@ -518,6 +520,16 @@ export default function StaffDetailPage() {
               <div className="p-3 border-t border-border space-y-2">
                 <button
                   type="button"
+                  onClick={() => setShowDetailOverlay(true)}
+                  className="w-full px-3 py-2 rounded-lg text-xs font-black uppercase bg-blue-600 text-white hover:bg-blue-500 transition-colors"
+                >
+                  See Detail
+                </button>
+
+                <div className="border-t border-border my-1" />
+
+                <button
+                  type="button"
                   onClick={() => isL1L2 && setShowStatusDialog(true)}
                   disabled={!isL1L2}
                   className={`w-full px-3 py-2 rounded-lg text-xs font-black uppercase transition-colors border ${
@@ -528,20 +540,13 @@ export default function StaffDetailPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowDetailOverlay(true)}
-                  className="w-full px-3 py-2 rounded-lg text-xs font-black uppercase bg-blue-600 text-white hover:bg-blue-500 transition-colors"
-                >
-                  See Detail
-                </button>
-                <button
-                  type="button"
                   onClick={() => isL1L2 && setShowAdd(true)}
                   disabled={!isL1L2}
                   className={`w-full px-3 py-2 rounded-lg text-xs font-black uppercase transition-colors border ${
                     isL1L2 ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100" : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
                   }`}
                 >
-                  + Add Staff
+                  + Add New Staff
                 </button>
               </div>
             </>
@@ -581,16 +586,16 @@ export default function StaffDetailPage() {
               {matrix.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">No certifications found.</p>
               ) : (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-1.5">
                   {matrix.map((cert) => {
                     const st = certStatus(cert.expiry_date);
                     return (
-                      <div key={cert.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-border bg-accent/30 hover:bg-accent/60 transition-colors">
-                        <div>
-                          <p className="text-xs font-bold text-foreground uppercase">{cert.cert_type}</p>
-                          <p className="text-[10px] text-muted-foreground">Exp: {fmtDate(cert.expiry_date)}</p>
+                      <div key={cert.id} className="flex items-center justify-between px-2 py-1.5 rounded-md border border-border bg-accent/30 hover:bg-accent/60 transition-colors">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-bold text-foreground uppercase truncate">{cert.cert_type}</p>
+                          <p className="text-[9px] text-muted-foreground">{fmtDate(cert.expiry_date)}</p>
                         </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${st.cls}`}>
+                        <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-black border shrink-0 ml-1 ${st.cls}`}>
                           {st.label}
                         </span>
                       </div>
