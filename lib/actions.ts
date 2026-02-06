@@ -367,6 +367,22 @@ export async function deleteCrewDocument(crewId: string, fileName: string): Prom
   return { success: true }
 }
 
+// Create new crew member
+export async function createCrewMember(crewData: Record<string, unknown>): Promise<{ success: boolean; id?: string; error?: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('pcsb_crew_detail')
+    .insert(crewData)
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('Error creating crew member:', error)
+    return { success: false, error: error.message }
+  }
+  return { success: true, id: data?.id }
+}
+
 // Bulk update for Save Changes
 export async function bulkUpdateRosterRows(updates: { id: number; updates: Partial<RosterRow> }[]): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
