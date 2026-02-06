@@ -1,22 +1,27 @@
 "use client";
 
-import { useEffect, useState, useMemo, Fragment } from "react";
+import { useEffect, useState, useMemo, useCallback, Fragment } from "react";
 import { AppShell } from "@/components/app-shell";
-import { getMatrixData } from "@/lib/actions";
+import { getMatrixData, updateMatrixCell, createMatrixRecord } from "@/lib/actions";
+import { getUser } from "@/lib/auth";
 import type { MatrixRecord } from "@/lib/types";
+import type { AuthUser } from "@/lib/auth";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   PieChart, Pie, Cell, ResponsiveContainer,
 } from "recharts";
 
-// ─── Course list matching PDF reference ───
-const COURSES = [
-  "BLS", "ACLS", "ATLS", "AMRO", "BOSIET", "ACCPH2", "SMC", "MEDICAL", "OSPCCC",
-];
+// ─── Course definitions from the PDF reference ───
+// Main courses: have both Attended and Expiry date columns
+const MAIN_COURSES = ["BLS", "ACLS", "ATLS", "AMRO", "BOSIET", "ACCPH2", "SMC", "MEDICAL"];
+// Expiry-only courses: only have an Expiry date column (from PDF last columns)
+const EXPIRY_ONLY_COURSES = ["OSPCCC", "MLC"];
+const ALL_COURSES = [...MAIN_COURSES, ...EXPIRY_ONLY_COURSES];
 
 const COURSE_COLORS: Record<string, string> = {
   BLS: "#3b82f6", ACLS: "#8b5cf6", ATLS: "#ec4899", AMRO: "#f59e0b",
-  BOSIET: "#10b981", ACCPH2: "#06b6d4", SMC: "#f97316", MEDICAL: "#ef4444", OSPCCC: "#6366f1",
+  BOSIET: "#10b981", ACCPH2: "#06b6d4", SMC: "#f97316", MEDICAL: "#ef4444",
+  OSPCCC: "#6366f1", MLC: "#a855f7",
 };
 
 // ─── Status helpers ───
@@ -37,18 +42,32 @@ function fmtDate(d: string | null): string {
   return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getFullYear()).slice(-2)}`;
 }
 
-const STATUS_CELL: Record<string, string> = {
-  valid: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  expiring: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  expired: "bg-red-500/10 text-red-600 dark:text-red-400",
-  "no-data": "text-muted-foreground/40",
+function toInputDate(d: string | null): string {
+  if (!d) return "";
+  const date = new Date(d);
+  if (isNaN(date.getTime())) return "";
+  return date.toISOString().split("T")[0];
+}
+
+const STATUS_BG: Record<string, string> = {
+  valid: "bg-emerald-500/10",
+  expiring: "bg-amber-500/10",
+  expired: "bg-red-500/10",
+  "no-data": "",
 };
 
-const STATUS_EXPIRY_CELL: Record<string, string> = {
-  valid: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-l border-emerald-500/30",
-  expiring: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-l border-amber-500/30",
-  expired: "bg-red-500/15 text-red-600 dark:text-red-400 border-l border-red-500/30",
-  "no-data": "text-muted-foreground/40",
+const STATUS_TEXT: Record<string, string> = {
+  valid: "text-emerald-400",
+  expiring: "text-amber-400",
+  expired: "text-red-400",
+  "no-data": "text-slate-600",
+};
+
+const STATUS_EXPIRY_BG: Record<string, string> = {
+  valid: "bg-emerald-500/15 border-l border-emerald-500/30",
+  expiring: "bg-amber-500/15 border-l border-amber-500/30",
+  expired: "bg-red-500/15 border-l border-red-500/30",
+  "no-data": "",
 };
 
 // ─── Trade helpers ───
@@ -73,29 +92,112 @@ function tradeRank(post: string): number {
 }
 
 // ─── Grouped person type ───
+interface CertEntry {
+  matrix_id: string | null;
+  attended_date: string | null;
+  expiry_date: string | null;
+}
+
 interface PersonMatrix {
   crew_id: string;
   crew_name: string;
   post: string;
   client: string;
   location: string;
-  certs: Record<string, { attended_date: string | null; expiry_date: string | null }>;
+  certs: Record<string, CertEntry>;
 }
 
-// ─── Custom Tooltip ───
+// ─── Custom Tooltip for charts ───
 function ChartTooltipContent({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number; color: string }>; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-card border border-border rounded-xl px-3 py-2 shadow-lg">
-      <p className="text-xs font-bold text-foreground mb-1">{label}</p>
+    <div className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 shadow-xl">
+      <p className="text-xs font-bold text-white mb-1">{label}</p>
       {payload.map((p, i) => (
         <div key={i} className="flex items-center gap-2 text-[11px]">
           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
-          <span className="text-muted-foreground">{p.name}:</span>
-          <span className="font-bold text-foreground">{p.value}</span>
+          <span className="text-slate-400">{p.name}:</span>
+          <span className="font-bold text-white">{p.value}</span>
         </div>
       ))}
     </div>
+  );
+}
+
+// ─── Editable Date Cell ───
+function DateCell({
+  value,
+  matrixId,
+  crewId,
+  certType,
+  field,
+  canEdit,
+  status,
+  isExpiry,
+  onSaved,
+}: {
+  value: string | null;
+  matrixId: string | null;
+  crewId: string;
+  certType: string;
+  field: "attended_date" | "expiry_date";
+  canEdit: boolean;
+  status: string;
+  isExpiry: boolean;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const bgClass = isExpiry ? STATUS_EXPIRY_BG[status] : STATUS_BG[status];
+  const textClass = STATUS_TEXT[status];
+
+  const handleChange = async (newVal: string) => {
+    setEditing(false);
+    if (!newVal && !value) return;
+    if (newVal === toInputDate(value)) return;
+
+    setSaving(true);
+    try {
+      if (matrixId) {
+        await updateMatrixCell(matrixId, field, newVal || null);
+      } else if (newVal) {
+        await createMatrixRecord(crewId, certType, field, newVal);
+      }
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing && canEdit) {
+    return (
+      <td className={`px-0.5 py-0.5 text-center border-r border-slate-700/30 ${bgClass}`}>
+        <input
+          type="date"
+          defaultValue={toInputDate(value)}
+          autoFocus
+          onBlur={(e) => handleChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleChange((e.target as HTMLInputElement).value);
+            if (e.key === "Escape") setEditing(false);
+          }}
+          className="bg-slate-800 text-white text-[9px] border border-blue-500 rounded px-1 py-0.5 w-[90px] outline-none"
+        />
+      </td>
+    );
+  }
+
+  return (
+    <td
+      className={`px-1 py-2 text-[9px] text-center tabular-nums border-r border-slate-700/30 ${bgClass} ${textClass} ${
+        canEdit ? "cursor-pointer hover:ring-1 hover:ring-blue-500/50 hover:ring-inset" : ""
+      } ${saving ? "opacity-50" : ""} ${isExpiry ? "font-bold" : ""}`}
+      onDoubleClick={() => canEdit && setEditing(true)}
+      title={canEdit ? "Double-click to edit" : undefined}
+    >
+      {saving ? "..." : fmtDate(value)}
+    </td>
   );
 }
 
@@ -106,16 +208,21 @@ export default function TrainingMatrixPage() {
   const [tradeFilter, setTradeFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [search, setSearch] = useState("");
+  const [user, setUser] = useState<AuthUser | null>(null);
   const today = useMemo(() => new Date(), []);
 
-  useEffect(() => {
-    async function load() {
-      const result = await getMatrixData();
-      if (result.success && result.data) setRawData(result.data);
-      setLoading(false);
-    }
-    load();
+  const canEdit = user?.role === "admin" || user?.role === "datalogger";
+
+  const loadData = useCallback(async () => {
+    const result = await getMatrixData();
+    if (result.success && result.data) setRawData(result.data);
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    setUser(getUser());
+    loadData();
+  }, [loadData]);
 
   // Group raw records by person
   const personnel = useMemo(() => {
@@ -133,7 +240,9 @@ export default function TrainingMatrixPage() {
       }
       const p = map.get(row.crew_id)!;
       const key = (row.cert_type || "").toUpperCase().trim();
-      p.certs[key] = { attended_date: row.attended_date, expiry_date: row.expiry_date };
+      if (key) {
+        p.certs[key] = { matrix_id: row.id, attended_date: row.attended_date, expiry_date: row.expiry_date };
+      }
     }
     return Array.from(map.values()).sort((a, b) => {
       const c = a.client.localeCompare(b.client);
@@ -148,7 +257,7 @@ export default function TrainingMatrixPage() {
       if (clientFilter !== "ALL" && p.client !== clientFilter) return false;
       if (tradeFilter !== "ALL" && shortTrade(p.post) !== tradeFilter) return false;
       if (statusFilter !== "ALL") {
-        const has = COURSES.some((c) => getStatus(p.certs[c]?.expiry_date || null, today) === statusFilter);
+        const has = ALL_COURSES.some((c) => getStatus(p.certs[c]?.expiry_date || null, today) === statusFilter);
         if (!has) return false;
       }
       if (search && !p.crew_name.toLowerCase().includes(search.toLowerCase())) return false;
@@ -159,11 +268,11 @@ export default function TrainingMatrixPage() {
   // ─── Chart Data ───
   const { barData, pieData, stats } = useMemo(() => {
     const counts: Record<string, { valid: number; expiring: number; expired: number }> = {};
-    for (const c of COURSES) counts[c] = { valid: 0, expiring: 0, expired: 0 };
+    for (const c of ALL_COURSES) counts[c] = { valid: 0, expiring: 0, expired: 0 };
     let tValid = 0, tExpiring = 0, tExpired = 0, tNone = 0;
 
     for (const p of personnel) {
-      for (const c of COURSES) {
+      for (const c of ALL_COURSES) {
         const s = getStatus(p.certs[c]?.expiry_date || null, today);
         if (s === "valid") { counts[c].valid++; tValid++; }
         else if (s === "expiring") { counts[c].expiring++; tExpiring++; }
@@ -173,7 +282,7 @@ export default function TrainingMatrixPage() {
     }
 
     return {
-      barData: COURSES.map((c) => ({ course: c, Valid: counts[c].valid, Expiring: counts[c].expiring, Expired: counts[c].expired })),
+      barData: ALL_COURSES.map((c) => ({ course: c, Valid: counts[c].valid, Expiring: counts[c].expiring, Expired: counts[c].expired })),
       pieData: [
         { name: "Valid", value: tValid, color: "#10b981" },
         { name: "Expiring", value: tExpiring, color: "#f59e0b" },
@@ -184,6 +293,9 @@ export default function TrainingMatrixPage() {
     };
   }, [personnel, today]);
 
+  // Compute column count for colSpan
+  const totalCols = 4 + MAIN_COURSES.length * 2 + EXPIRY_ONLY_COURSES.length;
+
   return (
     <AppShell>
       <div className="space-y-4 animate-in fade-in duration-500">
@@ -191,13 +303,16 @@ export default function TrainingMatrixPage() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-black text-foreground uppercase tracking-tight">Training Matrix</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">IMS Personnel Competency & Certification Tracker</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              IMS Personnel Competency & Certification Tracker
+              {canEdit && <span className="ml-2 text-blue-400">(Double-click cells to edit)</span>}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             {[
-              { label: "Valid", count: stats.valid, dot: "bg-emerald-500", text: "text-emerald-600" },
-              { label: "< 90 Days", count: stats.expiring, dot: "bg-amber-500", text: "text-amber-600" },
-              { label: "Expired", count: stats.expired, dot: "bg-red-500", text: "text-red-600" },
+              { label: "Valid", count: stats.valid, dot: "bg-emerald-500", text: "text-emerald-400" },
+              { label: "Expiring", count: stats.expiring, dot: "bg-amber-500", text: "text-amber-400" },
+              { label: "Expired", count: stats.expired, dot: "bg-red-500", text: "text-red-400" },
               { label: "Personnel", count: stats.total, dot: "bg-slate-400", text: "text-foreground" },
             ].map((s) => (
               <div key={s.label} className="flex items-center gap-2 px-3 py-2 bg-card border border-border rounded-xl">
@@ -222,7 +337,7 @@ export default function TrainingMatrixPage() {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={barData} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(215 20% 25%)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                   <XAxis dataKey="course" tick={{ fontSize: 10, fill: "#94a3b8" }} />
                   <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
                   <Tooltip content={<ChartTooltipContent />} />
@@ -266,7 +381,7 @@ export default function TrainingMatrixPage() {
               <select
                 value={f.value}
                 onChange={(e) => f.set(e.target.value)}
-                className="bg-muted border border-border rounded-lg px-3 py-1.5 text-sm font-bold outline-none cursor-pointer"
+                className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs font-bold outline-none cursor-pointer"
               >
                 {f.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
@@ -279,7 +394,7 @@ export default function TrainingMatrixPage() {
               placeholder="Name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="bg-muted border border-border rounded-lg px-3 py-1.5 text-sm font-semibold outline-none w-40"
+              className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-1.5 text-xs font-semibold outline-none w-40 placeholder:text-slate-500"
             />
           </div>
           <span className="ml-auto text-[10px] text-muted-foreground font-bold">
@@ -294,16 +409,25 @@ export default function TrainingMatrixPage() {
               <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            <div className="overflow-auto max-h-[calc(100vh-480px)]">
+            <div className="overflow-auto max-h-[calc(100vh-460px)]">
               <table className="w-full text-left border-collapse">
                 <thead className="sticky top-0 z-20">
+                  {/* Course name row */}
                   <tr className="bg-slate-900 text-white">
-                    <th rowSpan={2} className="px-3 py-3 border-r border-slate-700 text-[10px] font-black uppercase tracking-wider sticky left-0 bg-slate-900 z-30 min-w-[40px]">#</th>
-                    <th rowSpan={2} className="px-3 py-3 border-r border-slate-700 text-[10px] font-black uppercase tracking-wider sticky left-[40px] bg-slate-900 z-30 min-w-[180px]">Personnel</th>
-                    <th rowSpan={2} className="px-3 py-3 border-r border-slate-700 text-[10px] font-black uppercase tracking-wider text-center min-w-[55px]">Trade</th>
-                    <th rowSpan={2} className="px-3 py-3 border-r border-slate-700 text-[10px] font-black uppercase tracking-wider text-center min-w-[55px]">Client</th>
-                    {COURSES.map((c) => (
-                      <th key={c} colSpan={2} className="px-1 py-2 border-r border-slate-700 text-center border-b border-slate-700">
+                    <th rowSpan={2} className="px-2 py-2.5 border-r border-slate-700 text-[10px] font-black uppercase tracking-wider sticky left-0 bg-slate-900 z-30 w-[36px]">#</th>
+                    <th rowSpan={2} className="px-2 py-2.5 border-r border-slate-700 text-[10px] font-black uppercase tracking-wider sticky left-[36px] bg-slate-900 z-30 min-w-[160px]">Name</th>
+                    <th rowSpan={2} className="px-2 py-2.5 border-r border-slate-700 text-[10px] font-black uppercase tracking-wider text-center w-[48px]">Trade</th>
+                    <th rowSpan={2} className="px-2 py-2.5 border-r border-slate-700 text-[10px] font-black uppercase tracking-wider text-center w-[48px]">Client</th>
+                    {MAIN_COURSES.map((c) => (
+                      <th key={c} colSpan={2} className="px-1 py-2 border-r border-slate-700 text-center border-b border-slate-600">
+                        <div className="flex items-center justify-center gap-1">
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COURSE_COLORS[c] }} />
+                          <span className="text-[9px] font-black uppercase tracking-widest">{c}</span>
+                        </div>
+                      </th>
+                    ))}
+                    {EXPIRY_ONLY_COURSES.map((c) => (
+                      <th key={c} className="px-1 py-2 border-r border-slate-700 text-center border-b border-slate-600">
                         <div className="flex items-center justify-center gap-1">
                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COURSE_COLORS[c] }} />
                           <span className="text-[9px] font-black uppercase tracking-widest">{c}</span>
@@ -311,16 +435,20 @@ export default function TrainingMatrixPage() {
                       </th>
                     ))}
                   </tr>
+                  {/* Sub-header row */}
                   <tr className="bg-slate-800 text-[8px] font-bold text-slate-400 uppercase">
-                    {COURSES.map((c) => (
+                    {MAIN_COURSES.map((c) => (
                       <Fragment key={c}>
-                        <th className="px-1 py-1.5 text-center border-r border-slate-700/50 min-w-[70px]">Attended</th>
-                        <th className="px-1 py-1.5 text-center border-r border-slate-700 min-w-[70px]">Expiry</th>
+                        <th className="px-1 py-1 text-center border-r border-slate-700/50 min-w-[68px]">Attended</th>
+                        <th className="px-1 py-1 text-center border-r border-slate-700 min-w-[68px]">Expiry</th>
                       </Fragment>
+                    ))}
+                    {EXPIRY_ONLY_COURSES.map((c) => (
+                      <th key={c} className="px-1 py-1 text-center border-r border-slate-700 min-w-[68px]">Expiry</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/30">
+                <tbody className="divide-y divide-slate-800/50">
                   {filtered.map((person, idx) => {
                     const prev = filtered[idx - 1];
                     const showSep = !prev || prev.client !== person.client || tradeRank(prev.post) !== tradeRank(person.post);
@@ -328,10 +456,10 @@ export default function TrainingMatrixPage() {
                     return (
                       <Fragment key={person.crew_id}>
                         {showSep && (
-                          <tr className="bg-muted/50">
-                            <td colSpan={4 + COURSES.length * 2} className="px-4 py-2 sticky left-0">
+                          <tr className="bg-slate-800/40">
+                            <td colSpan={totalCols} className="px-3 py-2 sticky left-0">
                               <span className={`inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-wider ${
-                                person.client === "SKA" ? "text-blue-600 dark:text-blue-400" : "text-orange-600 dark:text-orange-400"
+                                person.client === "SKA" ? "text-blue-400" : "text-orange-400"
                               }`}>
                                 <span className={`w-2.5 h-2.5 rounded-full ${person.client === "SKA" ? "bg-blue-500" : "bg-orange-500"}`} />
                                 {person.client} - {fullTrade(person.post)}
@@ -339,44 +467,72 @@ export default function TrainingMatrixPage() {
                             </td>
                           </tr>
                         )}
-                        <tr className="hover:bg-muted/40 transition-colors group">
-                          <td className="px-3 py-2 border-r border-border/20 sticky left-0 bg-card group-hover:bg-muted/40 z-10 text-[10px] text-muted-foreground font-bold tabular-nums">{idx + 1}</td>
-                          <td className="px-3 py-2 border-r border-border/20 sticky left-[40px] bg-card group-hover:bg-muted/40 z-10">
-                            <div className="text-[11px] font-bold text-foreground uppercase">{person.crew_name}</div>
-                            <div className="text-[9px] text-muted-foreground">{person.location || "-"}</div>
+                        <tr className="hover:bg-slate-800/30 transition-colors group">
+                          <td className="px-2 py-1.5 border-r border-slate-800/50 sticky left-0 bg-card group-hover:bg-slate-800/30 z-10 text-[10px] text-slate-500 font-bold tabular-nums">{idx + 1}</td>
+                          <td className="px-2 py-1.5 border-r border-slate-800/50 sticky left-[36px] bg-card group-hover:bg-slate-800/30 z-10">
+                            <div className="text-[11px] font-bold text-white uppercase truncate">{person.crew_name}</div>
+                            <div className="text-[9px] text-slate-500 truncate">{person.location || "-"}</div>
                           </td>
-                          <td className="px-2 py-2 border-r border-border/20 text-center">
-                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                              shortTrade(person.post) === "OM" ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30"
-                                : shortTrade(person.post) === "EM" ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                                : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                          <td className="px-1 py-1.5 border-r border-slate-800/50 text-center">
+                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold ${
+                              shortTrade(person.post) === "OM" ? "bg-blue-500/15 text-blue-400 border border-blue-500/30"
+                                : shortTrade(person.post) === "EM" ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                                : "bg-amber-500/15 text-amber-400 border border-amber-500/30"
                             }`}>{shortTrade(person.post)}</span>
                           </td>
-                          <td className="px-2 py-2 border-r border-border/20 text-center">
-                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                              person.client === "SKA" ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30" : "bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30"
+                          <td className="px-1 py-1.5 border-r border-slate-800/50 text-center">
+                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold ${
+                              person.client === "SKA" ? "bg-blue-500/15 text-blue-400 border border-blue-500/30" : "bg-orange-500/15 text-orange-400 border border-orange-500/30"
                             }`}>{person.client}</span>
                           </td>
-                          {COURSES.map((course) => {
+                          {/* Main courses: Attended + Expiry */}
+                          {MAIN_COURSES.map((course) => {
                             const cert = person.certs[course];
                             const status = getStatus(cert?.expiry_date || null, today);
-                            if (!cert) {
-                              return (
-                                <Fragment key={course}>
-                                  <td className="px-1 py-2 text-[9px] text-center text-muted-foreground/30 border-r border-border/10">--</td>
-                                  <td className="px-1 py-2 text-[9px] text-center text-muted-foreground/30 border-r border-border/20">--</td>
-                                </Fragment>
-                              );
-                            }
                             return (
                               <Fragment key={course}>
-                                <td className={`px-1 py-2 text-[9px] text-center tabular-nums border-r border-border/10 ${STATUS_CELL[status]}`}>
-                                  {fmtDate(cert.attended_date)}
-                                </td>
-                                <td className={`px-1 py-2 text-[9px] font-bold text-center tabular-nums border-r border-border/20 ${STATUS_EXPIRY_CELL[status]}`}>
-                                  {fmtDate(cert.expiry_date)}
-                                </td>
+                                <DateCell
+                                  value={cert?.attended_date || null}
+                                  matrixId={cert?.matrix_id || null}
+                                  crewId={person.crew_id}
+                                  certType={course}
+                                  field="attended_date"
+                                  canEdit={!!canEdit}
+                                  status={status}
+                                  isExpiry={false}
+                                  onSaved={loadData}
+                                />
+                                <DateCell
+                                  value={cert?.expiry_date || null}
+                                  matrixId={cert?.matrix_id || null}
+                                  crewId={person.crew_id}
+                                  certType={course}
+                                  field="expiry_date"
+                                  canEdit={!!canEdit}
+                                  status={status}
+                                  isExpiry={true}
+                                  onSaved={loadData}
+                                />
                               </Fragment>
+                            );
+                          })}
+                          {/* Expiry-only courses */}
+                          {EXPIRY_ONLY_COURSES.map((course) => {
+                            const cert = person.certs[course];
+                            const status = getStatus(cert?.expiry_date || null, today);
+                            return (
+                              <DateCell
+                                key={course}
+                                value={cert?.expiry_date || null}
+                                matrixId={cert?.matrix_id || null}
+                                crewId={person.crew_id}
+                                certType={course}
+                                field="expiry_date"
+                                canEdit={!!canEdit}
+                                status={status}
+                                isExpiry={true}
+                                onSaved={loadData}
+                              />
                             );
                           })}
                         </tr>
@@ -385,9 +541,9 @@ export default function TrainingMatrixPage() {
                   })}
                   {!loading && filtered.length === 0 && (
                     <tr>
-                      <td colSpan={4 + COURSES.length * 2} className="px-4 py-16 text-center">
+                      <td colSpan={totalCols} className="px-4 py-16 text-center">
                         <p className="text-sm text-muted-foreground">
-                          {personnel.length === 0 ? "No training data found in database" : "No personnel match the selected filters"}
+                          {personnel.length === 0 ? "No training data found. Ensure pcsb_crew_detail and pcsb_matrix tables have data." : "No personnel match the selected filters"}
                         </p>
                       </td>
                     </tr>
@@ -402,16 +558,21 @@ export default function TrainingMatrixPage() {
         <div className="flex items-center gap-6 px-4 py-2.5 bg-card rounded-xl border border-border w-fit text-[10px] font-bold uppercase text-muted-foreground">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-emerald-500/15 rounded border border-emerald-500/30" />
-            <span className="text-emerald-600 dark:text-emerald-400">{"Valid (> 90 days)"}</span>
+            <span className="text-emerald-400">{"Valid (> 90 days)"}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-amber-500/15 rounded border border-amber-500/30" />
-            <span className="text-amber-600 dark:text-amber-400">{"Expiring (< 90 days)"}</span>
+            <span className="text-amber-400">{"Expiring (< 90 days)"}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-red-500/15 rounded border border-red-500/30" />
-            <span className="text-red-600 dark:text-red-400">Expired</span>
+            <span className="text-red-400">Expired</span>
           </div>
+          {canEdit && (
+            <div className="flex items-center gap-2 ml-4 border-l border-slate-700 pl-4">
+              <span className="text-blue-400">Double-click a date cell to edit</span>
+            </div>
+          )}
         </div>
       </div>
     </AppShell>

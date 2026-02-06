@@ -117,49 +117,121 @@ export async function getLoginLogs(): Promise<LoginLogEntry[]> {
   return data || []
 }
 
-// Fetch training matrix data from pcsb_matrix joined with pcsb_crew_detail
+// Fetch training matrix data - fetches both tables and joins client-side for reliability
 export async function getMatrixData(): Promise<{ success: boolean; data?: MatrixRecord[]; error?: string }> {
+  const supabase = await createClient()
+
+  // Fetch crew details
+  const { data: crewData, error: crewError } = await supabase
+    .from('pcsb_crew_detail')
+    .select('id, crew_name, post, client, location')
+
+  if (crewError) {
+    console.error('Error fetching crew detail:', crewError)
+    return { success: false, error: crewError.message }
+  }
+
+  // Fetch matrix records
+  const { data: matrixData, error: matrixError } = await supabase
+    .from('pcsb_matrix')
+    .select('id, crew_id, cert_type, expiry_date, attended_date')
+
+  if (matrixError) {
+    console.error('Error fetching matrix data:', matrixError)
+    return { success: false, error: matrixError.message }
+  }
+
+  // Build crew lookup
+  const crewMap = new Map<string, { crew_name: string; post: string; client: string; location: string }>();
+  for (const c of (crewData || [])) {
+    crewMap.set(c.id, { crew_name: c.crew_name || '', post: c.post || '', client: c.client || '', location: c.location || '' });
+  }
+
+  // If matrix table has data, join it
+  if (matrixData && matrixData.length > 0) {
+    const flattened: MatrixRecord[] = matrixData.map((row) => {
+      const crew = crewMap.get(row.crew_id);
+      return {
+        id: row.id,
+        crew_id: row.crew_id,
+        cert_type: row.cert_type || '',
+        expiry_date: row.expiry_date || null,
+        attended_date: row.attended_date || null,
+        crew_name: crew?.crew_name || '',
+        post: crew?.post || '',
+        client: crew?.client || '',
+        location: crew?.location || '',
+      };
+    });
+    return { success: true, data: flattened }
+  }
+
+  // If matrix table is empty but crew table has data, return crew list with empty certs
+  // so the table at least shows all names
+  if (crewData && crewData.length > 0) {
+    const fallback: MatrixRecord[] = crewData.map((c) => ({
+      id: c.id,
+      crew_id: c.id,
+      cert_type: '',
+      expiry_date: null,
+      attended_date: null,
+      crew_name: c.crew_name || '',
+      post: c.post || '',
+      client: c.client || '',
+      location: c.location || '',
+    }));
+    return { success: true, data: fallback }
+  }
+
+  return { success: true, data: [] }
+}
+
+// Update a single matrix cell (attended_date or expiry_date)
+export async function updateMatrixCell(
+  matrixId: string,
+  field: 'attended_date' | 'expiry_date',
+  value: string | null
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('pcsb_matrix')
+    .update({ [field]: value })
+    .eq('id', matrixId)
+
+  if (error) {
+    console.error('Error updating matrix cell:', error)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true }
+}
+
+// Create a new matrix record (when editing a cell that doesn't exist yet)
+export async function createMatrixRecord(
+  crewId: string,
+  certType: string,
+  field: 'attended_date' | 'expiry_date',
+  value: string
+): Promise<{ success: boolean; id?: string; error?: string }> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('pcsb_matrix')
-    .select(`
-      id,
-      crew_id,
-      cert_type,
-      expiry_date,
-      attended_date,
-      pcsb_crew_detail (
-        crew_name,
-        post,
-        client,
-        location
-      )
-    `)
-    .order('crew_id', { ascending: true })
+    .insert({
+      crew_id: crewId,
+      cert_type: certType,
+      [field]: value,
+    })
+    .select('id')
+    .single()
 
   if (error) {
-    console.error('Error fetching matrix data:', error)
+    console.error('Error creating matrix record:', error)
     return { success: false, error: error.message }
   }
 
-  // Flatten the joined data
-  const flattened: MatrixRecord[] = (data || []).map((row: Record<string, unknown>) => {
-    const crew = row.pcsb_crew_detail as Record<string, string> | null;
-    return {
-      id: row.id as string,
-      crew_id: row.crew_id as string,
-      cert_type: row.cert_type as string,
-      expiry_date: row.expiry_date as string | null,
-      attended_date: row.attended_date as string | null,
-      crew_name: crew?.crew_name || '',
-      post: crew?.post || '',
-      client: crew?.client || '',
-      location: crew?.location || '',
-    };
-  });
-
-  return { success: true, data: flattened }
+  return { success: true, id: data?.id }
 }
 
 // Bulk update for Save Changes
