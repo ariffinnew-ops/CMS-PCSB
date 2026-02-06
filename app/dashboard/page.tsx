@@ -487,12 +487,21 @@ function CompactTable({
 }
 
 export default function DashboardPage() {
-  const [systemDate, setSystemDate] = useState(new Date(2025, 11, 31));
+  const [systemDate, setSystemDate] = useState(() => new Date());
+  const [liveTime, setLiveTime] = useState(() => new Date());
   const [data, setData] = useState<RosterRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"hud" | "list">("hud");
   const [hoveredSegment, setHoveredSegment] = useState<"SKA" | "SBA" | null>(null);
   const [hoveredTrade, setHoveredTrade] = useState<string | null>(null);
+
+  // Live clock - updates every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLiveTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     getRosterData().then((rosterData) => {
@@ -607,8 +616,15 @@ export default function DashboardPage() {
                   PROVISION OF IMS - PCSB
                 </h1>
                 
-                {/* Right placeholder for balance */}
-                <div className="w-[120px]" />
+                {/* Live Time */}
+                <div className="flex items-center gap-2 min-w-[180px] justify-end">
+                  <span className="text-xs font-bold text-slate-400 tabular-nums">
+                    {liveTime.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                  </span>
+                  <span className="text-lg font-black text-cyan-400 tabular-nums" style={{ textShadow: "0 0 20px rgba(6, 182, 212, 0.5)" }}>
+                    {liveTime.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                  </span>
+                </div>
               </div>
 
               {/* Main HUD Content - Compact */}
@@ -625,10 +641,10 @@ export default function DashboardPage() {
                     />
                     <button
                       type="button"
-                      onClick={() => setSystemDate(new Date(2025, 11, 31))}
+                      onClick={() => setSystemDate(new Date())}
                       className="px-3 py-1 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-[10px] font-bold text-slate-400 hover:text-white transition-all"
                     >
-                      Reset
+                      Today
                     </button>
                   </div>
                 </div>
