@@ -29,7 +29,7 @@ interface NavItem {
 const allNavItems: NavItem[] = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", roles: ["admin", "datalogger", "guest"] },
   { id: "roster", label: "Roster", href: "/roster", roles: ["admin", "datalogger", "guest"] },
-  { id: "training", label: "Training", href: "/training", roles: ["admin", "datalogger", "guest"] },
+  { id: "training", label: "Training Matrix", href: "/training", roles: ["admin", "datalogger", "guest"] },
   { id: "staff", label: "Staff", href: "/staff", roles: ["admin", "datalogger", "guest"] },
   { id: "admin", label: "Data Manager", href: "/admin", roles: ["admin", "datalogger"] },
   { id: "logs", label: "Login Logs", href: "/logs", roles: ["admin"] },
