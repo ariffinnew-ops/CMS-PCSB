@@ -169,7 +169,7 @@ function CoursePieChart({ green, yellow, orange, planCount }: { green: number; y
     <div className="flex flex-col items-center gap-1">
       <div style={{ width: size, height: size + 4, position: "relative" }}>
         {/* 3D shadow layer - shifted down */}
-        <PieChart width={size} height={size} style={{ position: "absolute", top: 4, left: 0 }}>
+        <PieChart width={size} height={size} margin={{ top: 0, right: 0, bottom: 0, left: 0 }} style={{ position: "absolute", top: 4, left: 0 }}>
           <Pie data={data} cx={cx} cy={cy} innerRadius={ir} outerRadius={or} paddingAngle={2} dataKey="value" stroke="none" isAnimationActive={false}>
             {data.map((entry, i) => (
               <Cell key={i} fill={entry.dark} opacity={0.35} />
@@ -177,7 +177,7 @@ function CoursePieChart({ green, yellow, orange, planCount }: { green: number; y
           </Pie>
         </PieChart>
         {/* Main pie + 3D sphere center in same SVG */}
-        <PieChart width={size} height={size} style={{ position: "absolute", top: 0, left: 0 }}>
+        <PieChart width={size} height={size} margin={{ top: 0, right: 0, bottom: 0, left: 0 }} style={{ position: "absolute", top: 0, left: 0 }}>
           <defs>
             <radialGradient id="sphereSmall" cx="40%" cy="35%" r="60%" fx="35%" fy="30%">
               <stop offset="0%" stopColor="#ffffff" />
@@ -194,7 +194,7 @@ function CoursePieChart({ green, yellow, orange, planCount }: { green: number; y
               <Cell key={i} fill={entry.color} />
             ))}
           </Pie>
-          {/* 3D sphere background - matches innerRadius exactly, no gap */}
+          {/* 3D sphere background - matches innerRadius exactly */}
           <circle cx={cx} cy={cy} r={ir} fill="url(#sphereSmall)" filter="url(#sphereShadowSmall)" />
           {/* Glossy highlight */}
           <ellipse cx={cx - 3} cy={cy - 4} rx={9} ry={5} fill="white" opacity={0.4} />
@@ -250,18 +250,16 @@ function OverallPieChart({ green, yellow, orange, total }: { green: number; yell
 
   return (
     <div style={{ width: size, height: size + 6, position: "relative" }}>
-      {/* 3D shadow - shifted down 5px, same SVG coordinates */}
-      <svg style={{ position: "absolute", top: 5, left: 0 }} width={size} height={size}>
-        <PieChart width={size} height={size} style={{ position: "absolute", top: 0, left: 0 }}>
-          <Pie data={data} cx={cx} cy={cy} innerRadius={40} outerRadius={84} paddingAngle={2} dataKey="value" stroke="none" isAnimationActive={false}>
-            {data.map((entry, i) => (
-              <Cell key={i} fill={entry.dark} opacity={0.3} />
-            ))}
-          </Pie>
-        </PieChart>
-      </svg>
+      {/* 3D shadow - shifted down 5px */}
+      <PieChart width={size} height={size} margin={{ top: 0, right: 0, bottom: 0, left: 0 }} style={{ position: "absolute", top: 5, left: 0 }}>
+        <Pie data={data} cx={cx} cy={cy} innerRadius={40} outerRadius={84} paddingAngle={2} dataKey="value" stroke="none" isAnimationActive={false}>
+          {data.map((entry, i) => (
+            <Cell key={i} fill={entry.dark} opacity={0.3} />
+          ))}
+        </Pie>
+      </PieChart>
       {/* Main pie + 3D sphere center in same coordinate space */}
-      <PieChart width={size} height={size} style={{ position: "absolute", top: 0, left: 0 }}>
+      <PieChart width={size} height={size} margin={{ top: 0, right: 0, bottom: 0, left: 0 }} style={{ position: "absolute", top: 0, left: 0 }}>
         <defs>
           <radialGradient id="sphereLarge" cx="40%" cy="35%" r="60%" fx="35%" fy="30%">
             <stop offset="0%" stopColor="#ffffff" />
@@ -278,7 +276,7 @@ function OverallPieChart({ green, yellow, orange, total }: { green: number; yell
             <Cell key={i} fill={entry.color} />
           ))}
         </Pie>
-        {/* 3D sphere background - matches innerRadius=40 exactly, no gap */}
+        {/* 3D sphere background - matches innerRadius=40 exactly */}
         <circle cx={cx} cy={cy} r={40} fill="url(#sphereLarge)" filter="url(#sphereShadowLarge)" />
         {/* Glossy highlight */}
         <ellipse cx={cx - 4} cy={cy - 7} rx={14} ry={8} fill="white" opacity={0.4} />
