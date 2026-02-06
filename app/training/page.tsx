@@ -176,14 +176,29 @@ function CoursePieChart({ green, yellow, orange, planCount }: { green: number; y
             ))}
           </Pie>
         </PieChart>
-        {/* Main pie + center text in same SVG for perfect centering */}
+        {/* Main pie + 3D sphere center in same SVG */}
         <PieChart width={size} height={size} style={{ position: "absolute", top: 0, left: 0 }}>
+          <defs>
+            <radialGradient id="sphereSmall" cx="40%" cy="35%" r="60%" fx="35%" fy="30%">
+              <stop offset="0%" stopColor="#ffffff" />
+              <stop offset="30%" stopColor="#e8ecf1" />
+              <stop offset="70%" stopColor="#b0bac9" />
+              <stop offset="100%" stopColor="#7a8a9e" />
+            </radialGradient>
+            <filter id="sphereShadowSmall">
+              <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.25" />
+            </filter>
+          </defs>
           <Pie data={data} cx={cx} cy={cy} innerRadius={ir} outerRadius={or} paddingAngle={2} dataKey="value" stroke="rgba(255,255,255,0.6)" strokeWidth={2} label={renderLabel} labelLine={false} isAnimationActive={false}>
             {data.map((entry, i) => (
               <Cell key={i} fill={entry.color} />
             ))}
           </Pie>
-          {/* Center number inside the same SVG */}
+          {/* 3D sphere background */}
+          <circle cx={cx} cy={cy} r={ir - 2} fill="url(#sphereSmall)" filter="url(#sphereShadowSmall)" />
+          {/* Glossy highlight */}
+          <ellipse cx={cx - 3} cy={cy - 5} rx={10} ry={6} fill="white" opacity={0.35} />
+          {/* Center number */}
           <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={22} fontWeight="900" fill="#1e293b">
             {total}
           </text>
@@ -245,14 +260,29 @@ function OverallPieChart({ green, yellow, orange, total }: { green: number; yell
           </Pie>
         </PieChart>
       </svg>
-      {/* Main pie + center text in same coordinate space */}
+      {/* Main pie + 3D sphere center in same coordinate space */}
       <PieChart width={size} height={size} style={{ position: "absolute", top: 0, left: 0 }}>
+        <defs>
+          <radialGradient id="sphereLarge" cx="40%" cy="35%" r="60%" fx="35%" fy="30%">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="25%" stopColor="#eaeff4" />
+            <stop offset="60%" stopColor="#b4c0cf" />
+            <stop offset="100%" stopColor="#6b7d93" />
+          </radialGradient>
+          <filter id="sphereShadowLarge">
+            <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#000" floodOpacity="0.3" />
+          </filter>
+        </defs>
         <Pie data={data} cx={cx} cy={cy} innerRadius={40} outerRadius={84} paddingAngle={2} dataKey="value" stroke="rgba(255,255,255,0.6)" strokeWidth={2} label={renderLabel} labelLine={false} isAnimationActive={false}>
           {data.map((entry, i) => (
             <Cell key={i} fill={entry.color} />
           ))}
         </Pie>
-        {/* Center text rendered in the same SVG for perfect centering */}
+        {/* 3D sphere background */}
+        <circle cx={cx} cy={cy} r={37} fill="url(#sphereLarge)" filter="url(#sphereShadowLarge)" />
+        {/* Glossy highlight */}
+        <ellipse cx={cx - 5} cy={cy - 8} rx={16} ry={9} fill="white" opacity={0.4} />
+        {/* Center text */}
         <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={34} fontWeight="900" fill="#1e293b">
           {total}
         </text>
