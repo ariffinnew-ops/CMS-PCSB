@@ -27,15 +27,15 @@ export async function getRosterData(): Promise<RosterRow[]> {
     crewMap.set(c.id, { crew_name: c.crew_name || '', post: c.post || '', client: c.client || '', location: c.location || '' });
   }
 
-  // Join roster with crew details
+  // Join roster with crew details - roster row overrides take priority (for relief assignments)
   return (rosterData || []).map((row: Record<string, unknown>) => {
     const crew = crewMap.get(row.crew_id as string);
     return {
       ...row,
-      crew_name: crew?.crew_name || '',
-      post: crew?.post || '',
-      client: crew?.client || '',
-      location: crew?.location || '',
+      crew_name: (row.crew_name as string) || crew?.crew_name || '',
+      post: (row.post as string) || crew?.post || '',
+      client: (row.client as string) || crew?.client || '',
+      location: (row.location as string) || crew?.location || '',
     } as RosterRow;
   })
 }
@@ -57,11 +57,16 @@ export async function updateRosterRow(id: number, updates: Partial<RosterRow>): 
   return { success: true }
 }
 
-export async function createRosterRow(row: Omit<RosterRow, 'id'> | { crew_id: string }): Promise<{ success: boolean; data?: RosterRow; error?: string }> {
+export async function createRosterRow(row: Omit<RosterRow, 'id'> | { crew_id: string; post?: string; client?: string; location?: string }): Promise<{ success: boolean; data?: RosterRow; error?: string }> {
   const supabase = await createClient()
 
-  // Only send crew_id to pcsb_roster (name/post/client/location come from the join with pcsb_crew_detail)
-  const insertPayload: Record<string, unknown> = { crew_id: (row as { crew_id?: string }).crew_id };
+  const typedRow = row as { crew_id?: string; post?: string; client?: string; location?: string };
+  const insertPayload: Record<string, unknown> = { crew_id: typedRow.crew_id };
+
+  // Store override fields for relief assignments (different post/client/location than crew_detail)
+  if (typedRow.post) insertPayload.post = typedRow.post;
+  if (typedRow.client) insertPayload.client = typedRow.client;
+  if (typedRow.location) insertPayload.location = typedRow.location;
 
   const { data: insertedRow, error } = await supabase
     .from('pcsb_roster')
@@ -84,10 +89,10 @@ export async function createRosterRow(row: Omit<RosterRow, 'id'> | { crew_id: st
 
     const fullRow = {
       ...insertedRow,
-      crew_name: crewData?.crew_name || '',
-      post: crewData?.post || '',
-      client: crewData?.client || '',
-      location: crewData?.location || '',
+      crew_name: (insertedRow.crew_name as string) || crewData?.crew_name || '',
+      post: (insertedRow.post as string) || crewData?.post || '',
+      client: (insertedRow.client as string) || crewData?.client || '',
+      location: (insertedRow.location as string) || crewData?.location || '',
     } as RosterRow
 
     return { success: true, data: fullRow }

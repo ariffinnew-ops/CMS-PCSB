@@ -343,8 +343,20 @@ export default function AdminPage() {
 
     setIsSyncing(true);
 
-    // Create new roster row linked by crew_id only (crew_name/post/client/location come from join)
-    const result = await createRosterRow({ crew_id: selectedStaff.id });
+    const isRelief = isCrewInRoster(selectedStaff.id);
+
+    // For relief: store the modal's post/client/location as overrides in pcsb_roster
+    // so relief staff appears at the assigned location, not their original crew_detail location
+    const payload: { crew_id: string; post?: string; client?: string; location?: string } = {
+      crew_id: selectedStaff.id,
+    };
+    if (isRelief) {
+      payload.post = addStaffModal.post;
+      payload.client = addStaffModal.client;
+      payload.location = addStaffModal.location;
+    }
+
+    const result = await createRosterRow(payload);
     setIsSyncing(false);
 
     if (result.success && result.data) {
@@ -353,8 +365,7 @@ export default function AdminPage() {
       // Track as newly added for delete button
       setNewlyAddedIds((prev) => new Set([...prev, result.data!.id]));
       setLastSynced(new Date());
-      const isRelief = isCrewInRoster(selectedStaff.id);
-      const displaySuffix = isRelief ? " (Relief)" : "";
+      const displaySuffix = isRelief ? ` (Relief at ${addStaffModal.location})` : "";
       showNotification(`${selectedStaff.crew_name}${displaySuffix} added successfully`, "success");
     } else {
       showNotification(result.error || "Failed to add staff", "error");
