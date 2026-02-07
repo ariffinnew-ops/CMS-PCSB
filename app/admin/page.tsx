@@ -5,56 +5,10 @@ import React from "react"
 import { useEffect, useState, useMemo, useRef, Fragment } from "react";
 import { AppShell } from "@/components/app-shell";
 import { RosterRow, TradeType } from "@/lib/types";
-import { getRosterData, updateRosterRow, createRosterRow, deleteRosterRow } from "@/lib/actions";
+import { getRosterData, updateRosterRow, createRosterRow, deleteRosterRow, getCrewList } from "@/lib/actions";
 import { safeParseDate, getTradeRank, shortenPost } from "@/lib/logic";
 
-// Master list of staff for selection (from staff_rows concept)
-const MASTER_STAFF_LIST = [
-  { name: "HENRY MISUN", post: "OFFSHORE MEDIC", client: "SBA", location: "ERB WEST (EW)" },
-  { name: "RICKEY BIN PATREK", post: "OFFSHORE MEDIC", client: "SBA", location: "ERB WEST (EW)" },
-  { name: "EDDYIANSAH BIN HADIR", post: "OFFSHORE MEDIC", client: "SBA", location: "KINABALU (KNAG)" },
-  { name: "EVORY LEY JOULIS", post: "OFFSHORE MEDIC", client: "SBA", location: "KINABALU (KNAG)" },
-  { name: "BRANDON ALEX JR AUGUSTINE", post: "OFFSHORE MEDIC", client: "SBA", location: "SAMARANG (SM)" },
-  { name: "LIANUS BIN ELLING", post: "OFFSHORE MEDIC", client: "SBA", location: "SAMARANG (SM)" },
-  { name: "SONNYBOY BIN ABD RAZAK", post: "OFFSHORE MEDIC", client: "SBA", location: "SUMANDAK (SUPD)" },
-  { name: "MOHAMAD FAZLEE BIN ZULKIPLEE", post: "ESCORT MEDIC", client: "SBA", location: "KK" },
-  { name: "ALLEN JOE MAININ", post: "ESCORT MEDIC", client: "SBA", location: "KK" },
-  { name: "NOOR ARIFF AKMAL BIN NOORBI", post: "ESCORT MEDIC", client: "SBA", location: "KK" },
-  { name: "MOHD ZULFADLI BIN ALIAS", post: "ESCORT MEDIC", client: "SBA", location: "LABUAN" },
-  { name: "ROMUALD JEOFFRY", post: "ESCORT MEDIC", client: "SBA", location: "LABUAN" },
-  { name: "MOHD SABRI BIN LADISMA", post: "ESCORT MEDIC", client: "SBA", location: "LABUAN" },
-  { name: "ANDERSON EDWARD", post: "IM / OHN", client: "SBA", location: "SOGT" },
-  { name: "JUNIOR FLORIAN MARITUS", post: "IM / OHN", client: "SBA", location: "SBA OFFICE" },
-  { name: "GREGORY CHAN WAN TSUI", post: "OFFSHORE MEDIC", client: "SKA", location: "BARAM" },
-  { name: "BALAN IBAU", post: "OFFSHORE MEDIC", client: "SKA", location: "BARAM" },
-  { name: "QIQIE QUSYAIRI BIN MINGTIAN", post: "OFFSHORE MEDIC", client: "SKA", location: "TUKAU" },
-  { name: "ADAM FAHMI BIN ISKANDAR", post: "OFFSHORE MEDIC", client: "SKA", location: "TUKAU" },
-  { name: "DAVID ANAK JIMIT", post: "OFFSHORE MEDIC", client: "SKA", location: "TEMANA" },
-  { name: "ANSELM ANAK YABI", post: "OFFSHORE MEDIC", client: "SKA", location: "TEMANA" },
-  { name: "RAZLAN BIN ABANG", post: "OFFSHORE MEDIC", client: "SKA", location: "M1" },
-  { name: "HAZXIEKEN ANAK GUNDAH", post: "OFFSHORE MEDIC", client: "SKA", location: "M1" },
-  { name: "MUHAMMAD ZAMRI ABDULLAH", post: "OFFSHORE MEDIC", client: "SKA", location: "NC3" },
-  { name: "CHRISTMA ANAK JOE", post: "OFFSHORE MEDIC", client: "SKA", location: "NC3" },
-  { name: "DENIL ANAK AWANG", post: "OFFSHORE MEDIC", client: "SKA", location: "KASAWARI" },
-  { name: "MOHAMAD ZARUL HAFIZ BIN ROSLI", post: "OFFSHORE MEDIC", client: "SKA", location: "KASAWARI" },
-  { name: "ARIFF FAQRI BIN BUANG", post: "OFFSHORE MEDIC", client: "SKA", location: "B11" },
-  { name: "MUHD FIRDAUS AINUL TAN ABDULLAH", post: "OFFSHORE MEDIC", client: "SKA", location: "B11" },
-  { name: "GERSHWIN SIRAI ANAK KILIM", post: "OFFSHORE MEDIC", client: "SKA", location: "BARONIA" },
-  { name: "MOHD ASRI BIN SABRI", post: "OFFSHORE MEDIC", client: "SKA", location: "BARONIA" },
-  { name: "MOHAMMAD FAUZAN BIN MADHI", post: "OFFSHORE MEDIC", client: "SKA", location: "KANOWIT KAKG" },
-  { name: "LAWRENCE SAWANG ANAK MEROM", post: "OFFSHORE MEDIC", client: "SKA", location: "KANOWIT KAKG" },
-  { name: "MOHAMAD FIROUZ BIN MOHAMAD ISKANDAR", post: "OFFSHORE MEDIC", client: "SKA", location: "E11" },
-  { name: "LESLIE SONJA ANAK MIKE", post: "OFFSHORE MEDIC", client: "SKA", location: "E11" },
-  { name: "COLLIN KRANK ANAK ACHAI @ JEMBAI", post: "OFFSHORE MEDIC", client: "SKA", location: "BOKOR" },
-  { name: "ZULKURNAIN BIN SAHARI", post: "OFFSHORE MEDIC", client: "SKA", location: "BOKOR" },
-  { name: "ANSLEM CLARENCE ANAK GAUP", post: "OFFSHORE MEDIC", client: "SKA", location: "D35" },
-  { name: "MOHD HANS AIQAL ABDULLAH", post: "OFFSHORE MEDIC", client: "SKA", location: "D35" },
-  { name: "ZAINAB BINTI SUIF", post: "ESCORT MEDIC", client: "SKA", location: "MIRI" },
-  { name: "PETRUS MEROM ANAK NGELAI", post: "ESCORT MEDIC", client: "SKA", location: "MIRI" },
-  { name: "MOHD LUTFI BIN MOHAMAD MORTABZA", post: "ESCORT MEDIC", client: "SKA", location: "MIRI" },
-  { name: "DEXTER NGILAH ANAK DENNEL", post: "ESCORT MEDIC", client: "SKA", location: "BINTULU" },
-  { name: "ROGER WATSON AJENG JOK", post: "ESCORT MEDIC", client: "SKA", location: "BINTULU" },
-];
+interface CrewListItem { id: string; crew_name: string; post: string; client: string; location: string; status?: string }
 
 export default function AdminPage() {
   const [data, setData] = useState<RosterRow[]>([]);
@@ -87,6 +41,9 @@ export default function AdminPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
 
+  // Dynamic crew list from pcsb_crew_detail
+  const [crewList, setCrewList] = useState<CrewListItem[]>([]);
+
   // Add Staff Modal State
   const [addStaffModal, setAddStaffModal] = useState<{
     client: string;
@@ -94,7 +51,7 @@ export default function AdminPage() {
     location: string;
   } | null>(null);
   const [staffSearchQuery, setStaffSearchQuery] = useState("");
-  const [selectedStaff, setSelectedStaff] = useState<typeof MASTER_STAFF_LIST[0] | null>(null);
+  const [selectedStaff, setSelectedStaff] = useState<CrewListItem | null>(null);
   
   // Track newly added staff IDs for showing delete button
   const [newlyAddedIds, setNewlyAddedIds] = useState<Set<number>>(new Set());
@@ -104,8 +61,9 @@ export default function AdminPage() {
 
   const fetchData = async () => {
     setLoading(true);
-    const rosterData = await getRosterData();
+    const [rosterData, crewResult] = await Promise.all([getRosterData(), getCrewList()]);
     setData(rosterData);
+    if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
     setLoading(false);
   };
 
@@ -340,13 +298,36 @@ export default function AdminPage() {
     return diff > 0 ? diff : 0;
   };
 
+  // Get base name stripping all (R), (R1), (R2) suffixes
+  const getBaseName = (name: string) => name.replace(/\s*\(R\d*\)\s*$/i, "").trim();
+
   // Check if staff already exists in current roster (for Relief logic)
   const isStaffInRoster = (staffName: string) => {
-    const baseName = staffName.replace(/\s*\([PSRS12]+\)\s*$/i, "").trim();
+    const baseName = getBaseName(staffName);
     return data.some((row) => {
-      const rowBaseName = row.crew_name.replace(/\s*\([PSRS12]+\)\s*$/i, "").replace(/\s*\(R\)\s*$/i, "").trim();
+      const rowBaseName = getBaseName(row.crew_name);
       return rowBaseName.toLowerCase() === baseName.toLowerCase();
     });
+  };
+
+  // Get the next relief suffix: (R) -> (R1) -> (R2) etc.
+  const getReliefName = (staffName: string) => {
+    const baseName = getBaseName(staffName);
+    const existing = data.filter((row) => {
+      const rowBase = getBaseName(row.crew_name);
+      return rowBase.toLowerCase() === baseName.toLowerCase();
+    });
+    if (existing.length === 0) return staffName; // No duplicates
+    // Check if (R) is already used
+    const hasR = existing.some((r) => /\(R\)$/i.test(r.crew_name.trim()));
+    if (!hasR) return `${baseName} (R)`;
+    // Find highest Rn
+    let maxN = 0;
+    for (const r of existing) {
+      const match = r.crew_name.match(/\(R(\d+)\)\s*$/i);
+      if (match) maxN = Math.max(maxN, parseInt(match[1]));
+    }
+    return `${baseName} (R${maxN + 1})`;
   };
 
   // Add new staff to roster
@@ -356,10 +337,10 @@ export default function AdminPage() {
     setIsSyncing(true);
 
     // Check if this is a relief (staff exists but being added to different location/post)
-    const isRelief = isStaffInRoster(selectedStaff.name);
+    const isRelief = isStaffInRoster(selectedStaff.crew_name);
     const staffName = isRelief 
-      ? `${selectedStaff.name} (R)` 
-      : selectedStaff.name;
+      ? getReliefName(selectedStaff.crew_name) 
+      : selectedStaff.crew_name;
 
     // Create new roster row with empty rotation fields
     const newRow: Omit<RosterRow, 'id'> = {
@@ -418,15 +399,15 @@ export default function AdminPage() {
     }
   };
 
-  // Filter master list for modal
+  // Filter crew list for modal
   const filteredMasterList = useMemo(() => {
     if (!addStaffModal) return [];
     
-    return MASTER_STAFF_LIST.filter((staff) => {
-      const matchesSearch = staff.name.toLowerCase().includes(staffSearchQuery.toLowerCase());
+    return crewList.filter((staff) => {
+      const matchesSearch = staff.crew_name.toLowerCase().includes(staffSearchQuery.toLowerCase());
       return matchesSearch;
     });
-  }, [addStaffModal, staffSearchQuery]);
+  }, [addStaffModal, staffSearchQuery, crewList]);
 
   if (loading)
     return (
@@ -509,7 +490,7 @@ export default function AdminPage() {
                   ))}
                 </select>
               </div>
-              <div className="flex flex-col px-4">
+              <div className="flex flex-col px-4 border-r border-border">
                 <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
                   Search
                 </span>
@@ -521,6 +502,15 @@ export default function AdminPage() {
                   className="bg-transparent border-none p-0 text-[14px] font-black uppercase outline-none w-36 py-1"
                 />
               </div>
+              {(tradeFilter !== "ALL" || locationFilter !== "ALL" || search) && (
+                <button
+                  type="button"
+                  onClick={() => { setTradeFilter("ALL"); setLocationFilter("ALL"); setSearch(""); }}
+                  className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 font-black text-[10px] uppercase tracking-wider transition-all border border-red-200"
+                >
+                  Reset All
+                </button>
+              )}
             </div>
 
             
@@ -528,69 +518,51 @@ export default function AdminPage() {
         </div>
 
         {/* TIMELINE NAVIGATION */}
-        <div className="bg-blue-600 backdrop-blur-md p-3 border-b border-blue-700 flex items-center gap-4 flex-shrink-0 shadow-lg rounded-xl mx-2 mt-2">
-          <div className="flex items-center gap-3 flex-grow px-4">
-            <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">
-              Matrix View Shift
-            </span>
-            <input
-              type="range"
-              min="0"
-              max={maxScroll}
-              value={scrollPos}
-              onChange={handleSliderChange}
-              className="flex-grow h-6 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 rounded-full appearance-none cursor-pointer shadow-lg border-2 border-blue-700"
-              style={{
-                WebkitAppearance: 'none',
-              }}
-            />
-            <style jsx>{`
-              input[type="range"]::-webkit-slider-thumb {
-                -webkit-appearance: none;
-                appearance: none;
-                width: 36px;
-                height: 36px;
-                background: linear-gradient(145deg, #ffffff, #e0e0e0);
-                border-radius: 50%;
-                cursor: grab;
-                box-shadow: 
-                  0 6px 12px rgba(0, 0, 0, 0.4),
-                  0 3px 6px rgba(0, 0, 0, 0.3),
-                  inset 0 3px 6px rgba(255, 255, 255, 0.9),
-                  inset 0 -3px 6px rgba(0, 0, 0, 0.15);
-                border: 3px solid #d1d5db;
-                transition: all 0.2s ease;
-              }
-              input[type="range"]::-webkit-slider-thumb:hover {
-                transform: scale(1.15);
-                box-shadow: 
-                  0 8px 16px rgba(0, 0, 0, 0.5),
-                  0 4px 8px rgba(0, 0, 0, 0.4),
-                  inset 0 4px 8px rgba(255, 255, 255, 1),
-                  inset 0 -4px 8px rgba(0, 0, 0, 0.2);
-              }
-              input[type="range"]::-webkit-slider-thumb:active {
-                cursor: grabbing;
-                transform: scale(1.05);
-              }
-              input[type="range"]::-moz-range-thumb {
-                width: 36px;
-                height: 36px;
-                background: linear-gradient(145deg, #ffffff, #e0e0e0);
-                border-radius: 50%;
-                cursor: grab;
-                box-shadow: 
-                  0 6px 12px rgba(0, 0, 0, 0.4),
-                  0 3px 6px rgba(0, 0, 0, 0.3),
-                  inset 0 3px 6px rgba(255, 255, 255, 0.9),
-                  inset 0 -3px 6px rgba(0, 0, 0, 0.15);
-                border: 3px solid #d1d5db;
-              }
-            `}</style>
-            <span className="text-[10px] font-black text-white tabular-nums w-12 text-right">
-              {Math.round((scrollPos / (maxScroll || 1)) * 100)}%
-            </span>
-          </div>
+        <div className="bg-blue-600 backdrop-blur-md px-4 py-1.5 border-b border-blue-700 flex items-center gap-3 flex-shrink-0 shadow-md rounded-lg mx-2 mt-1">
+          <span className="text-[8px] font-black text-white/80 uppercase tracking-wider shrink-0">
+            Scroll
+          </span>
+          <input
+            type="range"
+            min="0"
+            max={maxScroll}
+            value={scrollPos}
+            onChange={handleSliderChange}
+            className="flex-grow h-2 bg-blue-500/50 rounded-full appearance-none cursor-pointer"
+            style={{ WebkitAppearance: 'none' }}
+          />
+          <style jsx>{`
+            input[type="range"]::-webkit-slider-thumb {
+              -webkit-appearance: none;
+              appearance: none;
+              width: 18px;
+              height: 18px;
+              background: linear-gradient(145deg, #ffffff, #e0e0e0);
+              border-radius: 50%;
+              cursor: grab;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+              border: 2px solid #d1d5db;
+              transition: all 0.15s ease;
+            }
+            input[type="range"]::-webkit-slider-thumb:hover {
+              transform: scale(1.15);
+            }
+            input[type="range"]::-webkit-slider-thumb:active {
+              cursor: grabbing;
+            }
+            input[type="range"]::-moz-range-thumb {
+              width: 18px;
+              height: 18px;
+              background: linear-gradient(145deg, #ffffff, #e0e0e0);
+              border-radius: 50%;
+              cursor: grab;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+              border: 2px solid #d1d5db;
+            }
+          `}</style>
+          <span className="text-[8px] font-bold text-white/70 tabular-nums w-8 text-right shrink-0">
+            {Math.round((scrollPos / (maxScroll || 1)) * 100)}%
+          </span>
         </div>
 
         {/* LAST SYNCED STATUS */}
@@ -829,193 +801,144 @@ export default function AdminPage() {
         {/* HOVERED NOTE PREVIEW */}
         {hoveredNote && (
           <div
-            className="fixed z-[3000] bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-white/10 pointer-events-none max-w-xs animate-in zoom-in duration-200"
+            className="fixed z-[3000] bg-slate-900 text-white px-3 py-2 rounded-lg shadow-xl border border-white/10 pointer-events-none max-w-[220px] animate-in zoom-in-95 duration-150"
             style={{ left: hoveredNote.x + 10, top: hoveredNote.y + 10 }}
           >
-            <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1">
-              Rotation Note Preview
-            </p>
-            <p className="text-[10px] font-bold leading-relaxed">
-              {hoveredNote.text}
-            </p>
+            <p className="text-[8px] font-bold text-blue-400 uppercase tracking-wider mb-0.5">Note</p>
+            <p className="text-[10px] font-medium leading-relaxed">{hoveredNote.text}</p>
           </div>
         )}
 
-        {/* NOTE MODAL */}
+        {/* NOTE MODAL - Compact */}
         {activeNote && (
-          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-lg z-[1000] flex items-center justify-center p-6 animate-in fade-in duration-300">
-            <div className="bg-card rounded-[3rem] w-full max-w-xl shadow-2xl p-10 border border-border">
-              <div className="flex justify-between items-start mb-8">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-card rounded-2xl w-full max-w-sm shadow-2xl border border-border">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                 <div>
-                  <h3 className="text-3xl font-black uppercase italic text-foreground leading-none">
-                    {activeNote.name}
-                  </h3>
-                  <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.3em] mt-3 italic">
-                    Rotation Cycle {activeNote.rotationIdx} Log
+                  <h3 className="text-xs font-black uppercase tracking-wider text-foreground">{activeNote.name}</h3>
+                  <p className="text-[9px] font-bold text-blue-600 uppercase tracking-wide mt-0.5">
+                    Rotation {activeNote.rotationIdx} Note
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveNote(null)}
-                  className="text-muted-foreground hover:text-foreground text-3xl font-light"
-                >
-                  x
-                </button>
+                <button type="button" onClick={() => setActiveNote(null)} className="text-muted-foreground hover:text-foreground text-lg font-bold">&times;</button>
               </div>
 
-              <textarea
-                value={activeNote.note}
-                onChange={(e) =>
-                  setActiveNote({ ...activeNote, note: e.target.value })
-                }
-                placeholder="Enter rotation notes, observations, or special instructions..."
-                className="w-full h-40 bg-muted border border-border rounded-2xl p-4 text-sm outline-none focus:ring-2 focus:ring-slate-400 resize-none"
-              />
+              <div className="px-5 py-3">
+                <textarea
+                  value={activeNote.note}
+                  onChange={(e) => setActiveNote({ ...activeNote, note: e.target.value })}
+                  placeholder="Enter rotation notes..."
+                  className="w-full h-28 bg-muted border border-border rounded-lg p-3 text-xs outline-none focus:ring-2 focus:ring-slate-400 resize-none leading-relaxed"
+                />
+              </div>
 
-              <div className="flex justify-end gap-3 mt-6">
+              <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
                 {notesStore[`${activeNote.id}-${activeNote.rotationIdx}`] && (
-                  <button
-                    type="button"
-                    onClick={deleteNote}
-                    className="px-6 py-3 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-widest transition-all"
-                  >
-                    Delete Note
+                  <button type="button" onClick={deleteNote} className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-black text-[10px] uppercase tracking-wider transition-all">
+                    Delete
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={saveNote}
-                  className="px-6 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black text-[10px] uppercase tracking-widest transition-all"
-                >
-                  Save Note
+                <button type="button" onClick={saveNote} className="px-5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-black text-[10px] uppercase tracking-wider transition-all">
+                  Save
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* ADD STAFF MODAL */}
+        {/* ADD STAFF MODAL - Compact */}
         {addStaffModal && (
-          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-lg z-[1000] flex items-center justify-center p-6 animate-in fade-in duration-300">
-            <div className="bg-card rounded-[3rem] w-full max-w-2xl shadow-2xl p-10 border border-border">
-              <div className="flex justify-between items-start mb-8">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-card rounded-2xl w-full max-w-md shadow-2xl border border-border">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                 <div>
-                  <h3 className="text-3xl font-black uppercase italic text-foreground leading-none">
-                    Add Staff
-                  </h3>
-                  <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.3em] mt-3 italic">
+                  <h3 className="text-sm font-black uppercase tracking-wider text-foreground">Add Staff</h3>
+                  <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide mt-0.5">
                     {addStaffModal.client} / {shortenPost(addStaffModal.post)} / {addStaffModal.location}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setAddStaffModal(null);
-                    setSelectedStaff(null);
-                    setStaffSearchQuery("");
-                  }}
-                  className="text-muted-foreground hover:text-foreground text-3xl font-light"
-                >
-                  x
-                </button>
+                  onClick={() => { setAddStaffModal(null); setSelectedStaff(null); setStaffSearchQuery(""); }}
+                  className="text-muted-foreground hover:text-foreground text-lg font-bold"
+                >&times;</button>
               </div>
 
-              {/* Search Input */}
-              <div className="mb-6">
-                <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">
-                  Search Master List
-                </label>
+              <div className="px-5 py-3">
+                {/* Search Input */}
                 <input
                   type="text"
                   value={staffSearchQuery}
                   onChange={(e) => setStaffSearchQuery(e.target.value)}
-                  placeholder="Type staff name..."
-                  className="w-full bg-muted border border-border rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-400"
+                  placeholder="Search crew name..."
+                  className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-emerald-400 mb-2"
                 />
-              </div>
 
-              {/* Staff List */}
-              <div className="h-64 overflow-y-auto bg-muted/50 rounded-2xl border border-border p-2 mb-6">
-                {filteredMasterList.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                    No staff found
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {filteredMasterList.map((staff, idx) => {
-                      const isSelected = selectedStaff?.name === staff.name;
-                      const alreadyInRoster = isStaffInRoster(staff.name);
-                      
-                      return (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setSelectedStaff(staff)}
-                          className={`flex items-center justify-between px-4 py-3 rounded-xl text-left transition-all ${
-                            isSelected
-                              ? "bg-emerald-600 text-white"
-                              : "bg-card hover:bg-muted border border-border"
-                          }`}
-                        >
-                          <div>
-                            <span className="font-black text-[11px] uppercase block">
-                              {staff.name}
-                            </span>
-                            <span className={`text-[9px] ${isSelected ? "text-emerald-100" : "text-muted-foreground"}`}>
-                              {staff.post} - {staff.location}
-                            </span>
-                          </div>
-                          {alreadyInRoster && (
-                            <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-lg ${
-                              isSelected ? "bg-emerald-500 text-white" : "bg-amber-100 text-amber-700"
-                            }`}>
-                              Will add as (R)
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
+                {/* Staff List */}
+                <div className="h-48 overflow-y-auto bg-muted/30 rounded-lg border border-border p-1.5 mb-3" style={{ scrollbarWidth: "thin" }}>
+                  {filteredMasterList.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-muted-foreground text-xs">No staff found</div>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      {filteredMasterList.map((staff) => {
+                        const isSelected = selectedStaff?.id === staff.id;
+                        const alreadyInRoster = isStaffInRoster(staff.crew_name);
+                        return (
+                          <button
+                            key={staff.id}
+                            type="button"
+                            onClick={() => setSelectedStaff(staff)}
+                            className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition-all ${
+                              isSelected
+                                ? "bg-emerald-600 text-white"
+                                : "bg-card hover:bg-muted border border-border"
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <span className="font-black text-[10px] uppercase block truncate">{staff.crew_name}</span>
+                              <span className={`text-[8px] ${isSelected ? "text-emerald-100" : "text-muted-foreground"}`}>
+                                {staff.post} - {staff.location}
+                              </span>
+                            </div>
+                            {alreadyInRoster && (
+                              <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded shrink-0 ml-1 ${
+                                isSelected ? "bg-emerald-500 text-white" : "bg-amber-100 text-amber-700"
+                              }`}>Relief</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Relief Notice */}
+                {selectedStaff && isStaffInRoster(selectedStaff.crew_name) && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-3">
+                    <p className="text-[9px] font-bold text-amber-700">
+                      {selectedStaff.crew_name} exists in roster. Will be added as <strong>{getReliefName(selectedStaff.crew_name)}</strong>.
+                    </p>
                   </div>
                 )}
               </div>
 
-              {/* Relief Notice */}
-              {selectedStaff && isStaffInRoster(selectedStaff.name) && (
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6">
-                  <p className="text-[10px] font-black text-amber-700 uppercase tracking-wide">
-                    Relief Assignment Notice
-                  </p>
-                  <p className="text-[11px] text-amber-600 mt-1">
-                    {selectedStaff.name} already exists in the roster. They will be added as <strong>{selectedStaff.name} (R)</strong> to indicate relief status.
-                  </p>
-                </div>
-              )}
-
               {/* Action Buttons */}
-              <div className="flex justify-end gap-3">
+              <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
                 <button
                   type="button"
-                  onClick={() => {
-                    setAddStaffModal(null);
-                    setSelectedStaff(null);
-                    setStaffSearchQuery("");
-                  }}
-                  className="px-6 py-3 rounded-2xl bg-muted hover:bg-muted/80 text-foreground font-black text-[10px] uppercase tracking-widest transition-all border border-border"
-                >
-                  Cancel
-                </button>
+                  onClick={() => { setAddStaffModal(null); setSelectedStaff(null); setStaffSearchQuery(""); }}
+                  className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border"
+                >Cancel</button>
                 <button
                   type="button"
                   onClick={handleAddStaff}
                   disabled={!selectedStaff}
-                  className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                  className={`px-5 py-2 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all ${
                     selectedStaff
-                      ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg"
+                      ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-md"
                       : "bg-muted text-muted-foreground cursor-not-allowed"
                   }`}
-                >
-                  Add to Roster
-                </button>
+                >Add to Roster</button>
               </div>
             </div>
           </div>

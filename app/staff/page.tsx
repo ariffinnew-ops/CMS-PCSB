@@ -157,7 +157,7 @@ function DetailOverlay({ detail, onClose, canEdit, onSave }: { detail: Record<st
 
   const startEdit = () => {
     const form: Record<string, string> = {};
-    const keys = ["crew_name", "passport_number", "address", "phone", "email1", "email2", "post", "client", "location", "hire_date", "resign_date", "exp_date", "status", "nok_name", "nok_relation", "nok_phone"];
+    const keys = ["crew_name", "nric_pp", "address", "phone", "email1", "email2", "post", "client", "location", "hire_date", "resign_date", "exp_date", "status", "nok_name", "nok_relation", "nok_phone"];
     for (const k of keys) form[k] = d[k] !== undefined && d[k] !== null ? String(d[k]) : "";
     setEditForm(form);
     setEditing(true);
@@ -179,7 +179,7 @@ function DetailOverlay({ detail, onClose, canEdit, onSave }: { detail: Record<st
       section: "Personal & Contact",
       items: [
         { label: "Full Name", key: "crew_name" },
-        { label: "NRIC / Passport Number", key: "passport_number" },
+        { label: "NRIC / Passport Number", key: "nric_pp" },
         { label: "Address", key: "address" },
         { label: "Phone", key: "phone" },
         { label: "Email 1", key: "email1" },
@@ -286,7 +286,7 @@ function DetailOverlay({ detail, onClose, canEdit, onSave }: { detail: Record<st
 // ─── Add Staff Overlay (covers Section B + C area) ───
 function AddStaffOverlay({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const [form, setForm] = useState<Record<string, string>>({
-    crew_name: "", passport_number: "", address: "", phone: "", email1: "", email2: "",
+    crew_name: "", nric_pp: "", address: "", phone: "", email1: "", email2: "",
     post: "", client: "", location: "", hire_date: "", resign_date: "", exp_date: "", status: "Active",
     nok_name: "", nok_relation: "", nok_phone: "",
   });
@@ -323,7 +323,7 @@ function AddStaffOverlay({ onClose, onCreated }: { onClose: () => void; onCreate
           <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 mb-3 border-b border-border pb-2">Personal & Contact</h4>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
             <div><label className={labelCls}>Full Name *</label><input value={form.crew_name} onChange={(e) => set("crew_name", e.target.value)} className={inputCls} /></div>
-            <div><label className={labelCls}>NRIC / Passport Number</label><input value={form.passport_number} onChange={(e) => set("passport_number", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>NRIC / Passport Number</label><input value={form.nric_pp} onChange={(e) => set("nric_pp", e.target.value)} className={inputCls} /></div>
             <div className="col-span-2 lg:col-span-3"><label className={labelCls}>Address</label><input value={form.address} onChange={(e) => set("address", e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>Phone</label><input value={form.phone} onChange={(e) => set("phone", e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>Email 1</label><input value={form.email1} onChange={(e) => set("email1", e.target.value)} className={inputCls} /></div>
@@ -720,18 +720,18 @@ export default function StaffDetailPage() {
               {matrix.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">No certifications found.</p>
               ) : (
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-6 gap-1">
                   {matrix.map((cert) => {
                     const st = certStatus(cert.expiry_date);
                     return (
-                      <div key={cert.id} className="flex items-center justify-between px-2 py-1.5 rounded-md border border-border bg-accent/30 hover:bg-accent/60 transition-colors">
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-bold text-foreground uppercase truncate">{cert.cert_type}</p>
-                          <p className="text-[9px] text-muted-foreground">{fmtDate(cert.expiry_date)}</p>
+                      <div key={cert.id} className="flex flex-col px-1.5 py-1 rounded-md border border-border bg-accent/30 hover:bg-accent/60 transition-colors min-w-0">
+                        <p className="text-[9px] font-bold text-foreground uppercase truncate leading-tight">{cert.cert_type}</p>
+                        <div className="flex items-center justify-between gap-0.5 mt-0.5">
+                          <p className="text-[8px] text-muted-foreground truncate">{fmtDate(cert.expiry_date)}</p>
+                          <span className={`px-1 py-px rounded-full text-[7px] font-black border shrink-0 ${st.cls}`}>
+                            {st.label}
+                          </span>
                         </div>
-                        <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-black border shrink-0 ml-1 ${st.cls}`}>
-                          {st.label}
-                        </span>
                       </div>
                     );
                   })}

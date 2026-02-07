@@ -531,6 +531,15 @@ function CompactTable({
             ))}
           </select>
         </div>
+        {(clientFilter !== "ALL" || tradeFilter !== "ALL" || locationFilter !== "ALL") && (
+          <button
+            type="button"
+            onClick={() => { setClientFilter("ALL"); setTradeFilter("ALL"); setLocationFilter("ALL"); }}
+            className="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-bold text-[9px] uppercase tracking-wider transition-all border border-red-500/30"
+          >
+            Reset All
+          </button>
+        )}
         <span className="ml-auto text-[10px] text-slate-400 font-bold">
           Showing <span className="text-white">{filtered.length}</span> of {personnel.length}
         </span>
