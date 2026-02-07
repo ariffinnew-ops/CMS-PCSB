@@ -459,21 +459,12 @@ function CompactDatePicker({ value, onChange }: { value: Date; onChange: (d: Dat
 function CompactTable({
   personnel,
   systemDate,
-  allData,
 }: {
   personnel: RosterRow[];
   systemDate: Date;
-  allData: RosterRow[];
 }) {
-  const getDisplayName = (row: RosterRow) => {
-    if (!row.crew_id) return row.crew_name;
-    const sameCrewRows = allData.filter((r) => r.crew_id === row.crew_id);
-    if (sameCrewRows.length <= 1) return row.crew_name;
-    const idx = sameCrewRows.findIndex((r) => r.id === row.id);
-    if (idx === 0) return row.crew_name;
-    if (idx === 1) return `${row.crew_name} (R)`;
-    return `${row.crew_name} (R${idx})`;
-  };
+  // crew_name is stored with suffix directly in pcsb_roster
+  const getDisplayName = (row: RosterRow) => row.crew_name;
   const [clientFilter, setClientFilter] = useState<string>("ALL");
   const [tradeFilter, setTradeFilter] = useState<string>("ALL");
   const [locationFilter, setLocationFilter] = useState<string>("ALL");
@@ -913,7 +904,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Compact Table */}
-                <CompactTable personnel={filteredPersonnel} systemDate={systemDate} allData={data} />
+                <CompactTable personnel={filteredPersonnel} systemDate={systemDate} />
             </motion.div>
           )}
         </AnimatePresence>

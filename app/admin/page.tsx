@@ -8,7 +8,7 @@ import { RosterRow, TradeType } from "@/lib/types";
 import { getRosterData, updateRosterRow, createRosterRow, deleteRosterRow, getCrewList } from "@/lib/actions";
 import { safeParseDate, getTradeRank, shortenPost } from "@/lib/logic";
 
-interface CrewListItem { id: string; crew_name: string; post: string; client: string; location: string; status?: string }
+interface CrewListItem { id: string; crew_name: string; clean_name: string; post: string; client: string; location: string; status?: string }
 
 export default function AdminPage() {
   const [data, setData] = useState<RosterRow[]>([]);
@@ -187,87 +187,44 @@ export default function AdminPage() {
     return alerts;
   }, [data]);
 
-  // Pending dates waiting for pair completion
-  const [pendingDates, setPendingDates] = useState<Record<string, { field: string; value: string; timestamp: number }>>({});
-
   const handleUpdate = async (id: number, field: string, value: string) => {
-    // If date field is cleared, set to null
     const finalValue = value === "" ? null : value;
     
-    // Determine if this is MOB (m) or DEMOB (d) field and get the rotation number
     const isMob = field.startsWith("m");
     const rotationNum = field.replace(/^[md]/, "");
     const pairedField = isMob ? `d${rotationNum}` : `m${rotationNum}`;
     
-    // Get current row data
     const currentRow = data.find(r => r.id === id);
     if (!currentRow) return;
     
     const pairedValue = currentRow[pairedField as keyof RosterRow] as string | null;
-    const pendingKey = `${id}-${rotationNum}`;
     
-    // Check if we have a pending date for this rotation
-    const hasPending = pendingDates[pendingKey];
-    
-    // If clearing the date
-    if (!finalValue) {
-      // Allow clearing if both will be empty, or reject if only one remains
-      if (pairedValue && pairedValue !== "") {
-        showNotification("Cannot clear - dates must be in pairs (MOB & DEMOB)", "error");
-        return;
-      }
-    }
-    
-    // If setting a new date
-    if (finalValue) {
-      // Check if paired field has a value
-      if (!pairedValue || pairedValue === "") {
-        // No pair yet - store as pending and show warning
-        if (!hasPending) {
-          setPendingDates(prev => ({
-            ...prev,
-            [pendingKey]: { field, value: finalValue, timestamp: Date.now() }
-          }));
-          
-          // Optimistic update to show the value in UI
-          const updatedData = data.map((r) =>
-            r.id === id ? { ...r, [field]: finalValue } : r
-          );
-          setData(updatedData);
-          
-          const missingType = isMob ? "DEMOB" : "MOB";
-          showNotification(`Enter ${missingType} date to complete pair`, "error");
-          return;
-        }
-      }
-    }
-    
-    // Clear pending if completing the pair
-    if (hasPending) {
-      setPendingDates(prev => {
-        const newPending = { ...prev };
-        delete newPending[pendingKey];
-        return newPending;
-      });
-    }
-    
-    // Optimistic update
+    // Optimistic update - always allow the action
     const updatedData = data.map((r) =>
       r.id === id ? { ...r, [field]: finalValue } : r
     );
     setData(updatedData);
     setIsSyncing(true);
     
-    // Persist to Supabase (send null for cleared dates)
+    // Persist to Supabase
     const result = await updateRosterRow(id, { [field]: finalValue });
     setIsSyncing(false);
     
     if (result.success) {
       setLastSynced(new Date());
-      showNotification("Update Synced", "success");
+      
+      // Warn if incomplete date pair (but allow action to proceed)
+      if (finalValue && (!pairedValue || pairedValue === "")) {
+        const missingType = isMob ? "DEMOB" : "MOB";
+        showNotification(`Warning: Incomplete date pair (${missingType} missing)`, "error");
+      } else if (!finalValue && pairedValue && pairedValue !== "") {
+        const clearedType = isMob ? "MOB" : "DEMOB";
+        showNotification(`Warning: Incomplete date pair (${clearedType} cleared)`, "error");
+      } else {
+        showNotification("Update Synced", "success");
+      }
     } else {
       showNotification(result.error || "Update failed", "error");
-      // Revert on failure
       fetchData();
     }
   };
@@ -325,53 +282,53 @@ export default function AdminPage() {
     return data.filter((row) => row.crew_id === crewId).length;
   };
 
-  // Get display name with relief suffix based on how many times crew_id appears
-  const getDisplayName = (row: RosterRow) => {
-    if (!row.crew_id) return row.crew_name;
-    const sameCrewRows = data.filter((r) => r.crew_id === row.crew_id);
-    if (sameCrewRows.length <= 1) return row.crew_name;
-    // Find index of this row among same crew_id entries
-    const idx = sameCrewRows.findIndex((r) => r.id === row.id);
-    if (idx === 0) return row.crew_name; // First entry = original
-    if (idx === 1) return `${row.crew_name} (R)`;
-    return `${row.crew_name} (R${idx})`;
-  };
+  // Display name is now stored directly in pcsb_roster.crew_name (with suffix)
+  const getDisplayName = (row: RosterRow) => row.crew_name;
 
-  // Add new staff to roster
+  // Add new staff to roster - always INSERT a new row
   const handleAddStaff = async () => {
     if (!selectedStaff || !addStaffModal) return;
 
     setIsSyncing(true);
 
-    const isRelief = isCrewInRoster(selectedStaff.id);
+    // Use clean_name as the official name (fallback to crew_name)
+    const baseName = selectedStaff.clean_name || selectedStaff.crew_name;
 
-    // For relief: store the modal's post/client/location as overrides in pcsb_roster
-    // so relief staff appears at the assigned location, not their original crew_detail location
-    const payload: { crew_id: string; post?: string; client?: string; location?: string } = {
-      crew_id: selectedStaff.id,
-    };
-    if (isRelief) {
-      payload.post = addStaffModal.post;
-      payload.client = addStaffModal.client;
-      payload.location = addStaffModal.location;
+    // Count how many rows exist for this crew_id in current data
+    const existingCount = getCrewIdCount(selectedStaff.id);
+
+    // Determine name suffix: 0 = plain, 1 = (R), 2+ = (R1), (R2)...
+    let finalName = baseName;
+    if (existingCount === 1) {
+      finalName = `${baseName} (R)`;
+    } else if (existingCount > 1) {
+      finalName = `${baseName} (R${existingCount})`;
     }
+
+    // For relief: use the modal's location/post/client (where they're being assigned)
+    // For first entry: use their default from crew_detail
+    const isRelief = existingCount > 0;
+    const payload = {
+      crew_id: selectedStaff.id,
+      crew_name: finalName,
+      post: isRelief ? addStaffModal.post : selectedStaff.post,
+      client: isRelief ? addStaffModal.client : selectedStaff.client,
+      location: isRelief ? addStaffModal.location : selectedStaff.location,
+    };
 
     const result = await createRosterRow(payload);
     setIsSyncing(false);
 
     if (result.success && result.data) {
-      // Add to local data immediately
       setData((prev) => [...prev, result.data!]);
-      // Track as newly added for delete button
       setNewlyAddedIds((prev) => new Set([...prev, result.data!.id]));
       setLastSynced(new Date());
       const displaySuffix = isRelief ? ` (Relief at ${addStaffModal.location})` : "";
-      showNotification(`${selectedStaff.crew_name}${displaySuffix} added successfully`, "success");
+      showNotification(`${finalName}${displaySuffix} added successfully`, "success");
     } else {
       showNotification(result.error || "Failed to add staff", "error");
     }
 
-    // Close modal and reset
     setAddStaffModal(null);
     setSelectedStaff(null);
     setStaffSearchQuery("");
@@ -402,13 +359,13 @@ export default function AdminPage() {
     }
   };
 
-  // Filter crew list for modal
+  // Filter crew list for modal (search by clean_name or crew_name)
   const filteredMasterList = useMemo(() => {
     if (!addStaffModal) return [];
-    
+    const q = staffSearchQuery.toLowerCase();
     return crewList.filter((staff) => {
-      const matchesSearch = staff.crew_name.toLowerCase().includes(staffSearchQuery.toLowerCase());
-      return matchesSearch;
+      return (staff.clean_name || staff.crew_name || '').toLowerCase().includes(q) ||
+             (staff.crew_name || '').toLowerCase().includes(q);
     });
   }, [addStaffModal, staffSearchQuery, crewList]);
 
@@ -898,7 +855,7 @@ export default function AdminPage() {
                             }`}
                           >
                             <div className="min-w-0">
-                              <span className="font-black text-[10px] uppercase block truncate">{staff.crew_name}</span>
+                              <span className="font-black text-[10px] uppercase block truncate">{staff.clean_name || staff.crew_name}</span>
                               <span className={`text-[8px] ${isSelected ? "text-emerald-100" : "text-muted-foreground"}`}>
                                 {staff.post} - {staff.location}
                               </span>
@@ -916,13 +873,18 @@ export default function AdminPage() {
                 </div>
 
                 {/* Relief Notice */}
-                {selectedStaff && isCrewInRoster(selectedStaff.id) && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-3">
-                    <p className="text-[9px] font-bold text-amber-700">
-                      {selectedStaff.crew_name} exists in roster ({getCrewIdCount(selectedStaff.id)} entries). New row will be added as <strong>Relief</strong>.
-                    </p>
-                  </div>
-                )}
+                {selectedStaff && isCrewInRoster(selectedStaff.id) && (() => {
+                  const baseName = selectedStaff.clean_name || selectedStaff.crew_name;
+                  const count = getCrewIdCount(selectedStaff.id);
+                  const suffix = count === 1 ? "(R)" : `(R${count})`;
+                  return (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-3">
+                      <p className="text-[9px] font-bold text-amber-700">
+                        {baseName} exists in roster ({count} entries). Will be added as <strong>{baseName} {suffix}</strong>.
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Action Buttons */}
