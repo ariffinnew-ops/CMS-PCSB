@@ -26,7 +26,7 @@ const MONTH_NAMES = [
 ];
 
 export default function RosterPage() {
-  const [viewDate, setViewDate] = useState(new Date(2025, 11, 1));
+  const [viewDate, setViewDate] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); });
   const [data, setData] = useState<RosterRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [clientFilter, setClientFilter] = useState<ClientType | "ALL">("ALL");
@@ -243,6 +243,15 @@ export default function RosterPage() {
               <option value="EM">ESCORT MEDIC</option>
               <option value="IMP/OHN">OHN</option>
             </select>
+            {(clientFilter !== "ALL" || tradeFilter !== "ALL") && (
+              <button
+                type="button"
+                onClick={() => { setClientFilter("ALL"); setTradeFilter("ALL"); }}
+                className="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[9px] uppercase tracking-wider transition-all border border-red-200"
+              >
+                Reset All
+              </button>
+            )}
           </div>
         </div>
 

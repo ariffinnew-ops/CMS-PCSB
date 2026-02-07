@@ -365,7 +365,7 @@ function EditableCell({
   );
 }
 
-// ═══════════════════════════════════���═══
+// ═══════════════════════════════════�����═══
 // MAIN PAGE
 // ════════════════════════════���══════════
 export default function TrainingMatrixPage() {
@@ -557,6 +557,15 @@ export default function TrainingMatrixPage() {
             <span className="text-[10px] text-slate-300 font-bold">
               Showing <span className="text-white font-black">{filtered.length}</span> of {personnel.length}
             </span>
+            {(clientFilter !== "ALL" || tradeFilter !== "ALL" || locationFilter !== "ALL" || courseFilter !== "ALL" || statusFilter !== "ALL") && (
+              <button
+                type="button"
+                onClick={() => { setClientFilter("ALL"); setTradeFilter("ALL"); setLocationFilter("ALL"); setCourseFilter("ALL"); setStatusFilter("ALL"); }}
+                className="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-bold text-[9px] uppercase tracking-wider transition-all border border-red-500/30"
+              >
+                Reset All
+              </button>
+            )}
             {/* Name search - far right */}
             <div className="flex items-center gap-1.5 ml-auto">
               <label className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">Name</label>
