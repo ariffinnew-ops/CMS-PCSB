@@ -64,11 +64,14 @@ export default function AdminPage() {
     const [rosterData, crewResult] = await Promise.all([getRosterData(), getCrewList()]);
     setData(rosterData);
     if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
-    // Load notes from pcsb_roster `note` column into notesStore
+    // Load notes from pcsb_roster note1-note24 columns into notesStore
     const loadedNotes: Record<string, string> = {};
     for (const row of rosterData) {
-      if (row.note && typeof row.note === "string" && row.note.trim()) {
-        loadedNotes[String(row.id)] = row.note;
+      for (let i = 1; i <= 24; i++) {
+        const noteVal = row[`note${i}`] as string | null | undefined;
+        if (noteVal && typeof noteVal === "string" && noteVal.trim()) {
+          loadedNotes[`${row.id}-${i}`] = noteVal;
+        }
       }
     }
     setNotesStore(loadedNotes);
@@ -279,10 +282,11 @@ export default function AdminPage() {
 
   const saveNote = async () => {
     if (activeNote) {
-      const key = String(activeNote.id);
+      const key = `${activeNote.id}-${activeNote.rotationIdx}`;
+      const noteColumn = `note${activeNote.rotationIdx}`;
       setNotesStore((prev) => ({ ...prev, [key]: activeNote.note }));
-      // Sync to pcsb_roster note column
-      await updateRosterRow(activeNote.id, { note: activeNote.note });
+      // Sync to pcsb_roster note{N} column
+      await updateRosterRow(activeNote.id, { [noteColumn]: activeNote.note });
       showNotification("Note Saved", "success");
       setActiveNote(null);
     }
@@ -290,12 +294,13 @@ export default function AdminPage() {
 
   const deleteNote = async () => {
     if (activeNote) {
-      const key = String(activeNote.id);
+      const key = `${activeNote.id}-${activeNote.rotationIdx}`;
+      const noteColumn = `note${activeNote.rotationIdx}`;
       const newStore = { ...notesStore };
       delete newStore[key];
       setNotesStore(newStore);
-      // Clear note in pcsb_roster
-      await updateRosterRow(activeNote.id, { note: null });
+      // Clear note{N} in pcsb_roster
+      await updateRosterRow(activeNote.id, { [noteColumn]: null });
       showNotification("Note Deleted", "error");
       setActiveNote(null);
     }
@@ -310,36 +315,26 @@ export default function AdminPage() {
     return diff > 0 ? diff : 0;
   };
 
-  // Get base name stripping all (R), (R1), (R2) suffixes
-  const getBaseName = (name: string) => name.replace(/\s*\(R\d*\)\s*$/i, "").trim();
-
-  // Check if staff already exists in current roster (for Relief logic)
-  const isStaffInRoster = (staffName: string) => {
-    const baseName = getBaseName(staffName);
-    return data.some((row) => {
-      const rowBaseName = getBaseName(row.crew_name);
-      return rowBaseName.toLowerCase() === baseName.toLowerCase();
-    });
+  // Check if a crew_id already exists in the roster (for Relief detection)
+  const isCrewInRoster = (crewId: string) => {
+    return data.some((row) => row.crew_id === crewId);
   };
 
-  // Get the next relief suffix: (R) -> (R1) -> (R2) etc.
-  const getReliefName = (staffName: string) => {
-    const baseName = getBaseName(staffName);
-    const existing = data.filter((row) => {
-      const rowBase = getBaseName(row.crew_name);
-      return rowBase.toLowerCase() === baseName.toLowerCase();
-    });
-    if (existing.length === 0) return staffName; // No duplicates
-    // Check if (R) is already used
-    const hasR = existing.some((r) => /\(R\)$/i.test(r.crew_name.trim()));
-    if (!hasR) return `${baseName} (R)`;
-    // Find highest Rn
-    let maxN = 0;
-    for (const r of existing) {
-      const match = r.crew_name.match(/\(R(\d+)\)\s*$/i);
-      if (match) maxN = Math.max(maxN, parseInt(match[1]));
-    }
-    return `${baseName} (R${maxN + 1})`;
+  // Count how many times a crew_id appears in the roster
+  const getCrewIdCount = (crewId: string) => {
+    return data.filter((row) => row.crew_id === crewId).length;
+  };
+
+  // Get display name with relief suffix based on how many times crew_id appears
+  const getDisplayName = (row: RosterRow) => {
+    if (!row.crew_id) return row.crew_name;
+    const sameCrewRows = data.filter((r) => r.crew_id === row.crew_id);
+    if (sameCrewRows.length <= 1) return row.crew_name;
+    // Find index of this row among same crew_id entries
+    const idx = sameCrewRows.findIndex((r) => r.id === row.id);
+    if (idx === 0) return row.crew_name; // First entry = original
+    if (idx === 1) return `${row.crew_name} (R)`;
+    return `${row.crew_name} (R${idx})`;
   };
 
   // Add new staff to roster
@@ -348,25 +343,20 @@ export default function AdminPage() {
 
     setIsSyncing(true);
 
-    // Check if this is a relief (staff exists but being added to different location/post)
-    const isRelief = isStaffInRoster(selectedStaff.crew_name);
-    const staffName = isRelief 
-      ? getReliefName(selectedStaff.crew_name) 
-      : selectedStaff.crew_name;
+    const isRelief = isCrewInRoster(selectedStaff.id);
 
-    // Create new roster row with empty rotation fields
-    const newRow: Omit<RosterRow, 'id'> = {
-      crew_name: staffName,
-      post: addStaffModal.post,
-      client: addStaffModal.client,
-      location: addStaffModal.location,
-      roles_em: "",
-      // Initialize with empty rotation fields for immediate editing
-      m1: null,
-      d1: null,
+    // For relief: store the modal's post/client/location as overrides in pcsb_roster
+    // so relief staff appears at the assigned location, not their original crew_detail location
+    const payload: { crew_id: string; post?: string; client?: string; location?: string } = {
+      crew_id: selectedStaff.id,
     };
+    if (isRelief) {
+      payload.post = addStaffModal.post;
+      payload.client = addStaffModal.client;
+      payload.location = addStaffModal.location;
+    }
 
-    const result = await createRosterRow(newRow);
+    const result = await createRosterRow(payload);
     setIsSyncing(false);
 
     if (result.success && result.data) {
@@ -375,7 +365,8 @@ export default function AdminPage() {
       // Track as newly added for delete button
       setNewlyAddedIds((prev) => new Set([...prev, result.data!.id]));
       setLastSynced(new Date());
-      showNotification(`${staffName} added successfully`, "success");
+      const displaySuffix = isRelief ? ` (Relief at ${addStaffModal.location})` : "";
+      showNotification(`${selectedStaff.crew_name}${displaySuffix} added successfully`, "success");
     } else {
       showNotification(result.error || "Failed to add staff", "error");
     }
@@ -646,13 +637,13 @@ export default function AdminPage() {
                         <td className="px-6 py-2 sticky left-0 bg-card group-hover:bg-muted/50 z-50 border-r border-border shadow-sm">
                           <div className="flex items-center gap-2 group/name">
                             <span className="font-black text-foreground text-[11px] uppercase leading-tight block tracking-tight whitespace-normal break-words flex-1 cursor-default">
-                              {row.crew_name}
+                              {getDisplayName(row)}
                             </span>
                             <button
                               type="button"
                               onClick={() => setDeleteModal({ id: row.id, name: row.crew_name })}
                               className="flex items-center justify-center w-5 h-5 bg-red-500 hover:bg-red-400 text-white rounded-full text-[14px] font-black transition-all shadow-md hover:shadow-red-500/40 hover:scale-110 flex-shrink-0 opacity-0 group-hover/name:opacity-100"
-                              title="Delete Staff"
+                              title="Delete Row"
                             >
                               -
                             </button>
@@ -665,7 +656,7 @@ export default function AdminPage() {
                               const mVal = row[`m${rotationIdx}`] as string;
                               const dVal = row[`d${rotationIdx}`] as string;
                               const days = calculateDays(mVal, dVal);
-                              const noteKey = String(row.id);
+                              const noteKey = `${row.id}-${rotationIdx}`;
                               const alertKey = `${row.id}-${rotationIdx}`;
                               const hasNote = !!notesStore[noteKey];
                               const conflicts = getOverlaps[alertKey];
@@ -845,7 +836,7 @@ export default function AdminPage() {
               </div>
 
               <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
-                {notesStore[String(activeNote.id)] && (
+                {notesStore[`${activeNote.id}-${activeNote.rotationIdx}`] && (
                   <button type="button" onClick={deleteNote} className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-black text-[10px] uppercase tracking-wider transition-all">
                     Delete
                   </button>
@@ -894,7 +885,7 @@ export default function AdminPage() {
                     <div className="flex flex-col gap-1">
                       {filteredMasterList.map((staff) => {
                         const isSelected = selectedStaff?.id === staff.id;
-                        const alreadyInRoster = isStaffInRoster(staff.crew_name);
+                        const alreadyInRoster = isCrewInRoster(staff.id);
                         return (
                           <button
                             key={staff.id}
@@ -925,10 +916,10 @@ export default function AdminPage() {
                 </div>
 
                 {/* Relief Notice */}
-                {selectedStaff && isStaffInRoster(selectedStaff.crew_name) && (
+                {selectedStaff && isCrewInRoster(selectedStaff.id) && (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-3">
                     <p className="text-[9px] font-bold text-amber-700">
-                      {selectedStaff.crew_name} exists in roster. Will be added as <strong>{getReliefName(selectedStaff.crew_name)}</strong>.
+                      {selectedStaff.crew_name} exists in roster ({getCrewIdCount(selectedStaff.id)} entries). New row will be added as <strong>Relief</strong>.
                     </p>
                   </div>
                 )}

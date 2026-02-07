@@ -27,15 +27,15 @@ export async function getRosterData(): Promise<RosterRow[]> {
     crewMap.set(c.id, { crew_name: c.crew_name || '', post: c.post || '', client: c.client || '', location: c.location || '' });
   }
 
-  // Join roster with crew details
+  // Join roster with crew details - roster row overrides take priority (for relief assignments)
   return (rosterData || []).map((row: Record<string, unknown>) => {
     const crew = crewMap.get(row.crew_id as string);
     return {
       ...row,
-      crew_name: crew?.crew_name || '',
-      post: crew?.post || '',
-      client: crew?.client || '',
-      location: crew?.location || '',
+      crew_name: (row.crew_name as string) || crew?.crew_name || '',
+      post: (row.post as string) || crew?.post || '',
+      client: (row.client as string) || crew?.client || '',
+      location: (row.location as string) || crew?.location || '',
     } as RosterRow;
   })
 }
@@ -57,12 +57,20 @@ export async function updateRosterRow(id: number, updates: Partial<RosterRow>): 
   return { success: true }
 }
 
-export async function createRosterRow(row: Omit<RosterRow, 'id'>): Promise<{ success: boolean; data?: RosterRow; error?: string }> {
+export async function createRosterRow(row: Omit<RosterRow, 'id'> | { crew_id: string; post?: string; client?: string; location?: string }): Promise<{ success: boolean; data?: RosterRow; error?: string }> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  const typedRow = row as { crew_id?: string; post?: string; client?: string; location?: string };
+  const insertPayload: Record<string, unknown> = { crew_id: typedRow.crew_id };
+
+  // Store override fields for relief assignments (different post/client/location than crew_detail)
+  if (typedRow.post) insertPayload.post = typedRow.post;
+  if (typedRow.client) insertPayload.client = typedRow.client;
+  if (typedRow.location) insertPayload.location = typedRow.location;
+
+  const { data: insertedRow, error } = await supabase
     .from('pcsb_roster')
-    .insert(row)
+    .insert(insertPayload)
     .select()
     .single()
 
@@ -71,7 +79,26 @@ export async function createRosterRow(row: Omit<RosterRow, 'id'>): Promise<{ suc
     return { success: false, error: error.message }
   }
 
-  return { success: true, data }
+  // Re-fetch with crew detail join for the returned data
+  if (insertedRow) {
+    const { data: crewData } = await supabase
+      .from('pcsb_crew_detail')
+      .select('crew_name, post, client, location')
+      .eq('id', insertedRow.crew_id)
+      .single()
+
+    const fullRow = {
+      ...insertedRow,
+      crew_name: (insertedRow.crew_name as string) || crewData?.crew_name || '',
+      post: (insertedRow.post as string) || crewData?.post || '',
+      client: (insertedRow.client as string) || crewData?.client || '',
+      location: (insertedRow.location as string) || crewData?.location || '',
+    } as RosterRow
+
+    return { success: true, data: fullRow }
+  }
+
+  return { success: true, data: insertedRow }
 }
 
 export async function deleteRosterRow(id: number): Promise<{ success: boolean; error?: string }> {

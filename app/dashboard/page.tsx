@@ -459,10 +459,21 @@ function CompactDatePicker({ value, onChange }: { value: Date; onChange: (d: Dat
 function CompactTable({
   personnel,
   systemDate,
+  allData,
 }: {
   personnel: RosterRow[];
   systemDate: Date;
+  allData: RosterRow[];
 }) {
+  const getDisplayName = (row: RosterRow) => {
+    if (!row.crew_id) return row.crew_name;
+    const sameCrewRows = allData.filter((r) => r.crew_id === row.crew_id);
+    if (sameCrewRows.length <= 1) return row.crew_name;
+    const idx = sameCrewRows.findIndex((r) => r.id === row.id);
+    if (idx === 0) return row.crew_name;
+    if (idx === 1) return `${row.crew_name} (R)`;
+    return `${row.crew_name} (R${idx})`;
+  };
   const [clientFilter, setClientFilter] = useState<string>("ALL");
   const [tradeFilter, setTradeFilter] = useState<string>("ALL");
   const [locationFilter, setLocationFilter] = useState<string>("ALL");
@@ -594,7 +605,7 @@ function CompactTable({
                   <tr className="hover:bg-slate-800/30 transition-colors">
                     <td className="px-3 py-1 text-[11px] text-slate-500 tabular-nums">{currentTradeCounter}</td>
                     <td className="px-3 py-1">
-                      <span className="text-xs font-medium text-white">{row.crew_name}</span>
+                      <span className="text-xs font-medium text-white">{getDisplayName(row)}</span>
                     </td>
                     <td className="px-3 py-1">
                       <span className={`inline-flex px-1.5 py-px rounded text-[9px] font-bold ${
@@ -902,7 +913,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Compact Table */}
-              <CompactTable personnel={filteredPersonnel} systemDate={systemDate} />
+                <CompactTable personnel={filteredPersonnel} systemDate={systemDate} allData={data} />
             </motion.div>
           )}
         </AnimatePresence>

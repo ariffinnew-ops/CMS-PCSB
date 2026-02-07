@@ -110,6 +110,17 @@ export default function RosterPage() {
       });
   }, [data, clientFilter, tradeFilter, viewDate]);
 
+  // Get display name with relief suffix for duplicate crew_ids
+  const getDisplayName = (row: RosterRow) => {
+    if (!row.crew_id) return row.crew_name;
+    const sameCrewRows = data.filter((r) => r.crew_id === row.crew_id);
+    if (sameCrewRows.length <= 1) return row.crew_name;
+    const idx = sameCrewRows.findIndex((r) => r.id === row.id);
+    if (idx === 0) return row.crew_name;
+    if (idx === 1) return `${row.crew_name} (R)`;
+    return `${row.crew_name} (R${idx})`;
+  };
+
   const groupedData = useMemo(() => {
     const result: { type: 'separator' | 'row'; label?: string; row?: RosterRow; trade?: string }[] = [];
     let lastGroupKey = "";
@@ -324,9 +335,9 @@ export default function RosterPage() {
                         <td className="px-3 py-0 sticky left-0 bg-slate-100 group-hover:bg-blue-100/50 z-10 border-r border-gray-300 w-48 min-w-[192px]">
                           <div 
                             className="text-[10px] font-semibold text-slate-700 leading-tight truncate"
-                            title={row.crew_name}
+                            title={getDisplayName(row)}
                           >
-                            {row.crew_name}
+                            {getDisplayName(row)}
                           </div>
                         </td>
                         {daysInMonth.map((d) => {
