@@ -299,121 +299,158 @@ function NameListPopover({
   );
 }
 
-// ─── Scroll-Style Date Picker (Day / Month / Year columns) ───
-function ScrollColumn({ items, selected, onSelect, label }: { items: { value: number; label: string }[]; selected: number; onSelect: (v: number) => void; label: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const ITEM_H = 32;
+// ─── Compact Date Picker ───
+// Idle: shows formatted date as clickable day / month / year segments
+// Active: opens a small scroll list for the clicked segment only
+function ScrollList({ items, selected, onSelect }: { items: { value: number; label: string }[]; selected: number; onSelect: (v: number) => void }) {
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!listRef.current) return;
     const idx = items.findIndex((i) => i.value === selected);
-    if (idx >= 0 && containerRef.current) {
-      containerRef.current.scrollTo({ top: idx * ITEM_H, behavior: "smooth" });
+    if (idx >= 0) {
+      const el = listRef.current.children[idx] as HTMLElement;
+      el?.scrollIntoView({ block: "center", behavior: "instant" });
     }
-  }, [selected, items]);
-
-  const handleScroll = useCallback(() => {
-    if (!containerRef.current) return;
-    const scrollTop = containerRef.current.scrollTop;
-    const idx = Math.round(scrollTop / ITEM_H);
-    const clamped = Math.max(0, Math.min(idx, items.length - 1));
-    if (items[clamped] && items[clamped].value !== selected) {
-      onSelect(items[clamped].value);
-    }
-  }, [items, selected, onSelect]);
+  }, [items, selected]);
 
   return (
-    <div className="flex flex-col items-center">
-      <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">{label}</span>
-      <div className="relative h-[96px] w-[60px] overflow-hidden">
-        {/* Highlight band */}
-        <div className="absolute inset-x-0 top-[32px] h-[32px] bg-blue-500/20 border-y border-blue-500/40 rounded-md pointer-events-none z-10" />
-        <div
-          ref={containerRef}
-          onScroll={handleScroll}
-          className="h-full overflow-y-auto scrollbar-none snap-y snap-mandatory"
-          style={{ scrollSnapType: "y mandatory", scrollbarWidth: "none", msOverflowStyle: "none" }}
+    <motion.div
+      ref={listRef}
+      initial={{ opacity: 0, y: -8, scaleY: 0.9 }}
+      animate={{ opacity: 1, y: 0, scaleY: 1 }}
+      exit={{ opacity: 0, y: -8, scaleY: 0.9 }}
+      transition={{ duration: 0.15 }}
+      className="absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-slate-800/95 backdrop-blur-xl border border-slate-600/60 rounded-lg shadow-2xl overflow-y-auto z-50"
+      style={{ maxHeight: 160, minWidth: 56, scrollbarWidth: "none", msOverflowStyle: "none" }}
+    >
+      {items.map((item) => (
+        <button
+          key={item.value}
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onSelect(item.value); }}
+          className={`w-full px-3 py-1.5 text-xs font-bold text-center transition-colors ${
+            item.value === selected
+              ? "bg-blue-500/30 text-white"
+              : "text-slate-400 hover:bg-slate-700/60 hover:text-white"
+          }`}
         >
-          <div style={{ height: ITEM_H }} />
-          {items.map((item) => (
-            <div
-              key={item.value}
-              className={`h-[32px] flex items-center justify-center text-sm font-bold cursor-pointer snap-center transition-all ${
-                item.value === selected ? "text-white scale-110" : "text-slate-500 hover:text-slate-300"
-              }`}
-              style={{ scrollSnapAlign: "center" }}
-              onClick={() => onSelect(item.value)}
-            >
-              {item.label}
-            </div>
-          ))}
-          <div style={{ height: ITEM_H }} />
-        </div>
-      </div>
-    </div>
+          {item.label}
+        </button>
+      ))}
+    </motion.div>
   );
 }
 
-function ScrollDatePicker({ value, onChange }: { value: Date; onChange: (d: Date) => void }) {
+function CompactDatePicker({ value, onChange }: { value: Date; onChange: (d: Date) => void }) {
+  const [activeSegment, setActiveSegment] = useState<"day" | "month" | "year" | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
   const day = value.getDate();
   const month = value.getMonth();
   const year = value.getFullYear();
 
-  const years = useMemo(() => {
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  const dayItems = useMemo(() => {
+    const dim = new Date(year, month + 1, 0).getDate();
+    return Array.from({ length: dim }, (_, i) => ({ value: i + 1, label: String(i + 1).padStart(2, "0") }));
+  }, [year, month]);
+
+  const monthItems = useMemo(() => MONTHS.map((m, i) => ({ value: i, label: m })), []);
+
+  const yearItems = useMemo(() => {
     const arr = [];
     for (let y = 2020; y <= 2030; y++) arr.push({ value: y, label: String(y) });
     return arr;
   }, []);
-
-  const months = useMemo(() => [
-    { value: 0, label: "Jan" }, { value: 1, label: "Feb" }, { value: 2, label: "Mar" },
-    { value: 3, label: "Apr" }, { value: 4, label: "May" }, { value: 5, label: "Jun" },
-    { value: 6, label: "Jul" }, { value: 7, label: "Aug" }, { value: 8, label: "Sep" },
-    { value: 9, label: "Oct" }, { value: 10, label: "Nov" }, { value: 11, label: "Dec" },
-  ], []);
-
-  const days = useMemo(() => {
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    return Array.from({ length: daysInMonth }, (_, i) => ({ value: i + 1, label: String(i + 1).padStart(2, "0") }));
-  }, [year, month]);
-
-  const setDay = useCallback((d: number) => {
-    const maxDay = new Date(year, month + 1, 0).getDate();
-    onChange(new Date(year, month, Math.min(d, maxDay)));
-  }, [year, month, onChange]);
-
-  const setMonth = useCallback((m: number) => {
-    const maxDay = new Date(year, m + 1, 0).getDate();
-    onChange(new Date(year, m, Math.min(day, maxDay)));
-  }, [year, day, onChange]);
-
-  const setYear = useCallback((y: number) => {
-    const maxDay = new Date(y, month + 1, 0).getDate();
-    onChange(new Date(y, month, Math.min(day, maxDay)));
-  }, [month, day, onChange]);
 
   const isToday = useMemo(() => {
     const now = new Date();
     return day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
   }, [day, month, year]);
 
+  // Close on outside click
+  useEffect(() => {
+    if (!activeSegment) return;
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setActiveSegment(null);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [activeSegment]);
+
+  const setDay = useCallback((d: number) => {
+    const maxDay = new Date(year, month + 1, 0).getDate();
+    onChange(new Date(year, month, Math.min(d, maxDay)));
+    setActiveSegment(null);
+  }, [year, month, onChange]);
+
+  const setMonth = useCallback((m: number) => {
+    const maxDay = new Date(year, m + 1, 0).getDate();
+    onChange(new Date(year, m, Math.min(day, maxDay)));
+    setActiveSegment(null);
+  }, [year, day, onChange]);
+
+  const setYear = useCallback((y: number) => {
+    const maxDay = new Date(y, month + 1, 0).getDate();
+    onChange(new Date(y, month, Math.min(day, maxDay)));
+    setActiveSegment(null);
+  }, [month, day, onChange]);
+
+  const segmentCls = (active: boolean) =>
+    `relative px-2 py-1 rounded-lg cursor-pointer transition-all text-lg font-black tabular-nums ${
+      active
+        ? "bg-blue-500/30 text-white ring-1 ring-blue-400/50"
+        : "text-cyan-300 hover:bg-slate-700/50 hover:text-white"
+    }`;
+
   return (
-    <div className="bg-slate-800/60 backdrop-blur-xl border border-slate-700/50 rounded-xl px-4 py-3 flex flex-col items-center gap-2">
-      <div className="flex items-center gap-4">
-        <ScrollColumn items={days} selected={day} onSelect={setDay} label="Day" />
-        <ScrollColumn items={months} selected={month} onSelect={setMonth} label="Month" />
-        <ScrollColumn items={years} selected={year} onSelect={setYear} label="Year" />
+    <div ref={pickerRef} className="flex items-center gap-1">
+      {/* Day */}
+      <div className="relative">
+        <button type="button" onClick={() => setActiveSegment(activeSegment === "day" ? null : "day")} className={segmentCls(activeSegment === "day")}>
+          {String(day).padStart(2, "0")}
+        </button>
+        <AnimatePresence>
+          {activeSegment === "day" && <ScrollList items={dayItems} selected={day} onSelect={setDay} />}
+        </AnimatePresence>
       </div>
-      <button
-        type="button"
-        onClick={() => onChange(new Date())}
-        className={`px-4 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
-          isToday
-            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-default"
-            : "bg-slate-700/50 hover:bg-slate-600/50 text-slate-400 hover:text-white"
-        }`}
-      >
-        {isToday ? "Today" : "Reset to Today"}
-      </button>
+
+      <span className="text-slate-600 text-sm font-bold">/</span>
+
+      {/* Month */}
+      <div className="relative">
+        <button type="button" onClick={() => setActiveSegment(activeSegment === "month" ? null : "month")} className={segmentCls(activeSegment === "month")}>
+          {MONTHS[month]}
+        </button>
+        <AnimatePresence>
+          {activeSegment === "month" && <ScrollList items={monthItems} selected={month} onSelect={setMonth} />}
+        </AnimatePresence>
+      </div>
+
+      <span className="text-slate-600 text-sm font-bold">/</span>
+
+      {/* Year */}
+      <div className="relative">
+        <button type="button" onClick={() => setActiveSegment(activeSegment === "year" ? null : "year")} className={segmentCls(activeSegment === "year")}>
+          {year}
+        </button>
+        <AnimatePresence>
+          {activeSegment === "year" && <ScrollList items={yearItems} selected={year} onSelect={setYear} />}
+        </AnimatePresence>
+      </div>
+
+      {/* Today reset */}
+      {!isToday && (
+        <button
+          type="button"
+          onClick={() => { onChange(new Date()); setActiveSegment(null); }}
+          className="ml-2 px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-slate-700/50 hover:bg-slate-600/50 text-slate-400 hover:text-white transition-all"
+        >
+          Today
+        </button>
+      )}
     </div>
   );
 }
@@ -500,7 +537,7 @@ function CompactTable({
       </div>
 
       {/* Scrollable Table */}
-      <div className="overflow-auto max-h-[calc(100vh-260px)]">
+      <div className="overflow-auto max-h-[calc(100vh-300px)]">
         <table className="w-full text-left">
           <thead className="sticky top-0 z-10">
             <tr className="bg-slate-800 border-b border-slate-700/50">
@@ -679,7 +716,7 @@ export default function DashboardPage() {
   return (
     <AppShell>
       <div 
-        className="h-[calc(100vh-80px)] rounded-2xl overflow-hidden relative"
+        className="h-[calc(100vh-120px)] rounded-2xl overflow-hidden relative"
         style={{
           backgroundImage: `url(https://image2url.com/r2/default/images/1770311131560-2493d85c-5fef-4dbd-96b2-5c844492a9aa.jpg)`,
           backgroundSize: 'cover',
@@ -746,10 +783,10 @@ export default function DashboardPage() {
               </div>
 
               {/* Main HUD Content - Compact */}
-              <div className="flex-1 flex flex-col items-center justify-center px-4 -mt-2">
-                {/* Scroll Date Picker - Above Donut */}
-                <div className="mb-3">
-                  <ScrollDatePicker value={systemDate} onChange={setSystemDate} />
+              <div className="flex-1 flex flex-col items-center justify-center px-4">
+                {/* Compact Date Picker - Above Donut */}
+                <div className="mb-2">
+                  <CompactDatePicker value={systemDate} onChange={setSystemDate} />
                 </div>
 
                 {/* HUD Layout: SKA (Left) - Donut (Center) - SBA (Right) */}
@@ -787,19 +824,19 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Show Full List Button */}
-                <div className="mt-4">
+                <div className="mt-3">
                   <motion.button
                     type="button"
                     onClick={() => setViewMode("list")}
-                    className="group flex items-center gap-3 px-8 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-2xl text-white font-bold text-sm uppercase tracking-wider shadow-lg shadow-cyan-500/30 transition-all"
+                    className="group flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-xl text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/30 transition-all"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                     </svg>
                     Show Full List
-                    <svg className="w-4 h-4 group-hover:translate-y-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </motion.button>
