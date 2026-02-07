@@ -335,9 +335,9 @@ export default function RosterPage() {
                         <td className="px-3 py-0 sticky left-0 bg-slate-100 group-hover:bg-blue-100/50 z-10 border-r border-gray-300 w-48 min-w-[192px]">
                           <div 
                             className="text-[10px] font-semibold text-slate-700 leading-tight truncate"
-                            title={row.crew_name}
+                            title={getDisplayName(row)}
                           >
-                            {row.crew_name}
+                            {getDisplayName(row)}
                           </div>
                         </td>
                         {daysInMonth.map((d) => {
