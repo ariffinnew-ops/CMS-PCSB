@@ -815,26 +815,25 @@ export default function AdminPage() {
         {/* ADD NEW STAFF MODAL */}
         {addStaffModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-card rounded-2xl w-full max-w-lg shadow-2xl border border-border">
+            <div className="bg-card rounded-2xl w-full max-w-lg shadow-2xl border border-border flex flex-col max-h-[80vh]">
               {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-emerald-600 rounded-t-2xl">
+              <div className="flex items-center justify-between px-5 py-2.5 border-b border-border bg-emerald-600 rounded-t-2xl shrink-0">
                 <div>
-                  <h3 className="text-base font-black uppercase tracking-wider text-white">Add New Staff</h3>
-                  <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-wide mt-0.5">
-                    Select crew member and assign location
-                  </p>
+                  <h3 className="text-sm font-black uppercase tracking-wider text-white">Add New Staff</h3>
+                  <p className="text-[9px] font-bold text-emerald-100 uppercase tracking-wide">Select crew and assign location</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => { setAddStaffModal(false); setSelectedStaff(null); setStaffSearchQuery(""); setNewStaffClient(""); setNewStaffPost(""); setNewStaffLocation(""); }}
-                  className="text-white/80 hover:text-white text-xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
+                  className="text-white/80 hover:text-white text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
                 >&times;</button>
               </div>
 
-              <div className="px-6 py-5 space-y-5">
+              {/* Scrollable body */}
+              <div className="px-5 py-3 space-y-3 overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: "thin" }}>
                 {/* STEP 1: Select Crew Member */}
                 <div>
-                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">
+                  <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">
                     Step 1 &mdash; Select Crew Member
                   </label>
                   <input
@@ -842,13 +841,13 @@ export default function AdminPage() {
                     value={staffSearchQuery}
                     onChange={(e) => setStaffSearchQuery(e.target.value)}
                     placeholder="Search by name..."
-                    className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-400 mb-2 font-medium"
+                    className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-emerald-400 mb-1.5 font-medium"
                   />
-                  <div className="h-44 overflow-y-auto bg-muted/30 rounded-xl border border-border p-2" style={{ scrollbarWidth: "thin" }}>
+                  <div className="h-32 overflow-y-auto bg-muted/30 rounded-lg border border-border p-1.5" style={{ scrollbarWidth: "thin" }}>
                     {filteredMasterList.length === 0 ? (
                       <div className="flex items-center justify-center h-full text-muted-foreground text-xs font-medium">No staff found</div>
                     ) : (
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col gap-0.5">
                         {filteredMasterList.map((staff) => {
                           const isSelected = selectedStaff?.id === staff.id;
                           const alreadyInRoster = isCrewInRoster(staff.id);
@@ -857,20 +856,20 @@ export default function AdminPage() {
                               key={staff.id}
                               type="button"
                               onClick={() => setSelectedStaff(staff)}
-                              className={`flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all ${
+                              className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-left transition-all ${
                                 isSelected
                                   ? "bg-emerald-600 text-white shadow-md"
                                   : "bg-card hover:bg-muted border border-border"
                               }`}
                             >
                               <div className="min-w-0">
-                                <span className="font-black text-xs uppercase block truncate">{staff.clean_name || staff.crew_name}</span>
-                                <span className={`text-[9px] ${isSelected ? "text-emerald-100" : "text-muted-foreground"}`}>
+                                <span className="font-black text-[10px] uppercase block truncate">{staff.clean_name || staff.crew_name}</span>
+                                <span className={`text-[8px] ${isSelected ? "text-emerald-100" : "text-muted-foreground"}`}>
                                   {shortenPost(staff.post)} &middot; {staff.location} &middot; {staff.client}
                                 </span>
                               </div>
                               {alreadyInRoster && (
-                                <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full shrink-0 ml-2 ${
+                                <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full shrink-0 ml-1 ${
                                   isSelected ? "bg-emerald-500 text-white" : "bg-amber-100 text-amber-700 border border-amber-200"
                                 }`}>In Roster</span>
                               )}
@@ -888,11 +887,10 @@ export default function AdminPage() {
                   const count = getCrewIdCount(selectedStaff.id);
                   const suffix = count === 1 ? "(R)" : `(R${count})`;
                   return (
-                    <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 flex items-start gap-2">
-                      <svg className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      <p className="text-[10px] font-bold text-amber-800 leading-relaxed">
-                        <strong>{baseName}</strong> already exists in roster ({count} {count === 1 ? "entry" : "entries"}).
-                        Will be added as <strong className="text-amber-900">{baseName} {suffix}</strong>.
+                    <div className="bg-amber-50 border border-amber-300 rounded-lg p-2 flex items-start gap-2">
+                      <svg className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <p className="text-[9px] font-bold text-amber-800">
+                        <strong>{baseName}</strong> exists ({count}). Added as <strong className="text-amber-900">{baseName} {suffix}</strong>.
                       </p>
                     </div>
                   );
@@ -900,40 +898,40 @@ export default function AdminPage() {
 
                 {/* STEP 2: Assign Location */}
                 <div>
-                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-3 block">
+                  <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">
                     Step 2 &mdash; Assign to
                   </label>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Client</label>
+                      <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Client</label>
                       <select
                         value={newStaffClient}
                         onChange={(e) => setNewStaffClient(e.target.value)}
-                        className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase"
+                        className="w-full bg-muted border border-border rounded-lg px-2 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase"
                       >
-                        <option value="">-- Select --</option>
+                        <option value="">--</option>
                         {uniqueClients.map((c) => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Trade / Post</label>
+                      <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Trade / Post</label>
                       <select
                         value={newStaffPost}
                         onChange={(e) => setNewStaffPost(e.target.value)}
-                        className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase"
+                        className="w-full bg-muted border border-border rounded-lg px-2 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase"
                       >
-                        <option value="">-- Select --</option>
+                        <option value="">--</option>
                         {uniquePosts.map((p) => <option key={p} value={p}>{p}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Location</label>
+                      <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Location</label>
                       <select
                         value={newStaffLocation}
                         onChange={(e) => setNewStaffLocation(e.target.value)}
-                        className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase"
+                        className="w-full bg-muted border border-border rounded-lg px-2 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase"
                       >
-                        <option value="">-- Select --</option>
+                        <option value="">--</option>
                         {uniqueLocations.map((l) => <option key={l} value={l}>{l}</option>)}
                       </select>
                     </div>
@@ -942,26 +940,26 @@ export default function AdminPage() {
 
                 {/* Summary */}
                 {selectedStaff && newStaffClient && newStaffPost && newStaffLocation && (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-                    <p className="text-[10px] font-bold text-emerald-800 leading-relaxed">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2">
+                    <p className="text-[9px] font-bold text-emerald-800">
                       Adding <strong>{selectedStaff.clean_name || selectedStaff.crew_name}{isCrewInRoster(selectedStaff.id) ? ` ${getCrewIdCount(selectedStaff.id) === 1 ? "(R)" : `(R${getCrewIdCount(selectedStaff.id)})`}` : ""}</strong> as <strong>{shortenPost(newStaffPost)}</strong> at <strong>{newStaffLocation}</strong> / <strong>{newStaffClient}</strong>
                     </p>
                   </div>
                 )}
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex justify-end gap-3 px-6 py-4 border-t border-border bg-muted/30 rounded-b-2xl">
+              {/* Action Buttons - always visible */}
+              <div className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-muted/30 rounded-b-2xl shrink-0">
                 <button
                   type="button"
                   onClick={() => { setAddStaffModal(false); setSelectedStaff(null); setStaffSearchQuery(""); setNewStaffClient(""); setNewStaffPost(""); setNewStaffLocation(""); }}
-                  className="px-5 py-2.5 rounded-xl bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border"
+                  className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border"
                 >Cancel</button>
                 <button
                   type="button"
                   onClick={handleAddStaff}
                   disabled={!selectedStaff || !newStaffClient || !newStaffPost || !newStaffLocation}
-                  className={`px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all ${
+                  className={`px-5 py-2 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all ${
                     selectedStaff && newStaffClient && newStaffPost && newStaffLocation
                       ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg hover:shadow-emerald-500/30"
                       : "bg-muted text-muted-foreground cursor-not-allowed"
