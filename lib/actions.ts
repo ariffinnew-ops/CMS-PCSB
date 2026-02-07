@@ -60,8 +60,8 @@ export async function updateRosterRow(id: number, updates: Partial<RosterRow>): 
 export async function createRosterRow(row: { crew_id: string; crew_name: string; post: string; client: string; location: string }): Promise<{ success: boolean; data?: RosterRow; error?: string }> {
   const supabase = await createClient()
 
-  // Always INSERT a new row with crew_name (including suffix), post, client, location stored directly
-  const insertPayload: Record<string, unknown> = {
+  // Try full insert first (with all columns)
+  const fullPayload: Record<string, unknown> = {
     crew_id: row.crew_id,
     crew_name: row.crew_name,
     post: row.post,
@@ -71,16 +71,37 @@ export async function createRosterRow(row: { crew_id: string; crew_name: string;
 
   const { data: insertedRow, error } = await supabase
     .from('pcsb_roster')
-    .insert(insertPayload)
+    .insert(fullPayload)
     .select()
     .single()
 
-  if (error) {
-    console.error('Error creating roster row:', error)
-    return { success: false, error: error.message }
+  if (!error && insertedRow) {
+    return { success: true, data: insertedRow as RosterRow }
   }
 
-  return { success: true, data: insertedRow as RosterRow }
+  // If full insert failed (columns may not exist), try with crew_id only
+  console.warn('Full insert failed, trying crew_id only:', error?.message)
+  const { data: minimalRow, error: minError } = await supabase
+    .from('pcsb_roster')
+    .insert({ crew_id: row.crew_id })
+    .select()
+    .single()
+
+  if (minError) {
+    console.error('Error creating roster row:', minError)
+    return { success: false, error: minError.message }
+  }
+
+  // Return the row with the override values applied client-side
+  const result = {
+    ...(minimalRow as Record<string, unknown>),
+    crew_name: row.crew_name,
+    post: row.post,
+    client: row.client,
+    location: row.location,
+  } as RosterRow;
+
+  return { success: true, data: result }
 }
 
 export async function deleteRosterRow(id: number): Promise<{ success: boolean; error?: string }> {

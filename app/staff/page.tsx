@@ -148,7 +148,7 @@ function ChangeStatusDialog({ currentStatus, onSave, onClose }: { currentStatus:
 }
 
 // ─── SEE DETAIL Overlay (covers Section B + C area) with inline editing ───
-function DetailOverlay({ detail, onClose, canEdit, onSave }: { detail: Record<string, unknown>; onClose: () => void; canEdit: boolean; onSave: (fields: Record<string, string>) => Promise<void> }) {
+function DetailOverlay({ detail, onClose, canEdit, onSave, dropdownOptions }: { detail: Record<string, unknown>; onClose: () => void; canEdit: boolean; onSave: (fields: Record<string, string>) => Promise<void>; dropdownOptions: { posts: string[]; clients: string[]; locations: string[] } }) {
   const d = detail;
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
@@ -246,6 +246,21 @@ function DetailOverlay({ detail, onClose, canEdit, onSave }: { detail: Record<st
                           <select value={editForm[it.key] || ""} onChange={(e) => set(it.key, e.target.value)} className={inputCls}>
                             <option>Active</option><option>On Notice</option><option>Resigned</option>
                           </select>
+                        ) : it.key === "post" ? (
+                          <select value={editForm[it.key] || ""} onChange={(e) => set(it.key, e.target.value)} className={inputCls}>
+                            <option value="">-- Select --</option>
+                            {dropdownOptions.posts.map((v) => <option key={v} value={v}>{v}</option>)}
+                          </select>
+                        ) : it.key === "client" ? (
+                          <select value={editForm[it.key] || ""} onChange={(e) => set(it.key, e.target.value)} className={inputCls}>
+                            <option value="">-- Select --</option>
+                            {dropdownOptions.clients.map((v) => <option key={v} value={v}>{v}</option>)}
+                          </select>
+                        ) : it.key === "location" ? (
+                          <select value={editForm[it.key] || ""} onChange={(e) => set(it.key, e.target.value)} className={inputCls}>
+                            <option value="">-- Select --</option>
+                            {dropdownOptions.locations.map((v) => <option key={v} value={v}>{v}</option>)}
+                          </select>
                         ) : (
                           <input
                             type={it.type || "text"}
@@ -284,7 +299,7 @@ function DetailOverlay({ detail, onClose, canEdit, onSave }: { detail: Record<st
 }
 
 // ─── Add Staff Overlay (covers Section B + C area) ───
-function AddStaffOverlay({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+function AddStaffOverlay({ onClose, onCreated, dropdownOptions }: { onClose: () => void; onCreated: (id: string) => void; dropdownOptions: { posts: string[]; clients: string[]; locations: string[] } }) {
   const [form, setForm] = useState<Record<string, string>>({
     crew_name: "", nric_passport: "", address: "", phone: "", email1: "", email2: "",
     post: "", client: "", location: "", hire_date: "", resign_date: "", exp_date: "", status: "Active",
@@ -334,9 +349,24 @@ function AddStaffOverlay({ onClose, onCreated }: { onClose: () => void; onCreate
         <div>
           <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 mb-3 border-b border-border pb-2">Employment Info</h4>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
-            <div><label className={labelCls}>Trade / Post</label><input value={form.post} onChange={(e) => set("post", e.target.value)} className={inputCls} /></div>
-            <div><label className={labelCls}>Client</label><input value={form.client} onChange={(e) => set("client", e.target.value)} className={inputCls} /></div>
-            <div><label className={labelCls}>Location</label><input value={form.location} onChange={(e) => set("location", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Trade / Post</label>
+              <select value={form.post} onChange={(e) => set("post", e.target.value)} className={inputCls}>
+                <option value="">-- Select --</option>
+                {dropdownOptions.posts.map((v) => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
+            <div><label className={labelCls}>Client</label>
+              <select value={form.client} onChange={(e) => set("client", e.target.value)} className={inputCls}>
+                <option value="">-- Select --</option>
+                {dropdownOptions.clients.map((v) => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
+            <div><label className={labelCls}>Location</label>
+              <select value={form.location} onChange={(e) => set("location", e.target.value)} className={inputCls}>
+                <option value="">-- Select --</option>
+                {dropdownOptions.locations.map((v) => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
             <div><label className={labelCls}>Status</label>
               <select value={form.status} onChange={(e) => set("status", e.target.value)} className={inputCls}>
                 <option>Active</option><option>On Notice</option><option>Resigned</option>
@@ -426,6 +456,14 @@ export default function StaffDetailPage() {
     const q = search.toLowerCase();
     return crewList.filter((c) => c.crew_name.toLowerCase().includes(q) || c.post.toLowerCase().includes(q));
   }, [crewList, search]);
+
+  // Build unique dropdown options from crew list
+  const dropdownOptions = useMemo(() => {
+    const posts = [...new Set(crewList.map((c) => c.post).filter(Boolean))].sort();
+    const clients = [...new Set(crewList.map((c) => c.client).filter(Boolean))].sort();
+    const locations = [...new Set(crewList.map((c) => c.location).filter(Boolean))].sort();
+    return { posts, clients, locations };
+  }, [crewList]);
 
   // Contract expiry
   const expDays = daysUntil(detail?.exp_date as string | null);
@@ -686,12 +724,12 @@ export default function StaffDetailPage() {
 
           {/* Detail Overlay (covers B+C) */}
           {showDetailOverlay && detail && (
-            <DetailOverlay detail={detail} onClose={() => setShowDetailOverlay(false)} canEdit={isL1L2} onSave={handleDetailSave} />
+            <DetailOverlay detail={detail} onClose={() => setShowDetailOverlay(false)} canEdit={isL1L2} onSave={handleDetailSave} dropdownOptions={dropdownOptions} />
           )}
 
           {/* Add Staff Overlay (covers B+C) */}
           {showAdd && (
-            <AddStaffOverlay onClose={() => setShowAdd(false)} onCreated={handleCreated} />
+            <AddStaffOverlay onClose={() => setShowAdd(false)} onCreated={handleCreated} dropdownOptions={dropdownOptions} />
           )}
 
           {/* ═══ SECTION B: CERTIFICATES (Top - auto fit, no scroll) ═══ */}
