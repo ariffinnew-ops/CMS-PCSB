@@ -17,22 +17,22 @@ export async function getRosterData(): Promise<RosterRow[]> {
     return []
   }
 
-  // Fetch crew details for joining
+  // Fetch crew details for joining (use clean_name as the official name)
   const { data: crewData } = await supabase
     .from('pcsb_crew_detail')
-    .select('id, crew_name, post, client, location')
+    .select('id, clean_name, crew_name, post, client, location')
 
-  const crewMap = new Map<string, { crew_name: string; post: string; client: string; location: string }>();
+  const crewMap = new Map<string, { clean_name: string; crew_name: string; post: string; client: string; location: string }>();
   for (const c of (crewData || [])) {
-    crewMap.set(c.id, { crew_name: c.crew_name || '', post: c.post || '', client: c.client || '', location: c.location || '' });
+    crewMap.set(c.id, { clean_name: c.clean_name || c.crew_name || '', crew_name: c.crew_name || '', post: c.post || '', client: c.client || '', location: c.location || '' });
   }
 
-  // Join roster with crew details - roster row overrides take priority (for relief assignments)
+  // Join roster with crew details - roster row values take priority (crew_name is stored directly with suffix)
   return (rosterData || []).map((row: Record<string, unknown>) => {
     const crew = crewMap.get(row.crew_id as string);
     return {
       ...row,
-      crew_name: (row.crew_name as string) || crew?.crew_name || '',
+      crew_name: (row.crew_name as string) || crew?.clean_name || crew?.crew_name || '',
       post: (row.post as string) || crew?.post || '',
       client: (row.client as string) || crew?.client || '',
       location: (row.location as string) || crew?.location || '',
@@ -57,16 +57,17 @@ export async function updateRosterRow(id: number, updates: Partial<RosterRow>): 
   return { success: true }
 }
 
-export async function createRosterRow(row: Omit<RosterRow, 'id'> | { crew_id: string; post?: string; client?: string; location?: string }): Promise<{ success: boolean; data?: RosterRow; error?: string }> {
+export async function createRosterRow(row: { crew_id: string; crew_name: string; post: string; client: string; location: string }): Promise<{ success: boolean; data?: RosterRow; error?: string }> {
   const supabase = await createClient()
 
-  const typedRow = row as { crew_id?: string; post?: string; client?: string; location?: string };
-  const insertPayload: Record<string, unknown> = { crew_id: typedRow.crew_id };
-
-  // Store override fields for relief assignments (different post/client/location than crew_detail)
-  if (typedRow.post) insertPayload.post = typedRow.post;
-  if (typedRow.client) insertPayload.client = typedRow.client;
-  if (typedRow.location) insertPayload.location = typedRow.location;
+  // Always INSERT a new row with crew_name (including suffix), post, client, location stored directly
+  const insertPayload: Record<string, unknown> = {
+    crew_id: row.crew_id,
+    crew_name: row.crew_name,
+    post: row.post,
+    client: row.client,
+    location: row.location,
+  };
 
   const { data: insertedRow, error } = await supabase
     .from('pcsb_roster')
@@ -79,26 +80,7 @@ export async function createRosterRow(row: Omit<RosterRow, 'id'> | { crew_id: st
     return { success: false, error: error.message }
   }
 
-  // Re-fetch with crew detail join for the returned data
-  if (insertedRow) {
-    const { data: crewData } = await supabase
-      .from('pcsb_crew_detail')
-      .select('crew_name, post, client, location')
-      .eq('id', insertedRow.crew_id)
-      .single()
-
-    const fullRow = {
-      ...insertedRow,
-      crew_name: (insertedRow.crew_name as string) || crewData?.crew_name || '',
-      post: (insertedRow.post as string) || crewData?.post || '',
-      client: (insertedRow.client as string) || crewData?.client || '',
-      location: (insertedRow.location as string) || crewData?.location || '',
-    } as RosterRow
-
-    return { success: true, data: fullRow }
-  }
-
-  return { success: true, data: insertedRow }
+  return { success: true, data: insertedRow as RosterRow }
 }
 
 export async function deleteRosterRow(id: number): Promise<{ success: boolean; error?: string }> {
@@ -289,11 +271,11 @@ export async function createMatrixRecord(
 // ─── Staff Detail Actions ───
 
 // Get all crew members list (for dropdown)
-export async function getCrewList(): Promise<{ success: boolean; data?: { id: string; crew_name: string; post: string; client: string; location: string; status?: string }[]; error?: string }> {
+export async function getCrewList(): Promise<{ success: boolean; data?: { id: string; crew_name: string; clean_name: string; post: string; client: string; location: string; status?: string }[]; error?: string }> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('pcsb_crew_detail')
-    .select('id, crew_name, post, client, location, status')
+    .select('id, crew_name, clean_name, post, client, location, status')
     .order('crew_name', { ascending: true })
 
   if (error) {
