@@ -271,14 +271,14 @@ export default function AdminPage() {
     return diff > 0 ? diff : 0;
   };
 
-  // Check if a crew_id (or any relief variant like id_R, id_R1) already exists in the roster
+  // Check if a crew_id already exists in the roster
   const isCrewInRoster = (crewId: string) => {
-    return data.some((row) => row.crew_id === crewId || (row.crew_id && row.crew_id.startsWith(`${crewId}_R`)));
+    return data.some((row) => row.crew_id === crewId);
   };
 
-  // Count how many times a crew_id (including relief variants) appears in the roster
+  // Count how many times a crew_id appears in the roster
   const getCrewIdCount = (crewId: string) => {
-    return data.filter((row) => row.crew_id === crewId || (row.crew_id && row.crew_id.startsWith(`${crewId}_R`))).length;
+    return data.filter((row) => row.crew_id === crewId).length;
   };
 
   // Display name is now stored directly in pcsb_roster.crew_name (with suffix)
@@ -292,12 +292,11 @@ export default function AdminPage() {
 
     const baseName = selectedStaff.clean_name || selectedStaff.crew_name;
 
-    // Count existing rows for this crew_id (including relief variants)
-    const existingCount = data.filter((row) =>
-      row.crew_id === selectedStaff.id || (row.crew_id && row.crew_id.startsWith(`${selectedStaff.id}_R`))
-    ).length;
+    // Count existing rows for this crew_id
+    const existingCount = data.filter((row) => row.crew_id === selectedStaff.id).length;
 
-    // Auto-add (R) suffix if crew already exists
+    // Suffix goes in crew_name ONLY, never in crew_id
+    const isRelief = existingCount > 0;
     let finalName = baseName;
     if (existingCount === 1) {
       finalName = `${baseName} (R)`;
@@ -305,14 +304,9 @@ export default function AdminPage() {
       finalName = `${baseName} (R${existingCount})`;
     }
 
-    // Unique crew_id for relief to avoid PKEY constraint
-    const isRelief = existingCount > 0;
-    const uniqueCrewId = isRelief
-      ? `${selectedStaff.id}_R${existingCount}`
-      : selectedStaff.id;
-
+    // crew_id is always the ORIGINAL UUID - never modified
     const payload = {
-      crew_id: uniqueCrewId,
+      crew_id: selectedStaff.id,
       crew_name: finalName,
       post: newStaffPost,
       client: newStaffClient,
