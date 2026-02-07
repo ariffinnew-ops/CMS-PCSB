@@ -13,6 +13,7 @@ import {
   listCrewDocuments,
 } from "@/lib/actions";
 import { createClient } from "@/lib/supabase/client";
+import { getClients, getPostsForClient, getLocationsForClientPost } from "@/lib/client-location-map";
 
 // ─── Types ───
 interface CrewListItem { id: string; crew_name: string; post: string; client: string; location: string; status?: string }
@@ -148,7 +149,7 @@ function ChangeStatusDialog({ currentStatus, onSave, onClose }: { currentStatus:
 }
 
 // ─── SEE DETAIL Overlay (covers Section B + C area) with inline editing ───
-function DetailOverlay({ detail, onClose, canEdit, onSave, dropdownOptions }: { detail: Record<string, unknown>; onClose: () => void; canEdit: boolean; onSave: (fields: Record<string, string>) => Promise<void>; dropdownOptions: { posts: string[]; clients: string[]; locations: string[] } }) {
+function DetailOverlay({ detail, onClose, canEdit, onSave }: { detail: Record<string, unknown>; onClose: () => void; canEdit: boolean; onSave: (fields: Record<string, string>) => Promise<void> }) {
   const d = detail;
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
@@ -189,8 +190,8 @@ function DetailOverlay({ detail, onClose, canEdit, onSave, dropdownOptions }: { 
     {
       section: "Employment Info",
       items: [
-        { label: "Trade / Post", key: "post" },
         { label: "Client", key: "client" },
+        { label: "Trade / Post", key: "post" },
         { label: "Location", key: "location" },
         { label: "Hire Date", key: "hire_date", fmt: (v) => fmtDate(v as string), type: "date" },
         { label: "Resign Date", key: "resign_date", fmt: (v) => fmtDate(v as string), type: "date" },
@@ -246,20 +247,20 @@ function DetailOverlay({ detail, onClose, canEdit, onSave, dropdownOptions }: { 
                           <select value={editForm[it.key] || ""} onChange={(e) => set(it.key, e.target.value)} className={inputCls}>
                             <option>Active</option><option>On Notice</option><option>Resigned</option>
                           </select>
-                        ) : it.key === "post" ? (
-                          <select value={editForm[it.key] || ""} onChange={(e) => set(it.key, e.target.value)} className={inputCls}>
-                            <option value="">-- Select --</option>
-                            {dropdownOptions.posts.map((v) => <option key={v} value={v}>{v}</option>)}
-                          </select>
                         ) : it.key === "client" ? (
-                          <select value={editForm[it.key] || ""} onChange={(e) => set(it.key, e.target.value)} className={inputCls}>
+                          <select value={editForm[it.key] || ""} onChange={(e) => { set("client", e.target.value); set("post", ""); set("location", ""); }} className={inputCls}>
                             <option value="">-- Select --</option>
-                            {dropdownOptions.clients.map((v) => <option key={v} value={v}>{v}</option>)}
+                            {getClients().map((v) => <option key={v} value={v}>{v}</option>)}
+                          </select>
+                        ) : it.key === "post" ? (
+                          <select value={editForm[it.key] || ""} onChange={(e) => { set("post", e.target.value); set("location", ""); }} disabled={!editForm.client} className={inputCls}>
+                            <option value="">-- Select --</option>
+                            {getPostsForClient(editForm.client || "").map((v) => <option key={v} value={v}>{v}</option>)}
                           </select>
                         ) : it.key === "location" ? (
-                          <select value={editForm[it.key] || ""} onChange={(e) => set(it.key, e.target.value)} className={inputCls}>
+                          <select value={editForm[it.key] || ""} onChange={(e) => set("location", e.target.value)} disabled={!editForm.post} className={inputCls}>
                             <option value="">-- Select --</option>
-                            {dropdownOptions.locations.map((v) => <option key={v} value={v}>{v}</option>)}
+                            {getLocationsForClientPost(editForm.client || "", editForm.post || "").map((v) => <option key={v} value={v}>{v}</option>)}
                           </select>
                         ) : (
                           <input
@@ -299,7 +300,7 @@ function DetailOverlay({ detail, onClose, canEdit, onSave, dropdownOptions }: { 
 }
 
 // ─── Add Staff Overlay (covers Section B + C area) ───
-function AddStaffOverlay({ onClose, onCreated, dropdownOptions }: { onClose: () => void; onCreated: (id: string) => void; dropdownOptions: { posts: string[]; clients: string[]; locations: string[] } }) {
+function AddStaffOverlay({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const [form, setForm] = useState<Record<string, string>>({
     crew_name: "", nric_passport: "", address: "", phone: "", email1: "", email2: "",
     post: "", client: "", location: "", hire_date: "", resign_date: "", exp_date: "", status: "Active",
@@ -349,22 +350,22 @@ function AddStaffOverlay({ onClose, onCreated, dropdownOptions }: { onClose: () 
         <div>
           <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 mb-3 border-b border-border pb-2">Employment Info</h4>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
-            <div><label className={labelCls}>Trade / Post</label>
-              <select value={form.post} onChange={(e) => set("post", e.target.value)} className={inputCls}>
+            <div><label className={labelCls}>Client</label>
+              <select value={form.client} onChange={(e) => { set("client", e.target.value); set("post", ""); set("location", ""); }} className={inputCls}>
                 <option value="">-- Select --</option>
-                {dropdownOptions.posts.map((v) => <option key={v} value={v}>{v}</option>)}
+                {getClients().map((v) => <option key={v} value={v}>{v}</option>)}
               </select>
             </div>
-            <div><label className={labelCls}>Client</label>
-              <select value={form.client} onChange={(e) => set("client", e.target.value)} className={inputCls}>
+            <div><label className={labelCls}>Trade / Post</label>
+              <select value={form.post} onChange={(e) => { set("post", e.target.value); set("location", ""); }} disabled={!form.client} className={inputCls}>
                 <option value="">-- Select --</option>
-                {dropdownOptions.clients.map((v) => <option key={v} value={v}>{v}</option>)}
+                {getPostsForClient(form.client).map((v) => <option key={v} value={v}>{v}</option>)}
               </select>
             </div>
             <div><label className={labelCls}>Location</label>
-              <select value={form.location} onChange={(e) => set("location", e.target.value)} className={inputCls}>
+              <select value={form.location} onChange={(e) => set("location", e.target.value)} disabled={!form.post} className={inputCls}>
                 <option value="">-- Select --</option>
-                {dropdownOptions.locations.map((v) => <option key={v} value={v}>{v}</option>)}
+                {getLocationsForClientPost(form.client, form.post).map((v) => <option key={v} value={v}>{v}</option>)}
               </select>
             </div>
             <div><label className={labelCls}>Status</label>
@@ -456,14 +457,6 @@ export default function StaffDetailPage() {
     const q = search.toLowerCase();
     return crewList.filter((c) => c.crew_name.toLowerCase().includes(q) || c.post.toLowerCase().includes(q));
   }, [crewList, search]);
-
-  // Build unique dropdown options from crew list
-  const dropdownOptions = useMemo(() => {
-    const posts = [...new Set(crewList.map((c) => c.post).filter(Boolean))].sort();
-    const clients = [...new Set(crewList.map((c) => c.client).filter(Boolean))].sort();
-    const locations = [...new Set(crewList.map((c) => c.location).filter(Boolean))].sort();
-    return { posts, clients, locations };
-  }, [crewList]);
 
   // Contract expiry
   const expDays = daysUntil(detail?.exp_date as string | null);
@@ -724,12 +717,12 @@ export default function StaffDetailPage() {
 
           {/* Detail Overlay (covers B+C) */}
           {showDetailOverlay && detail && (
-            <DetailOverlay detail={detail} onClose={() => setShowDetailOverlay(false)} canEdit={isL1L2} onSave={handleDetailSave} dropdownOptions={dropdownOptions} />
+            <DetailOverlay detail={detail} onClose={() => setShowDetailOverlay(false)} canEdit={isL1L2} onSave={handleDetailSave} />
           )}
 
           {/* Add Staff Overlay (covers B+C) */}
           {showAdd && (
-            <AddStaffOverlay onClose={() => setShowAdd(false)} onCreated={handleCreated} dropdownOptions={dropdownOptions} />
+            <AddStaffOverlay onClose={() => setShowAdd(false)} onCreated={handleCreated} />
           )}
 
           {/* ═══ SECTION B: CERTIFICATES (Top - auto fit, no scroll) ═══ */}
