@@ -308,18 +308,19 @@ export default function AdminPage() {
     }
 
     // For relief: use a unique crew_id suffix so it doesn't violate the PKEY constraint
-    // Also use the modal's location/post/client (where they're being assigned)
     const isRelief = existingCount > 0;
     const uniqueCrewId = isRelief
       ? `${selectedStaff.id}_R${existingCount}`
       : selectedStaff.id;
 
+    // ALWAYS use the modal's post/client/location (from the (+) button group header)
+    // This ensures staff appears at the location where (+) was clicked, not their primary crew_detail location
     const payload = {
       crew_id: uniqueCrewId,
       crew_name: finalName,
-      post: isRelief ? addStaffModal.post : selectedStaff.post,
-      client: isRelief ? addStaffModal.client : selectedStaff.client,
-      location: isRelief ? addStaffModal.location : selectedStaff.location,
+      post: addStaffModal.post,
+      client: addStaffModal.client,
+      location: addStaffModal.location,
     };
 
     const result = await createRosterRow(payload);
