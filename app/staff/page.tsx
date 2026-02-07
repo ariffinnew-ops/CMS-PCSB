@@ -147,16 +147,39 @@ function ChangeStatusDialog({ currentStatus, onSave, onClose }: { currentStatus:
   );
 }
 
-// ─── SEE DETAIL Overlay (covers Section B + C area) ───
-function DetailOverlay({ detail, onClose }: { detail: Record<string, unknown>; onClose: () => void }) {
+// ─── SEE DETAIL Overlay (covers Section B + C area) with inline editing ───
+function DetailOverlay({ detail, onClose, canEdit, onSave }: { detail: Record<string, unknown>; onClose: () => void; canEdit: boolean; onSave: (fields: Record<string, string>) => Promise<void> }) {
   const d = detail;
-  const fields: { section: string; items: { label: string; key: string; fmt?: (v: unknown) => string }[] }[] = [
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [confirmSave, setConfirmSave] = useState(false);
+
+  const startEdit = () => {
+    const form: Record<string, string> = {};
+    const keys = ["crew_name", "passport_number", "address", "phone", "email1", "email2", "post", "client", "location", "hire_date", "resign_date", "exp_date", "status", "nok_name", "nok_relation", "nok_phone"];
+    for (const k of keys) form[k] = d[k] !== undefined && d[k] !== null ? String(d[k]) : "";
+    setEditForm(form);
+    setEditing(true);
+  };
+
+  const handleConfirmSave = async () => {
+    setConfirmSave(false);
+    setSaving(true);
+    await onSave(editForm);
+    setSaving(false);
+    setEditing(false);
+  };
+
+  const set = (k: string, v: string) => setEditForm((p) => ({ ...p, [k]: v }));
+  const inputCls = "w-full bg-accent border border-border rounded-lg px-3 py-1.5 text-xs text-foreground outline-none focus:border-blue-500";
+
+  const fields: { section: string; items: { label: string; key: string; fmt?: (v: unknown) => string; type?: string }[] }[] = [
     {
       section: "Personal & Contact",
       items: [
         { label: "Full Name", key: "crew_name" },
-        { label: "Clean Name", key: "clean_name" },
-        { label: "Passport Number", key: "passport_number" },
+        { label: "NRIC / Passport Number", key: "passport_number" },
         { label: "Address", key: "address" },
         { label: "Phone", key: "phone" },
         { label: "Email 1", key: "email1" },
@@ -169,8 +192,9 @@ function DetailOverlay({ detail, onClose }: { detail: Record<string, unknown>; o
         { label: "Trade / Post", key: "post" },
         { label: "Client", key: "client" },
         { label: "Location", key: "location" },
-        { label: "Hire Date", key: "hire_date", fmt: (v) => fmtDate(v as string) },
-        { label: "Resign Date", key: "resign_date", fmt: (v) => fmtDate(v as string) },
+        { label: "Hire Date", key: "hire_date", fmt: (v) => fmtDate(v as string), type: "date" },
+        { label: "Resign Date", key: "resign_date", fmt: (v) => fmtDate(v as string), type: "date" },
+        { label: "Contract Expiry Date", key: "exp_date", fmt: (v) => fmtDate(v as string), type: "date" },
         { label: "Status", key: "status" },
       ],
     },
@@ -189,7 +213,22 @@ function DetailOverlay({ detail, onClose }: { detail: Record<string, unknown>; o
       <div className="p-5">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-base font-black uppercase tracking-wider text-foreground">Full Staff Details</h3>
-          <button type="button" onClick={onClose} className="px-4 py-1.5 rounded-lg text-xs font-black uppercase bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors">Close</button>
+          <div className="flex items-center gap-2">
+            {canEdit && !editing && (
+              <button type="button" onClick={startEdit} className="px-4 py-1.5 rounded-lg text-xs font-black uppercase bg-blue-600 text-white hover:bg-blue-500 transition-colors">
+                Edit
+              </button>
+            )}
+            {editing && (
+              <>
+                <button type="button" onClick={() => setEditing(false)} className="px-4 py-1.5 rounded-lg text-xs font-black uppercase bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors">Cancel</button>
+                <button type="button" onClick={() => setConfirmSave(true)} disabled={saving} className="px-4 py-1.5 rounded-lg text-xs font-black uppercase bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-40 transition-colors">
+                  {saving ? "Saving..." : "Save"}
+                </button>
+              </>
+            )}
+            <button type="button" onClick={onClose} className="px-4 py-1.5 rounded-lg text-xs font-black uppercase bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors">Close</button>
+          </div>
         </div>
         <div className="space-y-6">
           {fields.map((sec) => (
@@ -202,7 +241,22 @@ function DetailOverlay({ detail, onClose }: { detail: Record<string, unknown>; o
                   return (
                     <div key={it.key}>
                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{it.label}</p>
-                      <p className="text-sm font-semibold text-foreground">{display}</p>
+                      {editing ? (
+                        it.key === "status" ? (
+                          <select value={editForm[it.key] || ""} onChange={(e) => set(it.key, e.target.value)} className={inputCls}>
+                            <option>Active</option><option>On Notice</option><option>Resigned</option>
+                          </select>
+                        ) : (
+                          <input
+                            type={it.type || "text"}
+                            value={it.type === "date" ? (editForm[it.key]?.split("T")[0] || "") : (editForm[it.key] || "")}
+                            onChange={(e) => set(it.key, e.target.value)}
+                            className={inputCls}
+                          />
+                        )
+                      ) : (
+                        <p className="text-sm font-semibold text-foreground">{display}</p>
+                      )}
                     </div>
                   );
                 })}
@@ -211,6 +265,20 @@ function DetailOverlay({ detail, onClose }: { detail: Record<string, unknown>; o
           ))}
         </div>
       </div>
+
+      {/* Confirm Save Dialog */}
+      {confirmSave && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-background border border-border rounded-xl w-full max-w-sm shadow-2xl p-6 text-center">
+            <h4 className="text-sm font-black uppercase tracking-wider text-foreground mb-3">Save Changes?</h4>
+            <p className="text-xs text-muted-foreground mb-5">Are you sure you want to save the updated staff details?</p>
+            <div className="flex justify-center gap-3">
+              <button type="button" onClick={() => setConfirmSave(false)} className="px-5 py-2 rounded-lg text-xs font-black uppercase bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors">No</button>
+              <button type="button" onClick={handleConfirmSave} className="px-5 py-2 rounded-lg text-xs font-black uppercase bg-blue-600 text-white hover:bg-blue-500 transition-colors">Yes</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -218,8 +286,8 @@ function DetailOverlay({ detail, onClose }: { detail: Record<string, unknown>; o
 // ─── Add Staff Overlay (covers Section B + C area) ───
 function AddStaffOverlay({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const [form, setForm] = useState<Record<string, string>>({
-    crew_name: "", clean_name: "", passport_number: "", address: "", phone: "", email1: "", email2: "",
-    post: "", client: "", location: "", hire_date: "", resign_date: "", status: "Active",
+    crew_name: "", passport_number: "", address: "", phone: "", email1: "", email2: "",
+    post: "", client: "", location: "", hire_date: "", resign_date: "", exp_date: "", status: "Active",
     nok_name: "", nok_relation: "", nok_phone: "",
   });
   const [saving, setSaving] = useState(false);
@@ -255,8 +323,7 @@ function AddStaffOverlay({ onClose, onCreated }: { onClose: () => void; onCreate
           <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 mb-3 border-b border-border pb-2">Personal & Contact</h4>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
             <div><label className={labelCls}>Full Name *</label><input value={form.crew_name} onChange={(e) => set("crew_name", e.target.value)} className={inputCls} /></div>
-            <div><label className={labelCls}>Clean Name</label><input value={form.clean_name} onChange={(e) => set("clean_name", e.target.value)} className={inputCls} /></div>
-            <div><label className={labelCls}>Passport Number</label><input value={form.passport_number} onChange={(e) => set("passport_number", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>NRIC / Passport Number</label><input value={form.passport_number} onChange={(e) => set("passport_number", e.target.value)} className={inputCls} /></div>
             <div className="col-span-2 lg:col-span-3"><label className={labelCls}>Address</label><input value={form.address} onChange={(e) => set("address", e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>Phone</label><input value={form.phone} onChange={(e) => set("phone", e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>Email 1</label><input value={form.email1} onChange={(e) => set("email1", e.target.value)} className={inputCls} /></div>
@@ -277,6 +344,7 @@ function AddStaffOverlay({ onClose, onCreated }: { onClose: () => void; onCreate
             </div>
             <div><label className={labelCls}>Hire Date</label><input type="date" value={form.hire_date} onChange={(e) => set("hire_date", e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>Resign Date</label><input type="date" value={form.resign_date} onChange={(e) => set("resign_date", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Contract Expiry Date</label><input type="date" value={form.exp_date} onChange={(e) => set("exp_date", e.target.value)} className={inputCls} /></div>
           </div>
         </div>
         {/* Next of Kin */}
@@ -388,6 +456,45 @@ export default function StaffDetailPage() {
     else alert("Uploaded successfully!");
   };
 
+  // Save edited detail fields (from DetailOverlay)
+  const handleDetailSave = async (fields: Record<string, string>) => {
+    if (!selectedId) return;
+    const payload: Record<string, string | null> = {};
+    for (const [k, v] of Object.entries(fields)) {
+      payload[k] = v.trim() || null;
+    }
+    const res = await updateCrewDetail(selectedId, payload);
+    if (res.success) {
+      await loadDetail(selectedId);
+      // Refresh list in case name/post/client/location changed
+      const listRes = await getCrewList();
+      if (listRes.success && listRes.data) setCrewList(listRes.data);
+    }
+  };
+
+  // Profile picture upload
+  const handleProfilePicUpload = async (file: File) => {
+    if (!selectedId || !file) return;
+    if (file.size > 2 * 1024 * 1024) { alert("Max 2MB for profile picture"); return; }
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (!["jpg", "jpeg", "png"].includes(ext || "")) { alert("Only JPG/PNG"); return; }
+    setUploading(true);
+    const supabase = createClient();
+    const path = `profiles/${selectedId}.${ext}`;
+    // Upsert: overwrite if exists
+    const { error } = await supabase.storage.from("pcsb-doc").upload(path, file, { upsert: true });
+    setUploading(false);
+    if (error) alert(error.message);
+    else {
+      // Get public URL and store in detail
+      const { data: urlData } = supabase.storage.from("pcsb-doc").getPublicUrl(path);
+      if (urlData?.publicUrl) {
+        await updateCrewDetail(selectedId, { profile_pic: urlData.publicUrl });
+        setDetail((prev) => prev ? { ...prev, profile_pic: urlData.publicUrl } : prev);
+      }
+    }
+  };
+
   // Add staff
   const handleCreated = (id: string) => {
     setShowAdd(false);
@@ -450,11 +557,32 @@ export default function StaffDetailPage() {
             <>
               {/* Avatar + Status */}
               <div className="flex flex-col items-center pt-5 pb-3 px-4">
-                {/* Silhouette avatar */}
-                <div className="w-20 h-20 rounded-full bg-slate-200 flex items-center justify-center shadow-md border-2 border-slate-300 overflow-hidden">
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="text-slate-400">
-                    <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v2h20v-2c0-3.33-6.67-5-10-5z" fill="currentColor" />
-                  </svg>
+                {/* Profile avatar with hover upload */}
+                <div className="relative group">
+                  <div className="w-20 h-20 rounded-full bg-slate-200 flex items-center justify-center shadow-md border-2 border-slate-300 overflow-hidden">
+                    {d.profile_pic ? (
+                      <img src={String(d.profile_pic)} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="text-slate-400">
+                        <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v2h20v-2c0-3.33-6.67-5-10-5z" fill="currentColor" />
+                      </svg>
+                    )}
+                  </div>
+                  {/* Hover overlay for L1/L2 */}
+                  {isL1L2 && (
+                    <label className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-white">
+                        <path d="M12 16a4 4 0 100-8 4 4 0 000 8z" fill="currentColor" />
+                        <path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9z" stroke="currentColor" strokeWidth="1.5" />
+                      </svg>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept=".jpg,.jpeg,.png"
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleProfilePicUpload(f); e.target.value = ""; }}
+                      />
+                    </label>
+                  )}
                 </div>
                 <span className={`mt-2.5 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${statusColor}`}>
                   {statusVal}
@@ -472,27 +600,36 @@ export default function StaffDetailPage() {
               {/* Compact Core Info */}
               <div className="px-4 py-3 space-y-2.5 flex-1">
                 <div className="text-center">
-                  <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Assignment</p>
+                  <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Assignment / Location</p>
                   <p className="text-sm font-semibold text-foreground">{String(d.client || "-")} / {String(d.location || "-")}</p>
                 </div>
 
-                {/* Contract Expiry */}
-                {d.exp_date && (
-                  <div>
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Contract Expiry</p>
-                    <p className="text-sm font-semibold text-foreground">{fmtDate(String(d.exp_date))}</p>
-                    {expDays !== null && expDays >= 0 && expDays < 90 && (
-                      <div className="mt-1 px-2 py-0.5 bg-red-100 border border-red-200 rounded-md inline-block">
-                        <span className="text-[10px] font-black text-red-600 uppercase">Expiring in {expDays} days</span>
-                      </div>
-                    )}
-                    {expDays !== null && expDays < 0 && (
-                      <div className="mt-1 px-2 py-0.5 bg-red-100 border border-red-200 rounded-md inline-block">
-                        <span className="text-[10px] font-black text-red-600 uppercase">Expired</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Dynamic Contract Status */}
+                <div className="text-center">
+                  <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Contract Status</p>
+                  {d.exp_date ? (
+                    <div className="mt-1">
+                      <p className="text-xs font-semibold text-foreground">{fmtDate(String(d.exp_date))}</p>
+                      {expDays !== null && expDays >= 0 ? (
+                        <div className={`mt-1 px-2.5 py-1 rounded-md inline-block ${
+                          expDays < 90 ? "bg-red-100 border border-red-200" : expDays < 180 ? "bg-amber-100 border border-amber-200" : "bg-emerald-100 border border-emerald-200"
+                        }`}>
+                          <span className={`text-[10px] font-black uppercase ${
+                            expDays < 90 ? "text-red-600" : expDays < 180 ? "text-amber-600" : "text-emerald-600"
+                          }`}>
+                            {expDays} days remaining
+                          </span>
+                        </div>
+                      ) : expDays !== null && expDays < 0 ? (
+                        <div className="mt-1 px-2.5 py-1 bg-red-100 border border-red-200 rounded-md inline-block">
+                          <span className="text-[10px] font-black text-red-600 uppercase">Expired ({Math.abs(expDays)} days ago)</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic mt-0.5">Not set</p>
+                  )}
+                </div>
 
                 {d.phone && (
                   <div>
@@ -550,7 +687,7 @@ export default function StaffDetailPage() {
 
           {/* Detail Overlay (covers B+C) */}
           {showDetailOverlay && detail && (
-            <DetailOverlay detail={detail} onClose={() => setShowDetailOverlay(false)} />
+            <DetailOverlay detail={detail} onClose={() => setShowDetailOverlay(false)} canEdit={isL1L2} onSave={handleDetailSave} />
           )}
 
           {/* Add Staff Overlay (covers B+C) */}

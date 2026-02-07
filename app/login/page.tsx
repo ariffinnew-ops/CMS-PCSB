@@ -69,10 +69,29 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 overflow-hidden">
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMyMDIwMjAiIGZpbGwtb3BhY2l0eT0iMC4xIj48cGF0aCBkPSJNMzYgMzRoLTJ2LTRoMnY0em0wLTZ2LTRoLTJ2NGgyek0zNCAyNGgtMnY0aDJ2LTR6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-20" />
+    <div
+      className="h-screen flex items-center justify-center p-4 overflow-hidden relative"
+      style={{
+        backgroundImage: `url(https://image2url.com/r2/default/images/1770311131560-2493d85c-5fef-4dbd-96b2-5c844492a9aa.jpg)`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      {/* Dark overlay for readability */}
+      <div className="absolute inset-0 bg-slate-900/75 backdrop-blur-sm" />
+      {/* Grid pattern overlay */}
+      <div
+        className="absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage: `
+            linear-gradient(rgba(6, 182, 212, 0.3) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(6, 182, 212, 0.3) 1px, transparent 1px)
+          `,
+          backgroundSize: '40px 40px',
+        }}
+      />
       
-      <Card className="w-full max-w-md border-slate-800 bg-slate-900/90 backdrop-blur-sm shadow-2xl">
+      <Card className="relative z-10 w-full max-w-md border-slate-800 bg-slate-900/90 backdrop-blur-sm shadow-2xl">
         <CardHeader className="text-center pb-2 pt-6">
           <div className="mx-auto mb-4 bg-white px-8 py-4 rounded-xl shadow-lg inline-block">
             <Image
@@ -162,6 +181,13 @@ export default function LoginPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Footer */}
+      <div className="absolute bottom-0 left-0 right-0 z-10 py-3 text-center">
+        <p className="text-[11px] text-white font-medium tracking-wide">
+          &copy; {new Date().getFullYear()} kawie - Crewing Management System. All Rights Reserved.
+        </p>
+      </div>
     </div>
   );
 }

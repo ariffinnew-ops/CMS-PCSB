@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, Fragment, useEffect } from "react";
+import { useState, useMemo, Fragment, useEffect, useRef, useCallback } from "react";
 import { AppShell } from "@/components/app-shell";
 import { RosterRow } from "@/lib/types";
 import { getRosterData } from "@/lib/actions";
@@ -299,6 +299,125 @@ function NameListPopover({
   );
 }
 
+// ─── Scroll-Style Date Picker (Day / Month / Year columns) ───
+function ScrollColumn({ items, selected, onSelect, label }: { items: { value: number; label: string }[]; selected: number; onSelect: (v: number) => void; label: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const ITEM_H = 32;
+
+  useEffect(() => {
+    const idx = items.findIndex((i) => i.value === selected);
+    if (idx >= 0 && containerRef.current) {
+      containerRef.current.scrollTo({ top: idx * ITEM_H, behavior: "smooth" });
+    }
+  }, [selected, items]);
+
+  const handleScroll = useCallback(() => {
+    if (!containerRef.current) return;
+    const scrollTop = containerRef.current.scrollTop;
+    const idx = Math.round(scrollTop / ITEM_H);
+    const clamped = Math.max(0, Math.min(idx, items.length - 1));
+    if (items[clamped] && items[clamped].value !== selected) {
+      onSelect(items[clamped].value);
+    }
+  }, [items, selected, onSelect]);
+
+  return (
+    <div className="flex flex-col items-center">
+      <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">{label}</span>
+      <div className="relative h-[96px] w-[60px] overflow-hidden">
+        {/* Highlight band */}
+        <div className="absolute inset-x-0 top-[32px] h-[32px] bg-blue-500/20 border-y border-blue-500/40 rounded-md pointer-events-none z-10" />
+        <div
+          ref={containerRef}
+          onScroll={handleScroll}
+          className="h-full overflow-y-auto scrollbar-none snap-y snap-mandatory"
+          style={{ scrollSnapType: "y mandatory", scrollbarWidth: "none", msOverflowStyle: "none" }}
+        >
+          <div style={{ height: ITEM_H }} />
+          {items.map((item) => (
+            <div
+              key={item.value}
+              className={`h-[32px] flex items-center justify-center text-sm font-bold cursor-pointer snap-center transition-all ${
+                item.value === selected ? "text-white scale-110" : "text-slate-500 hover:text-slate-300"
+              }`}
+              style={{ scrollSnapAlign: "center" }}
+              onClick={() => onSelect(item.value)}
+            >
+              {item.label}
+            </div>
+          ))}
+          <div style={{ height: ITEM_H }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScrollDatePicker({ value, onChange }: { value: Date; onChange: (d: Date) => void }) {
+  const day = value.getDate();
+  const month = value.getMonth();
+  const year = value.getFullYear();
+
+  const years = useMemo(() => {
+    const arr = [];
+    for (let y = 2020; y <= 2030; y++) arr.push({ value: y, label: String(y) });
+    return arr;
+  }, []);
+
+  const months = useMemo(() => [
+    { value: 0, label: "Jan" }, { value: 1, label: "Feb" }, { value: 2, label: "Mar" },
+    { value: 3, label: "Apr" }, { value: 4, label: "May" }, { value: 5, label: "Jun" },
+    { value: 6, label: "Jul" }, { value: 7, label: "Aug" }, { value: 8, label: "Sep" },
+    { value: 9, label: "Oct" }, { value: 10, label: "Nov" }, { value: 11, label: "Dec" },
+  ], []);
+
+  const days = useMemo(() => {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    return Array.from({ length: daysInMonth }, (_, i) => ({ value: i + 1, label: String(i + 1).padStart(2, "0") }));
+  }, [year, month]);
+
+  const setDay = useCallback((d: number) => {
+    const maxDay = new Date(year, month + 1, 0).getDate();
+    onChange(new Date(year, month, Math.min(d, maxDay)));
+  }, [year, month, onChange]);
+
+  const setMonth = useCallback((m: number) => {
+    const maxDay = new Date(year, m + 1, 0).getDate();
+    onChange(new Date(year, m, Math.min(day, maxDay)));
+  }, [year, day, onChange]);
+
+  const setYear = useCallback((y: number) => {
+    const maxDay = new Date(y, month + 1, 0).getDate();
+    onChange(new Date(y, month, Math.min(day, maxDay)));
+  }, [month, day, onChange]);
+
+  const isToday = useMemo(() => {
+    const now = new Date();
+    return day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
+  }, [day, month, year]);
+
+  return (
+    <div className="bg-slate-800/60 backdrop-blur-xl border border-slate-700/50 rounded-xl px-4 py-3 flex flex-col items-center gap-2">
+      <div className="flex items-center gap-4">
+        <ScrollColumn items={days} selected={day} onSelect={setDay} label="Day" />
+        <ScrollColumn items={months} selected={month} onSelect={setMonth} label="Month" />
+        <ScrollColumn items={years} selected={year} onSelect={setYear} label="Year" />
+      </div>
+      <button
+        type="button"
+        onClick={() => onChange(new Date())}
+        className={`px-4 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+          isToday
+            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-default"
+            : "bg-slate-700/50 hover:bg-slate-600/50 text-slate-400 hover:text-white"
+        }`}
+      >
+        {isToday ? "Today" : "Reset to Today"}
+      </button>
+    </div>
+  );
+}
+
 // Compact Table Component for Full List View - with filters and full scroll
 function CompactTable({
   personnel,
@@ -385,13 +504,13 @@ function CompactTable({
         <table className="w-full text-left">
           <thead className="sticky top-0 z-10">
             <tr className="bg-slate-800 border-b border-slate-700/50">
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">#</th>
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Name</th>
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Role</th>
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Location</th>
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Client</th>
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Days</th>
-              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Rotation</th>
+              <th className="px-3 py-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider">#</th>
+              <th className="px-3 py-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider">Name</th>
+              <th className="px-3 py-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider">Role</th>
+              <th className="px-3 py-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider">Location</th>
+              <th className="px-3 py-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider">Client</th>
+              <th className="px-3 py-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center">Days</th>
+              <th className="px-3 py-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right">Rotation</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/50">
@@ -416,7 +535,7 @@ function CompactTable({
                 <Fragment key={`${row.crew_name}-${row.id}`}>
                   {showSeparator && (
                     <tr className="bg-slate-800/30">
-                      <td colSpan={7} className="px-4 py-2">
+                      <td colSpan={7} className="px-3 py-1">
                         <span className={`inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide ${
                           row.client === "SKA" ? "text-blue-400" : "text-orange-400"
                         }`}>
@@ -427,12 +546,12 @@ function CompactTable({
                     </tr>
                   )}
                   <tr className="hover:bg-slate-800/30 transition-colors">
-                    <td className="px-4 py-2.5 text-xs text-slate-500 tabular-nums">{currentTradeCounter}</td>
-                    <td className="px-4 py-2.5">
-                      <span className="text-sm font-medium text-white">{row.crew_name}</span>
+                    <td className="px-3 py-1 text-[11px] text-slate-500 tabular-nums">{currentTradeCounter}</td>
+                    <td className="px-3 py-1">
+                      <span className="text-xs font-medium text-white">{row.crew_name}</span>
                     </td>
-                    <td className="px-4 py-2.5">
-                      <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold ${
+                    <td className="px-3 py-1">
+                      <span className={`inline-flex px-1.5 py-px rounded text-[9px] font-bold ${
                         tradeName === "OFFSHORE MEDIC" 
                           ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" 
                           : tradeName === "ESCORT MEDIC"
@@ -442,30 +561,30 @@ function CompactTable({
                         {tradeName === "OFFSHORE MEDIC" ? "OM" : tradeName === "ESCORT MEDIC" ? "EM" : "OHN"}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-slate-400">{row.location}</td>
-                    <td className="px-4 py-2.5">
-                      <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold ${
+                    <td className="px-3 py-1 text-[11px] text-slate-400">{row.location}</td>
+                    <td className="px-3 py-1">
+                      <span className={`inline-flex px-1.5 py-px rounded text-[9px] font-bold ${
                         row.client === "SKA" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-orange-500/20 text-orange-400 border border-orange-500/30"
                       }`}>
                         {row.client}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-center">
-                      <span className={`text-sm font-semibold tabular-nums ${
+                    <td className="px-3 py-1 text-center">
+                      <span className={`text-xs font-semibold tabular-nums ${
                         days >= 14 ? "text-red-400" : "text-white"
                       }`}>
                         {isOHN ? "-" : days > 0 ? days : "-"}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-right">
+                    <td className="px-3 py-1 text-right">
                       {isOHN ? (
-                        <span className="text-xs text-slate-500 italic">Weekdays</span>
+                        <span className="text-[11px] text-slate-500 italic">Weekdays</span>
                       ) : range.start ? (
-                        <span className="text-xs text-cyan-400 tabular-nums">
+                        <span className="text-[11px] text-cyan-400 tabular-nums">
                           {formatDate(range.start)} - {formatDate(range.end)}
                         </span>
                       ) : (
-                        <span className="text-xs text-slate-500">-</span>
+                        <span className="text-[11px] text-slate-500">-</span>
                       )}
                     </td>
                   </tr>
@@ -607,9 +726,8 @@ export default function DashboardPage() {
                 
                 {/* Title - Center */}
                 <h1 
-                  className="text-xl font-black text-white uppercase tracking-[0.25em]"
+                  className="text-xl font-black text-white uppercase tracking-[0.25em] font-sans"
                   style={{ 
-                    fontFamily: "'Orbitron', 'Rajdhani', sans-serif",
                     textShadow: "0 0 30px rgba(59, 130, 246, 0.5), 0 0 60px rgba(249, 115, 22, 0.3)"
                   }}
                 >
@@ -629,24 +747,9 @@ export default function DashboardPage() {
 
               {/* Main HUD Content - Compact */}
               <div className="flex-1 flex flex-col items-center justify-center px-4 -mt-2">
-                {/* Date Picker - Above Donut */}
+                {/* Scroll Date Picker - Above Donut */}
                 <div className="mb-3">
-                  <div className="bg-slate-800/60 backdrop-blur-xl border border-slate-700/50 rounded-xl px-4 py-2 flex items-center gap-3">
-                    <div className="text-[8px] text-slate-400 uppercase tracking-wider">Date</div>
-                    <input
-                      type="date"
-                      value={systemDate.toISOString().split("T")[0]}
-                      onChange={(e) => setSystemDate(new Date(e.target.value))}
-                      className="bg-transparent text-white text-sm font-bold outline-none cursor-pointer"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setSystemDate(new Date())}
-                      className="px-3 py-1 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-[10px] font-bold text-slate-400 hover:text-white transition-all"
-                    >
-                      Today
-                    </button>
-                  </div>
+                  <ScrollDatePicker value={systemDate} onChange={setSystemDate} />
                 </div>
 
                 {/* HUD Layout: SKA (Left) - Donut (Center) - SBA (Right) */}

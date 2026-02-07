@@ -354,7 +354,7 @@ function EditableCell({
 
   return (
     <td
-      className={`px-1 py-1.5 text-[11px] text-center tabular-nums border-r border-slate-200 ${className} ${
+      className={`px-1 py-0.5 text-[10px] text-center tabular-nums border-r border-slate-200 ${className} ${
         canEdit ? "cursor-pointer hover:ring-2 hover:ring-blue-400 hover:ring-inset" : ""
       } ${saving ? "opacity-50" : ""}`}
       onDoubleClick={() => canEdit && setEditing(true)}
@@ -365,7 +365,7 @@ function EditableCell({
   );
 }
 
-// ═══════════════════════════════════════
+// ═══════════════════════════════════���═══
 // MAIN PAGE
 // ════════════════════════════���══════════
 export default function TrainingMatrixPage() {
@@ -495,11 +495,11 @@ export default function TrainingMatrixPage() {
     <AppShell>
       <div className="flex flex-col h-[calc(100vh-80px)] animate-in fade-in duration-500">
         {/* Title + Filters */}
-        <div className="flex-shrink-0 space-y-2 pb-2">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2">
+        <div className="flex-shrink-0 space-y-1.5 pb-1">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-1">
             <div>
-              <h2 className="text-xl font-black text-foreground uppercase tracking-tight">Training Matrix</h2>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
+              <h2 className="text-lg font-black text-foreground uppercase tracking-tight">Training Matrix</h2>
+              <p className="text-[10px] text-muted-foreground">
                 IMS Personnel Competency & Certification Tracker
                 {canEdit && <span className="ml-2 text-blue-400">(Double-click cells to edit)</span>}
               </p>
@@ -581,7 +581,7 @@ export default function TrainingMatrixPage() {
           </div>
 
           {/* Legend */}
-          <div className="flex items-center gap-5 text-[9px] font-bold uppercase text-muted-foreground">
+          <div className="flex items-center gap-4 text-[8px] font-bold uppercase text-muted-foreground">
             <div className="flex items-center gap-1.5">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PIE_GREEN }} />
               <span>{"Safe (>6 months)"}</span>
@@ -691,9 +691,9 @@ export default function TrainingMatrixPage() {
                         </tr>
                       )}
                       <tr className="hover:bg-blue-50/50 transition-colors group">
-                        <td className="px-2 py-1.5 border-r border-slate-200 sticky left-0 bg-white group-hover:bg-blue-50/50 z-10 text-[11px] text-slate-500 font-bold tabular-nums text-center">{idx + 1}</td>
-                        <td className="px-2 py-1.5 border-r border-slate-200 sticky left-[36px] bg-white group-hover:bg-blue-50/50 z-10 overflow-hidden">
-                          <div className="text-[11px] font-bold text-slate-900 uppercase truncate w-[155px]">{person.crew_name}</div>
+                        <td className="px-2 py-0.5 border-r border-slate-200 sticky left-0 bg-white group-hover:bg-blue-50/50 z-10 text-[10px] text-slate-500 font-bold tabular-nums text-center">{idx + 1}</td>
+                        <td className="px-2 py-0.5 border-r border-slate-200 sticky left-[36px] bg-white group-hover:bg-blue-50/50 z-10 overflow-hidden">
+                          <div className="text-[10px] font-bold text-slate-900 uppercase truncate w-[155px]">{person.crew_name}</div>
                         </td>
                         {/* Render cells for each course */}
                         {visibleCourses.map((cc) => {
