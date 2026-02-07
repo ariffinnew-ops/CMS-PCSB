@@ -323,16 +323,24 @@ export default function AdminPage() {
       location: addStaffModal.location,
     };
 
+    console.log("[v0] handleAddStaff payload:", JSON.stringify(payload));
+    console.log("[v0] addStaffModal context:", JSON.stringify(addStaffModal));
+    console.log("[v0] selectedStaff:", JSON.stringify({ id: selectedStaff.id, crew_name: selectedStaff.crew_name, post: selectedStaff.post, client: selectedStaff.client, location: selectedStaff.location }));
+
     const result = await createRosterRow(payload);
     setIsSyncing(false);
 
+    console.log("[v0] createRosterRow result:", JSON.stringify(result));
+
     if (result.success && result.data) {
+      console.log("[v0] Inserted row data:", JSON.stringify({ id: result.data.id, crew_name: result.data.crew_name, post: result.data.post, client: result.data.client, location: result.data.location, crew_id: result.data.crew_id }));
       setData((prev) => [...prev, result.data!]);
       setNewlyAddedIds((prev) => new Set([...prev, result.data!.id]));
       setLastSynced(new Date());
       const displaySuffix = isRelief ? ` (Relief at ${addStaffModal.location})` : "";
       showNotification(`${finalName}${displaySuffix} added successfully`, "success");
     } else {
+      console.log("[v0] createRosterRow ERROR:", result.error);
       showNotification(result.error || "Failed to add staff", "error");
     }
 
