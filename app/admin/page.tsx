@@ -7,6 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { RosterRow, TradeType } from "@/lib/types";
 import { getRosterData, updateRosterRow, createRosterRow, deleteRosterRow, getCrewList } from "@/lib/actions";
 import { safeParseDate, getTradeRank, shortenPost } from "@/lib/logic";
+import { getClients, getPostsForClient, getLocationsForClientPost } from "@/lib/client-location-map";
 
 interface CrewListItem { id: string; crew_name: string; clean_name: string; post: string; client: string; location: string; status?: string }
 
@@ -360,10 +361,10 @@ export default function AdminPage() {
     }
   };
 
-  // Unique values for assignment dropdowns
-  const uniqueClients = useMemo(() => [...new Set(data.map((r) => r.client).filter(Boolean))].sort(), [data]);
-  const uniquePosts = useMemo(() => [...new Set(data.map((r) => r.post).filter(Boolean))].sort(), [data]);
-  const uniqueLocations = useMemo(() => [...new Set(data.map((r) => r.location).filter(Boolean))].sort(), [data]);
+  // Cascading dropdown options from CLIENT_LOCATION_MAP
+  const mapClients = useMemo(() => getClients(), []);
+  const mapPosts = useMemo(() => newStaffClient ? getPostsForClient(newStaffClient) : [], [newStaffClient]);
+  const mapLocations = useMemo(() => (newStaffClient && newStaffPost) ? getLocationsForClientPost(newStaffClient, newStaffPost) : [], [newStaffClient, newStaffPost]);
 
   // Filter crew list for modal (search by clean_name or crew_name)
   const filteredMasterList = useMemo(() => {
@@ -900,22 +901,23 @@ export default function AdminPage() {
                       <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Client</label>
                       <select
                         value={newStaffClient}
-                        onChange={(e) => setNewStaffClient(e.target.value)}
+                        onChange={(e) => { setNewStaffClient(e.target.value); setNewStaffPost(""); setNewStaffLocation(""); }}
                         className="w-full bg-muted border border-border rounded-lg px-2 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase"
                       >
                         <option value="">--</option>
-                        {uniqueClients.map((c) => <option key={c} value={c}>{c}</option>)}
+                        {mapClients.map((c) => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Trade / Post</label>
                       <select
                         value={newStaffPost}
-                        onChange={(e) => setNewStaffPost(e.target.value)}
-                        className="w-full bg-muted border border-border rounded-lg px-2 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase"
+                        onChange={(e) => { setNewStaffPost(e.target.value); setNewStaffLocation(""); }}
+                        disabled={!newStaffClient}
+                        className="w-full bg-muted border border-border rounded-lg px-2 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase disabled:opacity-50"
                       >
                         <option value="">--</option>
-                        {uniquePosts.map((p) => <option key={p} value={p}>{p}</option>)}
+                        {mapPosts.map((p) => <option key={p} value={p}>{p}</option>)}
                       </select>
                     </div>
                     <div>
@@ -923,10 +925,11 @@ export default function AdminPage() {
                       <select
                         value={newStaffLocation}
                         onChange={(e) => setNewStaffLocation(e.target.value)}
-                        className="w-full bg-muted border border-border rounded-lg px-2 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase"
+                        disabled={!newStaffPost}
+                        className="w-full bg-muted border border-border rounded-lg px-2 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase disabled:opacity-50"
                       >
                         <option value="">--</option>
-                        {uniqueLocations.map((l) => <option key={l} value={l}>{l}</option>)}
+                        {mapLocations.map((l) => <option key={l} value={l}>{l}</option>)}
                       </select>
                     </div>
                   </div>
