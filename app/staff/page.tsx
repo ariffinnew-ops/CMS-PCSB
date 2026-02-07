@@ -157,7 +157,7 @@ function DetailOverlay({ detail, onClose, canEdit, onSave }: { detail: Record<st
 
   const startEdit = () => {
     const form: Record<string, string> = {};
-    const keys = ["crew_name", "nric_pp", "address", "phone", "email1", "email2", "post", "client", "location", "hire_date", "resign_date", "exp_date", "status", "nok_name", "nok_relation", "nok_phone"];
+    const keys = ["crew_name", "nric_passport", "address", "phone", "email1", "email2", "post", "client", "location", "hire_date", "resign_date", "exp_date", "status", "nok_name", "nok_relation", "nok_phone"];
     for (const k of keys) form[k] = d[k] !== undefined && d[k] !== null ? String(d[k]) : "";
     setEditForm(form);
     setEditing(true);
@@ -179,7 +179,7 @@ function DetailOverlay({ detail, onClose, canEdit, onSave }: { detail: Record<st
       section: "Personal & Contact",
       items: [
         { label: "Full Name", key: "crew_name" },
-        { label: "NRIC / Passport Number", key: "nric_pp" },
+        { label: "NRIC / Passport Number", key: "nric_passport" },
         { label: "Address", key: "address" },
         { label: "Phone", key: "phone" },
         { label: "Email 1", key: "email1" },
@@ -286,7 +286,7 @@ function DetailOverlay({ detail, onClose, canEdit, onSave }: { detail: Record<st
 // ─── Add Staff Overlay (covers Section B + C area) ───
 function AddStaffOverlay({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const [form, setForm] = useState<Record<string, string>>({
-    crew_name: "", nric_pp: "", address: "", phone: "", email1: "", email2: "",
+    crew_name: "", nric_passport: "", address: "", phone: "", email1: "", email2: "",
     post: "", client: "", location: "", hire_date: "", resign_date: "", exp_date: "", status: "Active",
     nok_name: "", nok_relation: "", nok_phone: "",
   });
@@ -323,7 +323,7 @@ function AddStaffOverlay({ onClose, onCreated }: { onClose: () => void; onCreate
           <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 mb-3 border-b border-border pb-2">Personal & Contact</h4>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
             <div><label className={labelCls}>Full Name *</label><input value={form.crew_name} onChange={(e) => set("crew_name", e.target.value)} className={inputCls} /></div>
-            <div><label className={labelCls}>NRIC / Passport Number</label><input value={form.nric_pp} onChange={(e) => set("nric_pp", e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>NRIC / Passport Number</label><input value={form.nric_passport} onChange={(e) => set("nric_passport", e.target.value)} className={inputCls} /></div>
             <div className="col-span-2 lg:col-span-3"><label className={labelCls}>Address</label><input value={form.address} onChange={(e) => set("address", e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>Phone</label><input value={form.phone} onChange={(e) => set("phone", e.target.value)} className={inputCls} /></div>
             <div><label className={labelCls}>Email 1</label><input value={form.email1} onChange={(e) => set("email1", e.target.value)} className={inputCls} /></div>
@@ -506,7 +506,7 @@ export default function StaffDetailPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center h-[calc(100vh-80px)]">
+        <div className="flex items-center justify-center h-[calc(100vh-120px)]">
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500" />
         </div>
       </AppShell>
@@ -519,10 +519,10 @@ export default function StaffDetailPage() {
 
   return (
     <AppShell>
-      <div className="grid grid-cols-1 lg:grid-cols-[30%_1fr] gap-3 h-[calc(100vh-80px)] animate-in fade-in duration-500">
+      <div className="grid grid-cols-1 lg:grid-cols-[30%_1fr] gap-3 h-[calc(100vh-120px)] animate-in fade-in duration-500">
 
         {/* ═══ SECTION A: PROFILE SIDEBAR (30%) ═══ */}
-        <div className="bg-background border border-border rounded-xl overflow-y-auto flex flex-col">
+        <div className="bg-background border border-border rounded-xl overflow-hidden flex flex-col h-full">
 
           {/* Search + Autocomplete */}
           <div className="p-3 border-b border-border" ref={searchRef}>
@@ -556,14 +556,14 @@ export default function StaffDetailPage() {
           {d && (
             <>
               {/* Avatar + Status */}
-              <div className="flex flex-col items-center pt-5 pb-3 px-4">
+              <div className="flex flex-col items-center pt-3 pb-2 px-4 shrink-0">
                 {/* Profile avatar with hover upload */}
                 <div className="relative group">
-                  <div className="w-20 h-20 rounded-full bg-slate-200 flex items-center justify-center shadow-md border-2 border-slate-300 overflow-hidden">
+                  <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center shadow-md border-2 border-slate-300 overflow-hidden">
                     {d.profile_pic ? (
                       <img src={String(d.profile_pic)} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
-                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="text-slate-400">
+                      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" className="text-slate-400">
                         <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v2h20v-2c0-3.33-6.67-5-10-5z" fill="currentColor" />
                       </svg>
                     )}
@@ -598,7 +598,7 @@ export default function StaffDetailPage() {
               <div className="border-t border-border mx-4" />
 
               {/* Compact Core Info */}
-              <div className="px-4 py-3 space-y-2.5 flex-1">
+              <div className="px-4 py-2 space-y-2 shrink-0">
                 <div className="text-center">
                   <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Assignment / Location</p>
                   <p className="text-sm font-semibold text-foreground">{String(d.client || "-")} / {String(d.location || "-")}</p>
@@ -646,37 +646,36 @@ export default function StaffDetailPage() {
               </div>
 
               {/* Action Buttons */}
-              <div className="p-3 border-t border-border space-y-2">
+              <div className="p-2 border-t border-border space-y-1.5 shrink-0 mt-auto">
                 <button
                   type="button"
                   onClick={() => setShowDetailOverlay(true)}
-                  className="w-full px-3 py-2 rounded-lg text-xs font-black uppercase bg-blue-600 text-white hover:bg-blue-500 transition-colors"
+                  className="w-full px-3 py-1.5 rounded-lg text-[10px] font-black uppercase bg-blue-600 text-white hover:bg-blue-500 transition-colors"
                 >
                   See Detail
                 </button>
-
-                <div className="border-t border-border my-1" />
-
-                <button
-                  type="button"
-                  onClick={() => isL1L2 && setShowStatusDialog(true)}
-                  disabled={!isL1L2}
-                  className={`w-full px-3 py-2 rounded-lg text-xs font-black uppercase transition-colors border ${
-                    isL1L2 ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100" : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
-                  }`}
-                >
-                  Change Status
-                </button>
-                <button
-                  type="button"
-                  onClick={() => isL1L2 && setShowAdd(true)}
-                  disabled={!isL1L2}
-                  className={`w-full px-3 py-2 rounded-lg text-xs font-black uppercase transition-colors border ${
-                    isL1L2 ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100" : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
-                  }`}
-                >
-                  + Add New Staff
-                </button>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => isL1L2 && setShowStatusDialog(true)}
+                    disabled={!isL1L2}
+                    className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-black uppercase transition-colors border ${
+                      isL1L2 ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100" : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                    }`}
+                  >
+                    Status
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => isL1L2 && setShowAdd(true)}
+                    disabled={!isL1L2}
+                    className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-black uppercase transition-colors border ${
+                      isL1L2 ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100" : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                    }`}
+                  >
+                    + Add Staff
+                  </button>
+                </div>
               </div>
             </>
           )}
@@ -695,17 +694,16 @@ export default function StaffDetailPage() {
             <AddStaffOverlay onClose={() => setShowAdd(false)} onCreated={handleCreated} />
           )}
 
-          {/* ═══ SECTION B: CERTIFICATES (Top) ═══ */}
-          <div className="bg-background border border-border rounded-xl flex-1 min-h-0 flex flex-col overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-border flex items-center justify-between shrink-0">
-              <h4 className="text-xs font-black uppercase tracking-wider text-foreground">Certification List</h4>
+          {/* ═══ SECTION B: CERTIFICATES (Top - auto fit, no scroll) ═══ */}
+          <div className="bg-background border border-border rounded-xl shrink-0 flex flex-col overflow-hidden">
+            <div className="px-4 py-1.5 border-b border-border flex items-center justify-between shrink-0">
+              <h4 className="text-[10px] font-black uppercase tracking-wider text-foreground">Certification List</h4>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground font-bold">{matrix.length} certs</span>
-                {/* Upload Doc */}
-                <label className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase cursor-pointer transition-colors ${
+                <span className="text-[9px] text-muted-foreground font-bold">{matrix.length} certs</span>
+                <label className={`px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase cursor-pointer transition-colors ${
                   isL1L2 ? "bg-blue-600 text-white hover:bg-blue-500" : "bg-slate-100 text-slate-400 cursor-not-allowed"
                 }`}>
-                  {uploading ? "Uploading..." : "Upload Doc"}
+                  {uploading ? "..." : "Upload Doc"}
                   <input
                     type="file"
                     className="hidden"
@@ -716,7 +714,7 @@ export default function StaffDetailPage() {
                 </label>
               </div>
             </div>
-            <div className="flex-1 overflow-auto p-3">
+            <div className="p-2">
               {matrix.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">No certifications found.</p>
               ) : (
@@ -740,12 +738,12 @@ export default function StaffDetailPage() {
             </div>
           </div>
 
-          {/* ═══ SECTION C: MOVEMENT GRID (Bottom) ═══ */}
+          {/* ═══ SECTION C: MOVEMENT GRID (Bottom - fill remaining) ═══ */}
           <div className="bg-background border border-border rounded-xl flex-1 min-h-0 flex flex-col overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-border flex items-center justify-between shrink-0">
-              <h4 className="text-xs font-black uppercase tracking-wider text-foreground">Movement Grid</h4>
-              <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground">
-                <span className="flex items-center gap-1"><span className="w-3 h-2 rounded-sm bg-blue-500 inline-block" /> On Board</span>
+            <div className="px-4 py-1.5 border-b border-border flex items-center justify-between shrink-0">
+              <h4 className="text-[10px] font-black uppercase tracking-wider text-foreground">Movement Grid</h4>
+              <div className="flex items-center gap-2 text-[9px] font-bold text-muted-foreground">
+                <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 rounded-sm bg-blue-500 inline-block" /> On Board</span>
               </div>
             </div>
             <div className="flex-1 overflow-auto p-2">

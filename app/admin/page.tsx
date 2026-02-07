@@ -64,6 +64,14 @@ export default function AdminPage() {
     const [rosterData, crewResult] = await Promise.all([getRosterData(), getCrewList()]);
     setData(rosterData);
     if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
+    // Load notes from pcsb_roster `note` column into notesStore
+    const loadedNotes: Record<string, string> = {};
+    for (const row of rosterData) {
+      if (row.note && typeof row.note === "string" && row.note.trim()) {
+        loadedNotes[String(row.id)] = row.note;
+      }
+    }
+    setNotesStore(loadedNotes);
     setLoading(false);
   };
 
@@ -269,21 +277,25 @@ export default function AdminPage() {
     showNotification("Global Registry Synced", "success");
   };
 
-  const saveNote = () => {
+  const saveNote = async () => {
     if (activeNote) {
-      const key = `${activeNote.id}-${activeNote.rotationIdx}`;
+      const key = String(activeNote.id);
       setNotesStore((prev) => ({ ...prev, [key]: activeNote.note }));
+      // Sync to pcsb_roster note column
+      await updateRosterRow(activeNote.id, { note: activeNote.note });
       showNotification("Note Saved", "success");
       setActiveNote(null);
     }
   };
 
-  const deleteNote = () => {
+  const deleteNote = async () => {
     if (activeNote) {
-      const key = `${activeNote.id}-${activeNote.rotationIdx}`;
+      const key = String(activeNote.id);
       const newStore = { ...notesStore };
       delete newStore[key];
       setNotesStore(newStore);
+      // Clear note in pcsb_roster
+      await updateRosterRow(activeNote.id, { note: null });
       showNotification("Note Deleted", "error");
       setActiveNote(null);
     }
@@ -653,7 +665,7 @@ export default function AdminPage() {
                               const mVal = row[`m${rotationIdx}`] as string;
                               const dVal = row[`d${rotationIdx}`] as string;
                               const days = calculateDays(mVal, dVal);
-                              const noteKey = `${row.id}-${rotationIdx}`;
+                              const noteKey = String(row.id);
                               const alertKey = `${row.id}-${rotationIdx}`;
                               const hasNote = !!notesStore[noteKey];
                               const conflicts = getOverlaps[alertKey];
@@ -833,7 +845,7 @@ export default function AdminPage() {
               </div>
 
               <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
-                {notesStore[`${activeNote.id}-${activeNote.rotationIdx}`] && (
+                {notesStore[String(activeNote.id)] && (
                   <button type="button" onClick={deleteNote} className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-black text-[10px] uppercase tracking-wider transition-all">
                     Delete
                   </button>
