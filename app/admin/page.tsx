@@ -966,7 +966,7 @@ export default function AdminPage() {
                       ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg hover:shadow-emerald-500/30"
                       : "bg-muted text-muted-foreground cursor-not-allowed"
                   }`}
-                >Add to Roster</button>
+                >Add</button>
               </div>
             </div>
           </div>
