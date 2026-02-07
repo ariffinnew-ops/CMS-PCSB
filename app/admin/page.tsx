@@ -272,14 +272,14 @@ export default function AdminPage() {
     return diff > 0 ? diff : 0;
   };
 
-  // Check if a crew_id already exists in the roster (for Relief detection)
+  // Check if a crew_id (or any relief variant like id_R, id_R1) already exists in the roster
   const isCrewInRoster = (crewId: string) => {
-    return data.some((row) => row.crew_id === crewId);
+    return data.some((row) => row.crew_id === crewId || (row.crew_id && row.crew_id.startsWith(`${crewId}_R`)));
   };
 
-  // Count how many times a crew_id appears in the roster
+  // Count how many times a crew_id (including relief variants) appears in the roster
   const getCrewIdCount = (crewId: string) => {
-    return data.filter((row) => row.crew_id === crewId).length;
+    return data.filter((row) => row.crew_id === crewId || (row.crew_id && row.crew_id.startsWith(`${crewId}_R`))).length;
   };
 
   // Display name is now stored directly in pcsb_roster.crew_name (with suffix)
@@ -294,8 +294,10 @@ export default function AdminPage() {
     // Use clean_name as the official name (fallback to crew_name)
     const baseName = selectedStaff.clean_name || selectedStaff.crew_name;
 
-    // Count how many rows exist for this crew_id in current data
-    const existingCount = getCrewIdCount(selectedStaff.id);
+    // Count how many rows with matching crew_id (or crew_id_R*, crew_id_R1*, etc.) exist
+    const existingCount = data.filter((row) =>
+      row.crew_id === selectedStaff.id || (row.crew_id && row.crew_id.startsWith(`${selectedStaff.id}_R`))
+    ).length;
 
     // Determine name suffix: 0 = plain, 1 = (R), 2+ = (R1), (R2)...
     let finalName = baseName;
@@ -305,11 +307,15 @@ export default function AdminPage() {
       finalName = `${baseName} (R${existingCount})`;
     }
 
-    // For relief: use the modal's location/post/client (where they're being assigned)
-    // For first entry: use their default from crew_detail
+    // For relief: use a unique crew_id suffix so it doesn't violate the PKEY constraint
+    // Also use the modal's location/post/client (where they're being assigned)
     const isRelief = existingCount > 0;
+    const uniqueCrewId = isRelief
+      ? `${selectedStaff.id}_R${existingCount}`
+      : selectedStaff.id;
+
     const payload = {
-      crew_id: selectedStaff.id,
+      crew_id: uniqueCrewId,
       crew_name: finalName,
       post: isRelief ? addStaffModal.post : selectedStaff.post,
       client: isRelief ? addStaffModal.client : selectedStaff.client,
