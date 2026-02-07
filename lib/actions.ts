@@ -57,12 +57,15 @@ export async function updateRosterRow(id: number, updates: Partial<RosterRow>): 
   return { success: true }
 }
 
-export async function createRosterRow(row: Omit<RosterRow, 'id'>): Promise<{ success: boolean; data?: RosterRow; error?: string }> {
+export async function createRosterRow(row: Omit<RosterRow, 'id'> | { crew_id: string }): Promise<{ success: boolean; data?: RosterRow; error?: string }> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  // Only send crew_id to pcsb_roster (name/post/client/location come from the join with pcsb_crew_detail)
+  const insertPayload: Record<string, unknown> = { crew_id: (row as { crew_id?: string }).crew_id };
+
+  const { data: insertedRow, error } = await supabase
     .from('pcsb_roster')
-    .insert(row)
+    .insert(insertPayload)
     .select()
     .single()
 
@@ -71,7 +74,26 @@ export async function createRosterRow(row: Omit<RosterRow, 'id'>): Promise<{ suc
     return { success: false, error: error.message }
   }
 
-  return { success: true, data }
+  // Re-fetch with crew detail join for the returned data
+  if (insertedRow) {
+    const { data: crewData } = await supabase
+      .from('pcsb_crew_detail')
+      .select('crew_name, post, client, location')
+      .eq('id', insertedRow.crew_id)
+      .single()
+
+    const fullRow = {
+      ...insertedRow,
+      crew_name: crewData?.crew_name || '',
+      post: crewData?.post || '',
+      client: crewData?.client || '',
+      location: crewData?.location || '',
+    } as RosterRow
+
+    return { success: true, data: fullRow }
+  }
+
+  return { success: true, data: insertedRow }
 }
 
 export async function deleteRosterRow(id: number): Promise<{ success: boolean; error?: string }> {
