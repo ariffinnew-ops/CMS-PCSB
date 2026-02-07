@@ -439,7 +439,7 @@ export default function AdminPage() {
 
   return (
     <AppShell>
-      <div className="flex flex-col h-full max-h-[calc(100vh-100px)] mt-4 relative">
+      <div className="flex flex-col h-full max-h-[calc(100vh-80px)] mt-1 relative">
         {/* SYNCING INDICATOR */}
         {isSyncing && (
           <div className="fixed top-24 right-4 z-[2000] px-6 py-3 rounded-2xl shadow-2xl bg-blue-600 text-white font-black text-[11px] uppercase tracking-widest animate-in slide-in-from-right duration-300 flex items-center gap-2">
@@ -460,7 +460,7 @@ export default function AdminPage() {
         )}
 
         {/* PAGE HEADER */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between border-b border-border pb-4 flex-shrink-0 gap-6">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between border-b border-border pb-2 flex-shrink-0 gap-4">
           <div>
             <h2 className="text-4xl font-black text-foreground uppercase italic tracking-tighter leading-none">
               MOVEMENT REGISTER
@@ -474,7 +474,7 @@ export default function AdminPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
-            <div className="flex flex-wrap items-center gap-4 bg-muted p-4 rounded-2xl border border-border shadow-inner">
+            <div className="flex flex-wrap items-center gap-4 bg-muted p-3 rounded-2xl border border-border shadow-inner">
               <div className="flex flex-col px-4 border-r border-border">
                 <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
                   Grade
@@ -697,7 +697,7 @@ export default function AdminPage() {
                               return (
                                 <Fragment key={rotationIdx}>
                                   <div
-                                    className={`flex items-center gap-3 p-2.5 rounded-2xl border transition-all ${
+                                    className={`flex items-center gap-3 p-1.5 rounded-2xl border transition-all ${
                                       mVal
                                         ? "bg-card border-border shadow-md"
                                         : "bg-muted/30 border-border/50 opacity-40 hover:opacity-100 group-hover:shadow-lg"
