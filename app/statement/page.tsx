@@ -7,8 +7,8 @@ import { getPivotedRosterData, getCrewMasterData, type CrewMasterRecord } from "
 import { safeParseDate, shortenPost, getTradeRank, formatDate } from "@/lib/logic";
 
 const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+  "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER",
 ];
 
 interface StatementRow {
@@ -17,14 +17,23 @@ interface StatementRow {
   post: string;
   client: string;
   location: string;
-  salary: number;
-  fixedAllowance: number;
-  totalDays: number;
-  offshoreAllowance: number;
-  reliefAllowance: number;
-  standbyAllowance: number;
+  // Offshore
+  offshoreDays: number;
+  offshoreRate: number;
+  offshoreTotal: number;
+  // Relief
+  reliefDays: number;
+  reliefRate: number;
+  reliefTotal: number;
+  // Standby
+  standbyDays: number;
+  standbyRate: number;
+  standbyTotal: number;
+  // Medevac
   medevacCount: number;
-  medevacAllowance: number;
+  medevacRate: number;
+  medevacTotal: number;
+  // Grand
   grandTotal: number;
   cycles: {
     cycleNum: number;
@@ -32,8 +41,10 @@ interface StatementRow {
     sign_off: string | null;
     days: number;
     is_offshore: boolean;
-    relief_all: number;
-    standby_all: number;
+    day_relief: number;
+    relief_rate: number;
+    day_standby: number;
+    standby_rate: number;
     medevac_dates: string[];
     notes: string | null;
   }[];
@@ -59,7 +70,6 @@ export default function StatementPage() {
     });
   }, []);
 
-  // Build master lookup by crew_name (uppercase trimmed for matching)
   const masterMap = useMemo(() => {
     const map = new Map<string, CrewMasterRecord>();
     for (const m of masterData) {
@@ -73,7 +83,6 @@ export default function StatementPage() {
     return [y, m];
   }, [selectedMonth]);
 
-  // Calculate statement rows
   const statementRows = useMemo(() => {
     const monthStart = new Date(selectedYear, selectedMonthNum - 1, 1, 0, 0, 0, 0);
     const monthEnd = new Date(selectedYear, selectedMonthNum, 0, 23, 59, 59, 999);
@@ -86,19 +95,17 @@ export default function StatementPage() {
       const isOM = (crew.post || "").toUpperCase().includes("OFFSHORE MEDIC");
       const isEM = (crew.post || "").toUpperCase().includes("ESCORT MEDIC");
 
-      // Lookup master rates
       const master = masterMap.get((crew.crew_name || "").toUpperCase().trim());
-      const salary = master?.salary ?? 0;
-      const fixedAllowance = master?.fixed_allowance ?? 0;
       const oaRate = master?.oa_rate ?? 0;
       const medevacRate = master?.medevac_rate ?? 0;
 
       const cycleDetails: StatementRow["cycles"] = [];
-      let totalDays = 0;
-      let totalRelief = 0;
-      let totalStandby = 0;
-      let medevacCount = 0;
-      let offshoreEligibleDays = 0;
+      let totalOffshoreDays = 0;
+      let totalReliefDays = 0;
+      let totalReliefAmount = 0;
+      let totalStandbyDays = 0;
+      let totalStandbyAmount = 0;
+      let totalMedevacCount = 0;
 
       for (const [cycleNumStr, cycle] of Object.entries(crew.cycles)) {
         const signOn = safeParseDate(cycle.sign_on);
@@ -116,24 +123,27 @@ export default function StatementPage() {
 
         if (daysInMonth <= 0) continue;
 
-        totalDays += daysInMonth;
-
         const isOffshore = cycle.is_offshore !== false;
         if (isOM && isOffshore) {
-          offshoreEligibleDays += daysInMonth;
+          totalOffshoreDays += daysInMonth;
         }
 
-        const reliefVal = cycle.relief_all ?? 0;
-        const standbyVal = cycle.standby_all ?? 0;
-        totalRelief += reliefVal;
-        totalStandby += standbyVal;
+        const cycleReliefDays = cycle.day_relief ?? 0;
+        const cycleReliefRate = cycle.relief_all ?? 0;
+        totalReliefDays += cycleReliefDays;
+        totalReliefAmount += cycleReliefDays * cycleReliefRate;
+
+        const cycleStandbyDays = cycle.day_standby ?? 0;
+        const cycleStandbyRate = cycle.standby_all ?? 0;
+        totalStandbyDays += cycleStandbyDays;
+        totalStandbyAmount += cycleStandbyDays * cycleStandbyRate;
 
         const cycleMedevacDates = (cycle.medevac_dates || []).filter((d) => {
           const md = safeParseDate(d);
           if (!md) return false;
           return md.getTime() >= monthStartTime && md.getTime() <= monthEndTime;
         });
-        medevacCount += cycleMedevacDates.length;
+        totalMedevacCount += cycleMedevacDates.length;
 
         cycleDetails.push({
           cycleNum: parseInt(cycleNumStr),
@@ -141,8 +151,10 @@ export default function StatementPage() {
           sign_off: cycle.sign_off,
           days: daysInMonth,
           is_offshore: isOffshore,
-          relief_all: reliefVal,
-          standby_all: standbyVal,
+          day_relief: cycleReliefDays,
+          relief_rate: cycleReliefRate,
+          day_standby: cycleStandbyDays,
+          standby_rate: cycleStandbyRate,
           medevac_dates: cycleMedevacDates,
           notes: cycle.notes,
         });
@@ -150,11 +162,9 @@ export default function StatementPage() {
 
       if (cycleDetails.length === 0) continue;
 
-      const offshoreAllowance = isOM ? offshoreEligibleDays * oaRate : 0;
-      const medevacAllowance = isEM ? medevacCount * medevacRate : 0;
-      const reliefAllowance = totalRelief;
-      const standbyAllowance = totalStandby;
-      const grandTotal = salary + fixedAllowance + offshoreAllowance + medevacAllowance + reliefAllowance + standbyAllowance;
+      const offshoreTotal = isOM ? totalOffshoreDays * oaRate : 0;
+      const medevacTotal = isEM ? totalMedevacCount * medevacRate : 0;
+      const grandTotal = offshoreTotal + totalReliefAmount + totalStandbyAmount + medevacTotal;
 
       rows.push({
         crew_id: crew.crew_id,
@@ -162,14 +172,18 @@ export default function StatementPage() {
         post: crew.post,
         client: crew.client,
         location: crew.location,
-        salary,
-        fixedAllowance,
-        totalDays,
-        offshoreAllowance,
-        reliefAllowance,
-        standbyAllowance,
-        medevacCount,
-        medevacAllowance,
+        offshoreDays: isOM ? totalOffshoreDays : 0,
+        offshoreRate: isOM ? oaRate : 0,
+        offshoreTotal,
+        reliefDays: totalReliefDays,
+        reliefRate: totalReliefAmount > 0 && totalReliefDays > 0 ? totalReliefAmount / totalReliefDays : 0,
+        reliefTotal: totalReliefAmount,
+        standbyDays: totalStandbyDays,
+        standbyRate: totalStandbyAmount > 0 && totalStandbyDays > 0 ? totalStandbyAmount / totalStandbyDays : 0,
+        standbyTotal: totalStandbyAmount,
+        medevacCount: isEM ? totalMedevacCount : 0,
+        medevacRate: isEM ? medevacRate : 0,
+        medevacTotal,
         grandTotal,
         cycles: cycleDetails.sort((a, b) => a.cycleNum - b.cycleNum),
       });
@@ -199,16 +213,13 @@ export default function StatementPage() {
   const totals = useMemo(() => {
     return filteredRows.reduce(
       (acc, row) => ({
-        salary: acc.salary + row.salary,
-        fixedAllowance: acc.fixedAllowance + row.fixedAllowance,
-        days: acc.days + row.totalDays,
-        offshore: acc.offshore + row.offshoreAllowance,
-        relief: acc.relief + row.reliefAllowance,
-        standby: acc.standby + row.standbyAllowance,
-        medevac: acc.medevac + row.medevacAllowance,
+        offshore: acc.offshore + row.offshoreTotal,
+        relief: acc.relief + row.reliefTotal,
+        standby: acc.standby + row.standbyTotal,
+        medevac: acc.medevac + row.medevacTotal,
         grand: acc.grand + row.grandTotal,
       }),
-      { salary: 0, fixedAllowance: 0, days: 0, offshore: 0, relief: 0, standby: 0, medevac: 0, grand: 0 }
+      { offshore: 0, relief: 0, standby: 0, medevac: 0, grand: 0 }
     );
   }, [filteredRows]);
 
@@ -219,6 +230,14 @@ export default function StatementPage() {
     return `RM ${val.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
+  const formatNum = (val: number) => {
+    if (val === 0) return "-";
+    return val.toString();
+  };
+
+  const thBase = "px-2 py-2.5 text-[10px] font-black uppercase tracking-wider text-center border-r border-slate-700 last:border-r-0";
+  const tdBase = "px-2 py-2 text-[11px] font-semibold text-center border-r border-border last:border-r-0 tabular-nums";
+
   return (
     <AppShell>
       <div className="space-y-4 animate-in fade-in duration-500 mt-2">
@@ -226,10 +245,10 @@ export default function StatementPage() {
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
           <div>
             <h2 className="text-3xl font-black text-foreground uppercase tracking-tighter leading-none">
-              MONTHLY STATEMENT
+              MONTHLY ALLOWANCE STATEMENT
             </h2>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
-              Full cost calculation for {MONTH_NAMES[selectedMonthNum - 1]} {selectedYear}
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">
+              ALLOWANCE PAYABLE FOR {MONTH_NAMES[selectedMonthNum - 1]} {selectedYear}
             </p>
           </div>
 
@@ -284,15 +303,6 @@ export default function StatementPage() {
           </div>
         </div>
 
-        {/* INFO BAR */}
-        <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl px-4 py-2.5 shadow-sm">
-          <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Rates fetched from cms_pcsb_master</span>
-          <span className="text-[8px] text-muted-foreground">|</span>
-          <span className="text-[8px] font-bold text-muted-foreground">
-            Total = Salary + Fixed Allowance + Offshore + Relief + Standby + Medevac
-          </span>
-        </div>
-
         {/* TABLE */}
         {loading ? (
           <div className="flex items-center justify-center h-48">
@@ -305,76 +315,106 @@ export default function StatementPage() {
         ) : (
           <div className="bg-card rounded-2xl border border-border shadow-lg overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse min-w-[1100px]">
+              <table className="w-full border-collapse min-w-[1200px]">
                 <thead>
+                  {/* Group header row */}
                   <tr className="bg-slate-900 text-white">
-                    <th className="px-3 py-3 text-left text-[9px] font-black uppercase tracking-widest sticky left-0 bg-slate-900 z-10">Crew</th>
-                    <th className="px-2 py-3 text-center text-[9px] font-black uppercase tracking-widest">Post</th>
-                    <th className="px-2 py-3 text-center text-[9px] font-black uppercase tracking-widest">Client</th>
-                    <th className="px-2 py-3 text-right text-[9px] font-black uppercase tracking-widest">Salary</th>
-                    <th className="px-2 py-3 text-right text-[9px] font-black uppercase tracking-widest">Fixed All.</th>
-                    <th className="px-2 py-3 text-center text-[9px] font-black uppercase tracking-widest">Days</th>
-                    <th className="px-2 py-3 text-right text-[9px] font-black uppercase tracking-widest">Offshore</th>
-                    <th className="px-2 py-3 text-right text-[9px] font-black uppercase tracking-widest">Relief</th>
-                    <th className="px-2 py-3 text-right text-[9px] font-black uppercase tracking-widest">Standby</th>
-                    <th className="px-2 py-3 text-right text-[9px] font-black uppercase tracking-widest">Medevac</th>
-                    <th className="px-3 py-3 text-right text-[9px] font-black uppercase tracking-widest">Total</th>
+                    <th className={`${thBase} border-b border-slate-700`} rowSpan={2} style={{ width: "180px" }}>Name / Client / Trade / Location</th>
+                    <th className={`${thBase} border-b border-slate-600`} colSpan={3}>Offshore</th>
+                    <th className={`${thBase} border-b border-slate-600`} colSpan={3}>Relief</th>
+                    <th className={`${thBase} border-b border-slate-600`} colSpan={3}>Standby</th>
+                    <th className={`${thBase} border-b border-slate-600`} colSpan={3}>Medevac</th>
+                    <th className={`${thBase} border-b border-slate-700`} rowSpan={2} style={{ width: "110px" }}>Grand Total</th>
+                  </tr>
+                  {/* Sub-header row */}
+                  <tr className="bg-slate-800 text-slate-300">
+                    <th className={`${thBase} !text-[8px] !font-bold`} style={{ width: "50px" }}>Days</th>
+                    <th className={`${thBase} !text-[8px] !font-bold`} style={{ width: "70px" }}>Rate</th>
+                    <th className={`${thBase} !text-[8px] !font-bold`} style={{ width: "90px" }}>Total</th>
+                    <th className={`${thBase} !text-[8px] !font-bold`} style={{ width: "50px" }}>Days</th>
+                    <th className={`${thBase} !text-[8px] !font-bold`} style={{ width: "70px" }}>Rate</th>
+                    <th className={`${thBase} !text-[8px] !font-bold`} style={{ width: "90px" }}>Total</th>
+                    <th className={`${thBase} !text-[8px] !font-bold`} style={{ width: "50px" }}>Days</th>
+                    <th className={`${thBase} !text-[8px] !font-bold`} style={{ width: "70px" }}>Rate</th>
+                    <th className={`${thBase} !text-[8px] !font-bold`} style={{ width: "90px" }}>Total</th>
+                    <th className={`${thBase} !text-[8px] !font-bold`} style={{ width: "45px" }}>Count</th>
+                    <th className={`${thBase} !text-[8px] !font-bold`} style={{ width: "70px" }}>Rate</th>
+                    <th className={`${thBase} !text-[8px] !font-bold`} style={{ width: "90px" }}>Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody>
                   {filteredRows.map((row) => {
                     const isExpanded = expandedRow === row.crew_id;
                     return (
                       <tr key={row.crew_id} className="group">
-                        <td colSpan={11} className="p-0">
+                        <td colSpan={14} className="p-0 border-b border-border">
                           <button
                             type="button"
                             onClick={() => setExpandedRow(isExpanded ? null : row.crew_id)}
-                            className="w-full flex items-center hover:bg-muted/50 transition-colors min-w-[1100px]"
+                            className="w-full hover:bg-muted/50 transition-colors"
                           >
-                            <div className="px-3 py-2.5 text-left shrink-0" style={{ width: "180px" }}>
-                              <span className="text-[10px] font-black text-foreground uppercase tracking-tight block truncate">{row.crew_name}</span>
-                              <span className="text-[8px] font-medium text-muted-foreground">{row.location}</span>
-                            </div>
-                            <div className="px-2 py-2.5 text-center shrink-0" style={{ width: "55px" }}>
-                              <span className="text-[9px] font-black text-foreground uppercase">{shortenPost(row.post)}</span>
-                            </div>
-                            <div className="px-2 py-2.5 text-center shrink-0" style={{ width: "55px" }}>
-                              <span className="text-[9px] font-bold text-muted-foreground">{row.client}</span>
-                            </div>
-                            <div className="px-2 py-2.5 text-right shrink-0" style={{ width: "100px" }}>
-                              <span className="text-[9px] font-bold text-foreground tabular-nums">{formatRM(row.salary)}</span>
-                            </div>
-                            <div className="px-2 py-2.5 text-right shrink-0" style={{ width: "90px" }}>
-                              <span className="text-[9px] font-bold text-foreground tabular-nums">{formatRM(row.fixedAllowance)}</span>
-                            </div>
-                            <div className="px-2 py-2.5 text-center shrink-0" style={{ width: "50px" }}>
-                              <span className="text-[10px] font-black text-foreground tabular-nums">{row.totalDays}</span>
-                            </div>
-                            <div className="px-2 py-2.5 text-right shrink-0" style={{ width: "100px" }}>
-                              <span className={`text-[9px] font-bold tabular-nums ${row.offshoreAllowance > 0 ? "text-emerald-600" : "text-muted-foreground"}`}>
-                                {formatRM(row.offshoreAllowance)}
-                              </span>
-                            </div>
-                            <div className="px-2 py-2.5 text-right shrink-0" style={{ width: "90px" }}>
-                              <span className={`text-[9px] font-bold tabular-nums ${row.reliefAllowance > 0 ? "text-blue-600" : "text-muted-foreground"}`}>
-                                {formatRM(row.reliefAllowance)}
-                              </span>
-                            </div>
-                            <div className="px-2 py-2.5 text-right shrink-0" style={{ width: "90px" }}>
-                              <span className={`text-[9px] font-bold tabular-nums ${row.standbyAllowance > 0 ? "text-blue-600" : "text-muted-foreground"}`}>
-                                {formatRM(row.standbyAllowance)}
-                              </span>
-                            </div>
-                            <div className="px-2 py-2.5 text-right shrink-0" style={{ width: "90px" }}>
-                              <span className={`text-[9px] font-bold tabular-nums ${row.medevacAllowance > 0 ? "text-amber-600" : "text-muted-foreground"}`}>
-                                {formatRM(row.medevacAllowance)}
-                              </span>
-                            </div>
-                            <div className="px-3 py-2.5 text-right flex-1">
-                              <span className="text-[10px] font-black text-foreground tabular-nums">
-                                {formatRM(row.grandTotal)}
-                              </span>
+                            <div className="flex items-center min-w-[1200px]">
+                              {/* Name / Client / Trade / Location */}
+                              <div className="px-2 py-2.5 text-left border-r border-border" style={{ width: "180px" }}>
+                                <span className="text-[11px] font-black text-foreground uppercase tracking-tight block truncate">{row.crew_name}</span>
+                                <span className="text-[9px] font-medium text-muted-foreground">
+                                  {row.client} / {shortenPost(row.post)} / {row.location}
+                                </span>
+                              </div>
+                              {/* Offshore: Days */}
+                              <div className={`${tdBase}`} style={{ width: "50px" }}>
+                                <span className={row.offshoreDays > 0 ? "text-emerald-600 font-bold" : "text-muted-foreground"}>{formatNum(row.offshoreDays)}</span>
+                              </div>
+                              {/* Offshore: Rate */}
+                              <div className={`${tdBase}`} style={{ width: "70px" }}>
+                                <span className="text-muted-foreground text-[10px]">{row.offshoreRate > 0 ? formatRM(row.offshoreRate) : "-"}</span>
+                              </div>
+                              {/* Offshore: Total */}
+                              <div className={`${tdBase}`} style={{ width: "90px" }}>
+                                <span className={row.offshoreTotal > 0 ? "text-emerald-600 font-bold" : "text-muted-foreground"}>{formatRM(row.offshoreTotal)}</span>
+                              </div>
+                              {/* Relief: Days */}
+                              <div className={`${tdBase}`} style={{ width: "50px" }}>
+                                <span className={row.reliefDays > 0 ? "text-blue-600 font-bold" : "text-muted-foreground"}>{formatNum(row.reliefDays)}</span>
+                              </div>
+                              {/* Relief: Rate */}
+                              <div className={`${tdBase}`} style={{ width: "70px" }}>
+                                <span className="text-muted-foreground text-[10px]">{row.reliefRate > 0 ? formatRM(row.reliefRate) : "-"}</span>
+                              </div>
+                              {/* Relief: Total */}
+                              <div className={`${tdBase}`} style={{ width: "90px" }}>
+                                <span className={row.reliefTotal > 0 ? "text-blue-600 font-bold" : "text-muted-foreground"}>{formatRM(row.reliefTotal)}</span>
+                              </div>
+                              {/* Standby: Days */}
+                              <div className={`${tdBase}`} style={{ width: "50px" }}>
+                                <span className={row.standbyDays > 0 ? "text-blue-600 font-bold" : "text-muted-foreground"}>{formatNum(row.standbyDays)}</span>
+                              </div>
+                              {/* Standby: Rate */}
+                              <div className={`${tdBase}`} style={{ width: "70px" }}>
+                                <span className="text-muted-foreground text-[10px]">{row.standbyRate > 0 ? formatRM(row.standbyRate) : "-"}</span>
+                              </div>
+                              {/* Standby: Total */}
+                              <div className={`${tdBase}`} style={{ width: "90px" }}>
+                                <span className={row.standbyTotal > 0 ? "text-blue-600 font-bold" : "text-muted-foreground"}>{formatRM(row.standbyTotal)}</span>
+                              </div>
+                              {/* Medevac: Count */}
+                              <div className={`${tdBase}`} style={{ width: "45px" }}>
+                                <span className={row.medevacCount > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}>{formatNum(row.medevacCount)}</span>
+                              </div>
+                              {/* Medevac: Rate */}
+                              <div className={`${tdBase}`} style={{ width: "70px" }}>
+                                <span className="text-muted-foreground text-[10px]">{row.medevacRate > 0 ? formatRM(row.medevacRate) : "-"}</span>
+                              </div>
+                              {/* Medevac: Total */}
+                              <div className={`${tdBase}`} style={{ width: "90px" }}>
+                                <span className={row.medevacTotal > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}>{formatRM(row.medevacTotal)}</span>
+                              </div>
+                              {/* Grand Total */}
+                              <div className="px-2 py-2.5 text-center flex-1">
+                                <span className="text-[12px] font-black text-foreground tabular-nums">
+                                  {formatRM(row.grandTotal)}
+                                </span>
+                              </div>
                             </div>
                           </button>
 
@@ -382,23 +422,27 @@ export default function StatementPage() {
                             <div className="bg-muted/30 border-t border-border px-6 py-3">
                               <div className="space-y-2">
                                 {row.cycles.map((c) => (
-                                  <div key={c.cycleNum} className="flex items-center gap-4 text-[9px] py-1 border-b border-border/50 last:border-0">
-                                    <span className="font-black text-muted-foreground w-14 shrink-0">Cycle {c.cycleNum}</span>
-                                    <span className="font-bold text-foreground w-48 shrink-0">
+                                  <div key={c.cycleNum} className="flex flex-wrap items-center gap-3 text-[10px] py-1.5 border-b border-border/50 last:border-0">
+                                    <span className="font-black text-muted-foreground w-16 shrink-0">Cycle {c.cycleNum}</span>
+                                    <span className="font-bold text-foreground w-52 shrink-0">
                                       {formatDate(c.sign_on)} to {formatDate(c.sign_off)}
                                     </span>
-                                    <span className="font-bold text-foreground w-14 shrink-0 tabular-nums">{c.days} days</span>
+                                    <span className="font-bold text-foreground w-16 shrink-0 tabular-nums">{c.days} days</span>
                                     {c.is_offshore && (
-                                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 font-bold text-[8px] uppercase">OA</span>
+                                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 font-bold text-[9px] uppercase">OA</span>
                                     )}
-                                    {c.relief_all > 0 && (
-                                      <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 font-bold text-[8px] uppercase">Relief: {formatRM(c.relief_all)}</span>
+                                    {c.day_relief > 0 && (
+                                      <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 font-bold text-[9px] uppercase">
+                                        Relief: {c.day_relief}d x {formatRM(c.relief_rate)}
+                                      </span>
                                     )}
-                                    {c.standby_all > 0 && (
-                                      <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 font-bold text-[8px] uppercase">Standby: {formatRM(c.standby_all)}</span>
+                                    {c.day_standby > 0 && (
+                                      <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 font-bold text-[9px] uppercase">
+                                        Standby: {c.day_standby}d x {formatRM(c.standby_rate)}
+                                      </span>
                                     )}
                                     {c.medevac_dates.length > 0 && (
-                                      <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 font-bold text-[8px] uppercase">
+                                      <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 font-bold text-[9px] uppercase">
                                         Medevac: {c.medevac_dates.length} case{c.medevac_dates.length > 1 ? "s" : ""}
                                       </span>
                                     )}
@@ -417,17 +461,26 @@ export default function StatementPage() {
 
                   {/* TOTALS ROW */}
                   <tr className="bg-slate-900 text-white font-black">
-                    <td className="px-3 py-3 text-[10px] uppercase tracking-widest" colSpan={3}>
-                      Total ({filteredRows.length} crew)
+                    <td colSpan={14} className="p-0">
+                      <div className="flex items-center min-w-[1200px]">
+                        <div className="px-2 py-3 text-left border-r border-slate-700" style={{ width: "180px" }}>
+                          <span className="text-[10px] font-black uppercase tracking-widest">Total ({filteredRows.length} crew)</span>
+                        </div>
+                        <div className="px-2 py-3 text-center border-r border-slate-700" style={{ width: "50px" }}></div>
+                        <div className="px-2 py-3 text-center border-r border-slate-700" style={{ width: "70px" }}></div>
+                        <div className="px-2 py-3 text-center border-r border-slate-700 text-[11px] tabular-nums" style={{ width: "90px" }}>{formatRM(totals.offshore)}</div>
+                        <div className="px-2 py-3 text-center border-r border-slate-700" style={{ width: "50px" }}></div>
+                        <div className="px-2 py-3 text-center border-r border-slate-700" style={{ width: "70px" }}></div>
+                        <div className="px-2 py-3 text-center border-r border-slate-700 text-[11px] tabular-nums" style={{ width: "90px" }}>{formatRM(totals.relief)}</div>
+                        <div className="px-2 py-3 text-center border-r border-slate-700" style={{ width: "50px" }}></div>
+                        <div className="px-2 py-3 text-center border-r border-slate-700" style={{ width: "70px" }}></div>
+                        <div className="px-2 py-3 text-center border-r border-slate-700 text-[11px] tabular-nums" style={{ width: "90px" }}>{formatRM(totals.standby)}</div>
+                        <div className="px-2 py-3 text-center border-r border-slate-700" style={{ width: "45px" }}></div>
+                        <div className="px-2 py-3 text-center border-r border-slate-700" style={{ width: "70px" }}></div>
+                        <div className="px-2 py-3 text-center border-r border-slate-700 text-[11px] tabular-nums" style={{ width: "90px" }}>{formatRM(totals.medevac)}</div>
+                        <div className="px-2 py-3 text-center flex-1 text-[12px] font-black tabular-nums">{formatRM(totals.grand)}</div>
+                      </div>
                     </td>
-                    <td className="px-2 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.salary)}</td>
-                    <td className="px-2 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.fixedAllowance)}</td>
-                    <td className="px-2 py-3 text-center text-[10px] tabular-nums">{totals.days}</td>
-                    <td className="px-2 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.offshore)}</td>
-                    <td className="px-2 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.relief)}</td>
-                    <td className="px-2 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.standby)}</td>
-                    <td className="px-2 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.medevac)}</td>
-                    <td className="px-3 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.grand)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -439,15 +492,15 @@ export default function StatementPage() {
         <div className="flex flex-wrap items-center gap-4 px-4 py-2 bg-card rounded-lg w-fit shadow-sm border border-border">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-sm bg-emerald-500" />
-            <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider">Offshore Allowance (OM only)</span>
+            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Offshore (OM only)</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-sm bg-blue-500" />
-            <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider">Relief / Standby (All)</span>
+            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Relief / Standby (All)</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-sm bg-amber-500" />
-            <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider">Medevac (EM only)</span>
+            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Medevac (EM only)</span>
           </div>
         </div>
       </div>

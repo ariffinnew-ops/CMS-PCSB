@@ -35,6 +35,8 @@ export default function AdminPage() {
     note: string;
     relief_all: number | null;
     standby_all: number | null;
+    day_relief: number | null;
+    day_standby: number | null;
     is_offshore: boolean | null;
     medevac_dates: string[];
   } | null>(null);
@@ -232,6 +234,8 @@ export default function AdminPage() {
             notes: null,
             relief_all: null,
             standby_all: null,
+            day_relief: null,
+            day_standby: null,
             is_offshore: null,
             medevac_dates: null,
           };
@@ -259,6 +263,8 @@ export default function AdminPage() {
         notes: activeNote.note || null,
         relief_all: activeNote.relief_all,
         standby_all: activeNote.standby_all,
+        day_relief: activeNote.day_relief,
+        day_standby: activeNote.day_standby,
         is_offshore: activeNote.is_offshore,
         medevac_dates: activeNote.medevac_dates.filter(Boolean).length > 0 ? activeNote.medevac_dates.filter(Boolean) : null,
       };
@@ -725,6 +731,8 @@ export default function AdminPage() {
                                             note: cycle?.notes || "",
                                             relief_all: cycle?.relief_all ?? null,
                                             standby_all: cycle?.standby_all ?? null,
+                                            day_relief: cycle?.day_relief ?? null,
+                                            day_standby: cycle?.day_standby ?? null,
                                             is_offshore: cycle?.is_offshore ?? true,
                                             medevac_dates: cycle?.medevac_dates ?? [],
                                           })
@@ -835,14 +843,26 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                {/* Field B: Relief & Standby Allowance - all crew */}
+                {/* Field B: Relief Allowance - all crew */}
                 <div>
                   <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">
-                    Relief &amp; Standby Allowance
+                    Relief Allowance
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Relief (RM)</label>
+                      <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">No. of Days</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={activeNote.day_relief ?? ""}
+                        onChange={(e) => setActiveNote({ ...activeNote, day_relief: e.target.value ? parseInt(e.target.value) : null })}
+                        placeholder="0"
+                        className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-slate-400 tabular-nums"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Rate (RM/day)</label>
                       <input
                         type="number"
                         min="0"
@@ -853,8 +873,34 @@ export default function AdminPage() {
                         className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-slate-400 tabular-nums"
                       />
                     </div>
+                  </div>
+                  {(activeNote.day_relief ?? 0) > 0 && (activeNote.relief_all ?? 0) > 0 && (
+                    <p className="text-[8px] text-blue-500 font-bold mt-1">
+                      Total: RM {((activeNote.day_relief ?? 0) * (activeNote.relief_all ?? 0)).toFixed(2)}
+                    </p>
+                  )}
+                </div>
+
+                {/* Field B2: Standby Allowance - all crew */}
+                <div>
+                  <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">
+                    Standby Allowance
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Standby (RM)</label>
+                      <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">No. of Days</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={activeNote.day_standby ?? ""}
+                        onChange={(e) => setActiveNote({ ...activeNote, day_standby: e.target.value ? parseInt(e.target.value) : null })}
+                        placeholder="0"
+                        className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-slate-400 tabular-nums"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Rate (RM/day)</label>
                       <input
                         type="number"
                         min="0"
@@ -866,6 +912,11 @@ export default function AdminPage() {
                       />
                     </div>
                   </div>
+                  {(activeNote.day_standby ?? 0) > 0 && (activeNote.standby_all ?? 0) > 0 && (
+                    <p className="text-[8px] text-blue-500 font-bold mt-1">
+                      Total: RM {((activeNote.day_standby ?? 0) * (activeNote.standby_all ?? 0)).toFixed(2)}
+                    </p>
+                  )}
                 </div>
 
                 {/* Field C: Medevac Case - only for ESCORT MEDIC */}
