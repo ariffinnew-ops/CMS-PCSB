@@ -409,6 +409,7 @@ function CompactDatePicker({ value, onChange }: { value: Date; onChange: (d: Dat
     }`;
 
   return (
+    <>
     <div ref={pickerRef} className="flex items-center gap-1">
       {/* Day */}
       <div className="relative">
@@ -454,14 +455,14 @@ function CompactDatePicker({ value, onChange }: { value: Date; onChange: (d: Dat
           Today
         </button>
       )}
-
-      {/* Day name below */}
-      <span className={`ml-3 text-[10px] font-normal uppercase tracking-wider ${
-        dayOfWeek === 0 || dayOfWeek === 6 ? "text-red-400" : "text-slate-400"
-      }`}>
-        {DAY_NAMES[dayOfWeek]}
-      </span>
     </div>
+    {/* Day name on its own line below */}
+    <div className={`text-[10px] font-normal uppercase tracking-wider mt-0.5 ${
+      dayOfWeek === 0 || dayOfWeek === 6 ? "text-red-400" : "text-slate-400"
+    }`}>
+      {DAY_NAMES[dayOfWeek]}
+    </div>
+    </>
   );
 }
 
