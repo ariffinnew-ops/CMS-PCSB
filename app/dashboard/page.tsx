@@ -365,6 +365,9 @@ function CompactDatePicker({ value, onChange }: { value: Date; onChange: (d: Dat
     return arr;
   }, []);
 
+  const DAY_NAMES = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+  const dayOfWeek = value.getDay();
+
   const isToday = useMemo(() => {
     const now = new Date();
     return day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
@@ -440,6 +443,15 @@ function CompactDatePicker({ value, onChange }: { value: Date; onChange: (d: Dat
           {activeSegment === "year" && <ScrollList items={yearItems} selected={year} onSelect={setYear} />}
         </AnimatePresence>
       </div>
+
+      {/* Day name */}
+      <span className={`ml-2 px-3 py-1 rounded-lg text-sm font-black uppercase tracking-widest ${
+        dayOfWeek === 0 || dayOfWeek === 6
+          ? "text-red-400 bg-red-500/10 border border-red-500/20"
+          : "text-cyan-300 bg-cyan-500/10 border border-cyan-500/20"
+      }`}>
+        {DAY_NAMES[dayOfWeek]}
+      </span>
 
       {/* Today reset */}
       {!isToday && (
