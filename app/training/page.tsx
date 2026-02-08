@@ -365,7 +365,7 @@ function EditableCell({
   );
 }
 
-// ═══════════════════════════════════�����═══
+// ═══════════════════════════════════�������═══
 // MAIN PAGE
 // ════════════════════════════���══════════
 export default function TrainingMatrixPage() {
@@ -815,7 +815,7 @@ export default function TrainingMatrixPage() {
                   <tr>
                     <td colSpan={totalCols} className="px-4 py-16 text-center">
                       <p className="text-sm text-slate-500">
-                        {personnel.length === 0 ? "No training data found. Ensure pcsb_crew_detail and pcsb_matrix tables have data." : "No personnel match the selected filters."}
+                        {personnel.length === 0 ? "No training data found. Ensure cms_pcsb_master and cms_pcsb_matrix tables have data." : "No personnel match the selected filters."}
                       </p>
                     </td>
                   </tr>

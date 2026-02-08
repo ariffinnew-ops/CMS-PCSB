@@ -2,8 +2,8 @@
 
 import { useState, useMemo, Fragment, useEffect, useRef, useCallback } from "react";
 import { AppShell } from "@/components/app-shell";
-import { RosterRow } from "@/lib/types";
-import { getRosterData } from "@/lib/actions";
+import { PivotedCrewRow } from "@/lib/types";
+import { getPivotedRosterData } from "@/lib/actions";
 import {
   isPersonnelOnBoard,
   getDaysOnBoard,
@@ -169,7 +169,7 @@ function TradePanel({
   onTradeHover,
 }: {
   client: "SKA" | "SBA";
-  personnel: RosterRow[];
+  personnel: PivotedCrewRow[];
   hoveredTrade: string | null;
   onTradeHover: (trade: string | null) => void;
 }) {
@@ -236,7 +236,7 @@ function NameListPopover({
   client: "SKA" | "SBA";
   tradeCode: string;
   tradeName: string;
-  personnel: RosterRow[];
+  personnel: PivotedCrewRow[];
   systemDate: Date;
 }) {
   const textColor = tradeCode === "OM" ? "text-blue-400" : tradeCode === "EM" ? "text-emerald-400" : "text-amber-400";
@@ -460,11 +460,11 @@ function CompactTable({
   personnel,
   systemDate,
 }: {
-  personnel: RosterRow[];
+  personnel: PivotedCrewRow[];
   systemDate: Date;
 }) {
-  // crew_name is stored with suffix directly in pcsb_roster
-  const getDisplayName = (row: RosterRow) => row.crew_name;
+  // crew_name is stored with suffix directly in cms_pcsb_roster
+  const getDisplayName = (row: PivotedCrewRow) => row.crew_name;
   const [clientFilter, setClientFilter] = useState<string>("ALL");
   const [tradeFilter, setTradeFilter] = useState<string>("ALL");
   const [locationFilter, setLocationFilter] = useState<string>("ALL");
@@ -656,7 +656,7 @@ function CompactTable({
 export default function DashboardPage() {
   const [systemDate, setSystemDate] = useState(() => new Date());
   const [liveTime, setLiveTime] = useState(() => new Date());
-  const [data, setData] = useState<RosterRow[]>([]);
+  const [data, setData] = useState<PivotedCrewRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"hud" | "list">("hud");
   const [hoveredSegment, setHoveredSegment] = useState<"SKA" | "SBA" | null>(null);
@@ -671,8 +671,8 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    getRosterData().then((rosterData) => {
-      setData(rosterData);
+    getPivotedRosterData().then((pivotedData) => {
+      setData(pivotedData);
       setLoading(false);
     });
   }, []);
