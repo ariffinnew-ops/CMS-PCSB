@@ -145,6 +145,11 @@ export default function RosterPage() {
     const checkTime = checkDate.getTime();
     const dayOfWeek = checkDate.getDay();
 
+    // Do not show bars for dates beyond today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (checkTime > today.getTime()) return "OFF";
+
     if (row.post?.includes("IM") || row.post?.includes("OHN")) {
       if (dayOfWeek === 0 || dayOfWeek === 6) return "OHN_WEEKEND";
       return "OHN_WEEKDAY";
