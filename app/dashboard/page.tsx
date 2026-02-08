@@ -365,6 +365,9 @@ function CompactDatePicker({ value, onChange }: { value: Date; onChange: (d: Dat
     return arr;
   }, []);
 
+  const DAY_NAMES = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+  const dayOfWeek = value.getDay();
+
   const isToday = useMemo(() => {
     const now = new Date();
     return day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
@@ -406,6 +409,7 @@ function CompactDatePicker({ value, onChange }: { value: Date; onChange: (d: Dat
     }`;
 
   return (
+    <>
     <div ref={pickerRef} className="flex items-center gap-1">
       {/* Day */}
       <div className="relative">
@@ -452,6 +456,13 @@ function CompactDatePicker({ value, onChange }: { value: Date; onChange: (d: Dat
         </button>
       )}
     </div>
+    {/* Day name on its own line below, centered */}
+    <div className={`text-[10px] font-normal uppercase tracking-wider mt-0.5 text-center ${
+      dayOfWeek === 0 || dayOfWeek === 6 ? "text-red-400" : "text-white"
+    }`}>
+      {DAY_NAMES[dayOfWeek]}
+    </div>
+    </>
   );
 }
 

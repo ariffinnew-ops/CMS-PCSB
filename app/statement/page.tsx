@@ -104,7 +104,7 @@ export default function StatementPage() {
         if (!signOn || !signOff) continue;
 
         const rotStart = signOn.getTime();
-        const rotEnd = signOff.getTime() - 86400000; // sign-off day is NOT a working day
+        const rotEnd = signOff.getTime() - 86400000;
         if (rotStart > monthEndTime || rotEnd < monthStartTime) continue;
 
         const effectiveStart = Math.max(rotStart, monthStartTime);
@@ -184,7 +184,7 @@ export default function StatementPage() {
 
   const filteredRows = useMemo(() => {
     return statementRows.filter((row) => {
-      if (row.grandTotal === 0) return false; // hide crew with zero total
+      if (row.grandTotal === 0) return false;
       const matchesSearch = !search.trim() || row.crew_name.toLowerCase().includes(search.toLowerCase());
       const matchesTrade =
         tradeFilter === "ALL" ||
@@ -211,8 +211,11 @@ export default function StatementPage() {
 
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
-  const fmtAmt = (val: number) => (val === 0 ? "-" : val.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-  const fmtNum = (val: number) => (val === 0 ? "-" : val.toString());
+  const fmtNum = (val: number) => (val === 0 ? "-" : String(val));
+  const fmtAmt = (val: number) =>
+    val === 0
+      ? "-"
+      : val.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const hasActiveFilters = tradeFilter !== "ALL" || clientFilter !== "ALL" || search.trim() !== "";
   const resetFilters = () => {
@@ -223,7 +226,7 @@ export default function StatementPage() {
 
   return (
     <AppShell>
-      <div className="space-y-3 animate-in fade-in duration-500 mt-1">
+      <div className="space-y-4 animate-in fade-in duration-500 mt-1">
         {/* HEADER */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
           <div>
@@ -242,7 +245,7 @@ export default function StatementPage() {
                 type="month"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-slate-400"
+                className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40"
               />
             </div>
             <div className="flex flex-col">
@@ -250,7 +253,7 @@ export default function StatementPage() {
               <select
                 value={clientFilter}
                 onChange={(e) => setClientFilter(e.target.value as "ALL" | "SBA" | "SKA")}
-                className="bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-slate-400"
+                className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40"
               >
                 <option value="ALL">All</option>
                 <option value="SBA">SBA</option>
@@ -262,7 +265,7 @@ export default function StatementPage() {
               <select
                 value={tradeFilter}
                 onChange={(e) => setTradeFilter(e.target.value as TradeType | "ALL")}
-                className="bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-slate-400"
+                className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40"
               >
                 <option value="ALL">All</option>
                 <option value="OM">OM</option>
@@ -277,14 +280,14 @@ export default function StatementPage() {
                 placeholder="Name..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-slate-400 w-32"
+                className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40 w-32"
               />
             </div>
             {hasActiveFilters && (
               <button
                 type="button"
                 onClick={resetFilters}
-                className="px-3 py-1.5 rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors border border-red-500/20"
+                className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors border border-red-500/20"
               >
                 Reset
               </button>
@@ -299,12 +302,14 @@ export default function StatementPage() {
           </div>
         ) : filteredRows.length === 0 ? (
           <div className="bg-card rounded-xl border border-border p-12 text-center">
-            <p className="text-muted-foreground text-sm font-medium">No active rotations found for {MONTH_NAMES[selectedMonthNum - 1]} {selectedYear}.</p>
+            <p className="text-muted-foreground text-sm font-medium">
+              No active rotations found for {MONTH_NAMES[selectedMonthNum - 1]} {selectedYear}.
+            </p>
           </div>
         ) : (
-          <div className="bg-card rounded-xl border border-border shadow-lg overflow-hidden">
+          <div className="rounded-xl border border-border overflow-hidden">
             <div className="overflow-auto max-h-[calc(100vh-220px)]">
-              <table className="w-full border-collapse text-[12px] font-sans" style={{ minWidth: "1100px" }}>
+              <table className="w-full text-[12px] font-sans border-collapse" style={{ minWidth: "1000px" }}>
                 <thead className="sticky top-0 z-10">
                   {/* Group header */}
                   <tr className="text-white" style={{ backgroundColor: "#1e3a8a" }}>
@@ -330,43 +335,48 @@ export default function StatementPage() {
                   </tr>
                   {/* Sub-header */}
                   <tr className="text-blue-100" style={{ backgroundColor: "#1e3a8a" }}>
-                    {/* Offshore */}
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "50px" }}>Days</th>
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "80px" }}>Total</th>
-                    {/* Relief */}
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "50px" }}>Days</th>
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "60px" }}>Rate</th>
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "80px" }}>Total</th>
-                    {/* Standby */}
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "50px" }}>Days</th>
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "60px" }}>Rate</th>
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "80px" }}>Total</th>
-                    {/* Medevac */}
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "60px" }}>No of Days</th>
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "80px" }}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRows.map((row) => {
+                  {filteredRows.map((row, idx) => {
                     const isExpanded = expandedRow === row.crew_id;
                     return (
                       <Fragment key={row.crew_id}>
                         <tr
                           onClick={() => setExpandedRow(isExpanded ? null : row.crew_id)}
-                          className="border-b border-border hover:bg-muted/40 cursor-pointer transition-colors"
+                          className={`cursor-pointer transition-colors border-b border-border ${
+                            idx % 2 === 0 ? "bg-card" : "bg-muted/30"
+                          } hover:bg-blue-500/5`}
                         >
-                          <td className="px-3 py-1 text-left border-r border-border" style={{ minWidth: "240px" }}>
-                            <span className="text-[12px] font-bold text-foreground uppercase block">{row.crew_name}</span>
-                            <span className="text-[10px] text-muted-foreground">
-                              {row.client} / {shortenPost(row.post)} / {row.location}
-                            </span>
+                          <td className="px-3 py-1 border-r border-border">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted-foreground font-bold tabular-nums w-4">{idx + 1}</span>
+                              <div>
+                                <div className="text-[11px] font-bold text-foreground uppercase leading-tight whitespace-nowrap">{row.crew_name}</div>
+                                <div className="text-[9px] text-muted-foreground">
+                                  {row.client} / {shortenPost(row.post)}
+                                </div>
+                              </div>
+                            </div>
                           </td>
+                          {/* Offshore */}
                           <td className="px-2 py-1 text-center border-r border-border tabular-nums">
                             <span className={row.offshoreDays > 0 ? "text-emerald-600 font-bold" : "text-muted-foreground"}>{fmtNum(row.offshoreDays)}</span>
                           </td>
                           <td className="px-2 py-1 text-center border-r border-border tabular-nums">
                             <span className={row.offshoreTotal > 0 ? "text-emerald-600 font-bold" : "text-muted-foreground"}>{fmtAmt(row.offshoreTotal)}</span>
                           </td>
+                          {/* Relief */}
                           <td className="px-2 py-1 text-center border-r border-border tabular-nums">
                             <span className={row.reliefDays > 0 ? "text-blue-600 font-bold" : "text-muted-foreground"}>{fmtNum(row.reliefDays)}</span>
                           </td>
@@ -376,57 +386,43 @@ export default function StatementPage() {
                           <td className="px-2 py-1 text-center border-r border-border tabular-nums">
                             <span className={row.reliefTotal > 0 ? "text-blue-600 font-bold" : "text-muted-foreground"}>{fmtAmt(row.reliefTotal)}</span>
                           </td>
+                          {/* Standby */}
                           <td className="px-2 py-1 text-center border-r border-border tabular-nums">
-                            <span className={row.standbyDays > 0 ? "text-blue-600 font-bold" : "text-muted-foreground"}>{fmtNum(row.standbyDays)}</span>
+                            <span className={row.standbyDays > 0 ? "text-violet-600 font-bold" : "text-muted-foreground"}>{fmtNum(row.standbyDays)}</span>
                           </td>
                           <td className="px-2 py-1 text-center border-r border-border tabular-nums text-muted-foreground text-[11px]">
                             {row.standbyRate > 0 ? fmtAmt(row.standbyRate) : "-"}
                           </td>
                           <td className="px-2 py-1 text-center border-r border-border tabular-nums">
-                            <span className={row.standbyTotal > 0 ? "text-blue-600 font-bold" : "text-muted-foreground"}>{fmtAmt(row.standbyTotal)}</span>
+                            <span className={row.standbyTotal > 0 ? "text-violet-600 font-bold" : "text-muted-foreground"}>{fmtAmt(row.standbyTotal)}</span>
                           </td>
+                          {/* Medevac */}
                           <td className="px-2 py-1 text-center border-r border-border tabular-nums">
                             <span className={row.medevacDays > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}>{fmtNum(row.medevacDays)}</span>
                           </td>
                           <td className="px-2 py-1 text-center border-r border-border tabular-nums">
                             <span className={row.medevacTotal > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}>{fmtAmt(row.medevacTotal)}</span>
                           </td>
+                          {/* Grand Total */}
                           <td className="px-3 py-1 text-center tabular-nums">
                             <span className="text-[12px] font-black text-foreground">{fmtAmt(row.grandTotal)}</span>
                           </td>
                         </tr>
+                        {/* Expanded detail */}
                         {isExpanded && (
-                          <tr key={`${row.crew_id}-detail`} className="bg-muted/20">
+                          <tr className="bg-muted/20">
                             <td colSpan={12} className="px-5 py-2 border-b border-border">
-                              <div className="space-y-1">
+                              <div className="text-[10px] space-y-1">
                                 {row.cycles.map((c) => (
-                                  <div key={c.cycleNum} className="flex flex-wrap items-center gap-3 text-[10px] py-1 border-b border-border/40 last:border-0">
-                                    <span className="font-bold text-muted-foreground w-14 shrink-0">Cycle {c.cycleNum}</span>
-                                    <span className="font-semibold text-foreground w-48 shrink-0">
-                                      {formatDate(c.sign_on)} to {formatDate(c.sign_off)}
-                                    </span>
-                                    <span className="font-semibold text-foreground w-14 shrink-0 tabular-nums">{c.days} days</span>
-                                    {c.is_offshore && (
-                                      <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold text-[9px] uppercase">OA</span>
-                                    )}
-                                    {c.day_relief > 0 && (
-                                      <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-bold text-[9px] uppercase">
-                                        Relief: {c.day_relief}d x {fmtAmt(c.relief_rate)}
-                                      </span>
-                                    )}
-                                    {c.day_standby > 0 && (
-                                      <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-bold text-[9px] uppercase">
-                                        Standby: {c.day_standby}d x {fmtAmt(c.standby_rate)}
-                                      </span>
-                                    )}
-                                    {c.medevac_dates.length > 0 && (
-                                      <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold text-[9px] uppercase">
-                                        Medevac: {c.medevac_dates.length} day{c.medevac_dates.length > 1 ? "s" : ""}
-                                      </span>
-                                    )}
-                                    {c.notes && (
-                                      <span className="text-muted-foreground italic max-w-[200px]" title={c.notes}>{c.notes}</span>
-                                    )}
+                                  <div key={c.cycleNum} className="flex flex-wrap items-center gap-4 py-0.5 border-b border-border/30 last:border-0">
+                                    <span className="font-bold text-foreground w-14">Cycle {c.cycleNum}</span>
+                                    <span className="text-muted-foreground">{formatDate(c.sign_on)} - {formatDate(c.sign_off)}</span>
+                                    <span className="text-muted-foreground">{c.days}d</span>
+                                    {c.is_offshore && <span className="text-emerald-600 font-semibold">Offshore</span>}
+                                    {c.day_relief > 0 && <span className="text-blue-600 font-semibold">Relief: {c.day_relief}d x {fmtAmt(c.relief_rate)}</span>}
+                                    {c.day_standby > 0 && <span className="text-violet-600 font-semibold">Standby: {c.day_standby}d x {fmtAmt(c.standby_rate)}</span>}
+                                    {c.medevac_dates.length > 0 && <span className="text-amber-600 font-semibold">Medevac: {c.medevac_dates.map(d => formatDate(d)).join(", ")}</span>}
+                                    {c.notes && <span className="text-muted-foreground italic">{c.notes}</span>}
                                   </div>
                                 ))}
                               </div>
@@ -436,7 +432,6 @@ export default function StatementPage() {
                       </Fragment>
                     );
                   })}
-
                 </tbody>
                 <tfoot>
                   <tr className="text-white font-bold" style={{ backgroundColor: "#1e3a8a" }}>
