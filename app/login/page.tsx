@@ -184,8 +184,11 @@ export default function LoginPage() {
 
       {/* Footer */}
       <div className="absolute bottom-0 left-0 right-0 z-10 py-3 text-center">
-        <p className="text-[11px] text-white font-medium tracking-wide">
+        <p className="text-[11px] text-white font-normal tracking-wide">
           &copy; {new Date().getFullYear()} kawie - Crewing Management System. All Rights Reserved.
+        </p>
+        <p className="text-[10px] text-white font-normal tracking-wide mt-0.5">
+          ver:kawie-v2-080226
         </p>
       </div>
     </div>
