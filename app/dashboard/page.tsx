@@ -456,9 +456,9 @@ function CompactDatePicker({ value, onChange }: { value: Date; onChange: (d: Dat
         </button>
       )}
     </div>
-    {/* Day name on its own line below */}
-    <div className={`text-[10px] font-normal uppercase tracking-wider mt-0.5 ${
-      dayOfWeek === 0 || dayOfWeek === 6 ? "text-red-400" : "text-slate-400"
+    {/* Day name on its own line below, centered */}
+    <div className={`text-[10px] font-normal uppercase tracking-wider mt-0.5 text-center ${
+      dayOfWeek === 0 || dayOfWeek === 6 ? "text-red-400" : "text-white"
     }`}>
       {DAY_NAMES[dayOfWeek]}
     </div>
