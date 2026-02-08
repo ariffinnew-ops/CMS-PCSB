@@ -121,8 +121,8 @@ export function getTradeRank(post: string = "") {
   return 4;
 }
 
-export function shortenPost(post: string = "") {
-  const up = post.toUpperCase();
+export function shortenPost(post: string | null | undefined = "") {
+  const up = (post ?? "").toUpperCase();
   if (up.includes("OFFSHORE MEDIC")) return "OM";
   if (up.includes("ESCORT MEDIC")) return "EM";
   if (up.includes("IM") || up.includes("OHN")) return "OHN";
