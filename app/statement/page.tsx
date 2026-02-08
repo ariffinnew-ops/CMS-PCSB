@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { Fragment, useEffect, useState, useMemo } from "react";
 import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow, TradeType } from "@/lib/types";
 import { getPivotedRosterData, getCrewMasterData, type CrewMasterRecord } from "@/lib/actions";
@@ -18,7 +18,6 @@ interface StatementRow {
   client: string;
   location: string;
   offshoreDays: number;
-  offshoreRate: number;
   offshoreTotal: number;
   reliefDays: number;
   reliefRate: number;
@@ -105,7 +104,7 @@ export default function StatementPage() {
         if (!signOn || !signOff) continue;
 
         const rotStart = signOn.getTime();
-        const rotEnd = signOff.getTime();
+        const rotEnd = signOff.getTime() - 86400000; // sign-off day is NOT a working day
         if (rotStart > monthEndTime || rotEnd < monthStartTime) continue;
 
         const effectiveStart = Math.max(rotStart, monthStartTime);
@@ -161,7 +160,6 @@ export default function StatementPage() {
         client: crew.client,
         location: crew.location,
         offshoreDays: isOM ? totalOffshoreDays : 0,
-        offshoreRate: isOM ? OA_RATE : 0,
         offshoreTotal,
         reliefDays: totalReliefDays,
         reliefRate: totalReliefAmount > 0 && totalReliefDays > 0 ? totalReliefAmount / totalReliefDays : 0,
@@ -312,7 +310,7 @@ export default function StatementPage() {
                     <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-slate-700 whitespace-nowrap" style={{ minWidth: "240px" }}>
                       Name / Client / Trade
                     </th>
-                    <th colSpan={3} className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide text-center border-r border-slate-700 border-b border-slate-600">
+                    <th colSpan={2} className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide text-center border-r border-slate-700 border-b border-slate-600">
                       Offshore
                     </th>
                     <th colSpan={3} className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide text-center border-r border-slate-700 border-b border-slate-600">
@@ -330,15 +328,18 @@ export default function StatementPage() {
                   </tr>
                   {/* Sub-header */}
                   <tr className="bg-slate-800 text-slate-300">
+                    {/* Offshore: Days, Total (no Rate) */}
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "50px" }}>Days</th>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "80px" }}>Total</th>
+                    {/* Relief: Days, Rate, Total */}
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "50px" }}>Days</th>
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "60px" }}>Rate</th>
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "80px" }}>Total</th>
+                    {/* Standby: Days, Rate, Total */}
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "50px" }}>Days</th>
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "60px" }}>Rate</th>
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "80px" }}>Total</th>
-                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "50px" }}>Days</th>
-                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "60px" }}>Rate</th>
-                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "80px" }}>Total</th>
+                    {/* Medevac: No of Days, Total */}
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "60px" }}>No of Days</th>
                     <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "80px" }}>Total</th>
                   </tr>
@@ -347,9 +348,8 @@ export default function StatementPage() {
                   {filteredRows.map((row) => {
                     const isExpanded = expandedRow === row.crew_id;
                     return (
-                      <>
+                      <Fragment key={row.crew_id}>
                         <tr
-                          key={row.crew_id}
                           onClick={() => setExpandedRow(isExpanded ? null : row.crew_id)}
                           className="border-b border-border hover:bg-muted/40 cursor-pointer transition-colors"
                         >
@@ -361,9 +361,6 @@ export default function StatementPage() {
                           </td>
                           <td className="px-2 py-1 text-center border-r border-border tabular-nums">
                             <span className={row.offshoreDays > 0 ? "text-emerald-600 font-bold" : "text-muted-foreground"}>{fmtNum(row.offshoreDays)}</span>
-                          </td>
-                          <td className="px-2 py-1 text-center border-r border-border tabular-nums text-muted-foreground text-[11px]">
-                            {row.offshoreRate > 0 ? fmtAmt(row.offshoreRate) : "-"}
                           </td>
                           <td className="px-2 py-1 text-center border-r border-border tabular-nums">
                             <span className={row.offshoreTotal > 0 ? "text-emerald-600 font-bold" : "text-muted-foreground"}>{fmtAmt(row.offshoreTotal)}</span>
@@ -398,7 +395,7 @@ export default function StatementPage() {
                         </tr>
                         {isExpanded && (
                           <tr key={`${row.crew_id}-detail`} className="bg-muted/20">
-                            <td colSpan={13} className="px-5 py-2 border-b border-border">
+                            <td colSpan={12} className="px-5 py-2 border-b border-border">
                               <div className="space-y-1">
                                 {row.cycles.map((c) => (
                                   <div key={c.cycleNum} className="flex flex-wrap items-center gap-3 text-[10px] py-1 border-b border-border/40 last:border-0">
@@ -434,7 +431,7 @@ export default function StatementPage() {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
 
@@ -443,7 +440,6 @@ export default function StatementPage() {
                     <td className="px-3 py-2 text-left border-r border-slate-700">
                       <span className="text-[10px] font-bold uppercase tracking-wider">Total ({filteredRows.length} crew)</span>
                     </td>
-                    <td className="px-2 py-2 border-r border-slate-700" />
                     <td className="px-2 py-2 border-r border-slate-700" />
                     <td className="px-2 py-2 text-center border-r border-slate-700 tabular-nums text-[11px]">{fmtAmt(totals.offshore)}</td>
                     <td className="px-2 py-2 border-r border-slate-700" />
