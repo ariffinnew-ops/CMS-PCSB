@@ -1,4 +1,4 @@
-import { RosterRow } from './types';
+import { PivotedCrewRow } from './types';
 
 export function formatDate(dateInput: string | Date | null | undefined): string {
   if (!dateInput || dateInput === '-' || dateInput === 'N/A') return '--';
@@ -51,7 +51,8 @@ export function safeParseDate(dateStr: string | null | undefined): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-export function isPersonnelOnBoard(row: RosterRow, targetDate: Date): boolean {
+// Check if crew is on board using normalized PivotedCrewRow
+export function isPersonnelOnBoard(row: PivotedCrewRow, targetDate: Date): boolean {
   const checkTime = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0, 0).getTime();
   
   const isOfficeStaff = row.post?.includes("IM") || row.post?.includes("OHN");
@@ -60,11 +61,10 @@ export function isPersonnelOnBoard(row: RosterRow, targetDate: Date): boolean {
     return day !== 0 && day !== 6;
   }
 
-  // Crew on DEMOB date (d*) is excluded from POB.
-  // On board from MOB date up to but NOT including DEMOB date.
-  for (let i = 1; i <= 24; i++) {
-    const m = safeParseDate(row[`m${i}`] as string);
-    const d = safeParseDate(row[`d${i}`] as string);
+  // Iterate over cycles instead of m1/d1...m24/d24
+  for (const cycle of Object.values(row.cycles)) {
+    const m = safeParseDate(cycle.sign_on);
+    const d = safeParseDate(cycle.sign_off);
     if (m && d && checkTime >= m.getTime() && checkTime < d.getTime()) {
       return true;
     }
@@ -72,7 +72,7 @@ export function isPersonnelOnBoard(row: RosterRow, targetDate: Date): boolean {
   return false;
 }
 
-export function getActiveRotationRange(row: RosterRow, targetDate: Date): { start: Date | null, end: Date | null } {
+export function getActiveRotationRange(row: PivotedCrewRow, targetDate: Date): { start: Date | null, end: Date | null } {
   const checkTime = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0, 0).getTime();
   
   const isOfficeStaff = row.post?.includes("IM") || row.post?.includes("OHN");
@@ -80,10 +80,9 @@ export function getActiveRotationRange(row: RosterRow, targetDate: Date): { star
     return { start: null, end: null };
   }
 
-  // Exclude DEMOB date - on board from MOB up to but NOT including DEMOB
-  for (let i = 1; i <= 24; i++) {
-    const m = safeParseDate(row[`m${i}`] as string);
-    const d = safeParseDate(row[`d${i}`] as string);
+  for (const cycle of Object.values(row.cycles)) {
+    const m = safeParseDate(cycle.sign_on);
+    const d = safeParseDate(cycle.sign_off);
     if (m && d && checkTime >= m.getTime() && checkTime < d.getTime()) {
       return { start: m, end: d };
     }
@@ -91,14 +90,14 @@ export function getActiveRotationRange(row: RosterRow, targetDate: Date): { star
   return { start: null, end: null };
 }
 
-export function getDaysOnBoard(row: RosterRow, targetDate: Date): number {
+export function getDaysOnBoard(row: PivotedCrewRow, targetDate: Date): number {
   const range = getActiveRotationRange(row, targetDate);
   if (!range.start) return 0;
   const checkTime = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0, 0).getTime();
   return Math.floor((checkTime - range.start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 }
 
-export function isDepartureAlert(row: RosterRow, targetDate: Date): boolean {
+export function isDepartureAlert(row: PivotedCrewRow, targetDate: Date): boolean {
   const range = getActiveRotationRange(row, targetDate);
   if (!range.end) return false;
   const checkTime = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0, 0).getTime();
@@ -122,8 +121,8 @@ export function getTradeRank(post: string = "") {
   return 4;
 }
 
-export function shortenPost(post: string = "") {
-  const up = post.toUpperCase();
+export function shortenPost(post: string | null | undefined = "") {
+  const up = (post ?? "").toUpperCase();
   if (up.includes("OFFSHORE MEDIC")) return "OM";
   if (up.includes("ESCORT MEDIC")) return "EM";
   if (up.includes("IM") || up.includes("OHN")) return "OHN";

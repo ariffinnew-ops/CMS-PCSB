@@ -455,7 +455,7 @@ export default function StaffDetailPage() {
   const filteredCrew = useMemo(() => {
     if (!search.trim()) return crewList;
     const q = search.toLowerCase();
-    return crewList.filter((c) => c.crew_name.toLowerCase().includes(q) || c.post.toLowerCase().includes(q));
+    return crewList.filter((c) => (c.crew_name ?? "").toLowerCase().includes(q) || (c.post ?? "").toLowerCase().includes(q));
   }, [crewList, search]);
 
   // Contract expiry
