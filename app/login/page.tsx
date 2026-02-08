@@ -175,11 +175,6 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="text-xs text-slate-500 text-center mt-5">
-            Contact your administrator if you need access
-          </p>
-
-
         </CardContent>
       </Card>
 
