@@ -192,8 +192,17 @@ export default function StatementPage() {
       });
     }
 
-    // Sort by master data order (Data Manager order), no separators
-    return rows.sort((a, b) => a.masterIndex - b.masterIndex);
+    // Sort by client, then trade rank, then location, then name (Data Manager order)
+    return rows.sort((a, b) => {
+      const clientCmp = (a.client || "").localeCompare(b.client || "");
+      if (clientCmp !== 0) return clientCmp;
+      const tradeA = getTradeRank(a.post);
+      const tradeB = getTradeRank(b.post);
+      if (tradeA !== tradeB) return tradeA - tradeB;
+      const locCmp = (a.displayLocation || "").localeCompare(b.displayLocation || "");
+      if (locCmp !== 0) return locCmp;
+      return a.crew_name.localeCompare(b.crew_name);
+    });
   }, [data, masterMap, selectedYear, selectedMonthNum]);
 
   const filteredRows = useMemo(() => {
@@ -327,11 +336,8 @@ export default function StatementPage() {
                 <thead className="sticky top-0 z-10">
                   {/* Group header */}
                   <tr className="text-white" style={{ backgroundColor: "#1e3a8a" }}>
-                    <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50 whitespace-nowrap" style={{ minWidth: "220px" }}>
-                      Name / Client / Trade
-                    </th>
-                    <th rowSpan={2} className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50 whitespace-nowrap" style={{ minWidth: "90px" }}>
-                      Location
+                    <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50 whitespace-nowrap" style={{ minWidth: "240px" }}>
+                      Name / Client / Trade / Location
                     </th>
                     <th colSpan={2} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">
                       Offshore
@@ -381,14 +387,10 @@ export default function StatementPage() {
                               <div>
                                 <div className="text-[11px] font-bold text-foreground uppercase leading-tight whitespace-nowrap">{row.crew_name}</div>
                                 <div className="text-[9px] text-muted-foreground">
-                                  {row.client} / {shortenPost(row.post)}
+                                  {row.client} / {shortenPost(row.post)} / {row.displayLocation}
                                 </div>
                               </div>
                             </div>
-                          </td>
-                          {/* Location */}
-                          <td className="px-2 py-1 border-r border-border">
-                            <span className="text-[10px] text-muted-foreground font-medium uppercase">{row.displayLocation}</span>
                           </td>
                           {/* Offshore */}
                           <td className="px-2 py-1 text-center border-r border-border tabular-nums">
@@ -432,7 +434,7 @@ export default function StatementPage() {
                         {/* Expanded detail */}
                         {isExpanded && (
                           <tr className="bg-muted/20">
-                            <td colSpan={13} className="px-5 py-2 border-b border-border">
+                            <td colSpan={12} className="px-5 py-2 border-b border-border">
                               <div className="text-[10px] space-y-1">
                                 {row.cycles.map((c) => (
                                   <div key={c.cycleNum} className="flex flex-wrap items-center gap-4 py-0.5 border-b border-border/30 last:border-0">
@@ -459,7 +461,6 @@ export default function StatementPage() {
                     <td className="px-3 py-2 text-left border-r border-blue-700/50">
                       <span className="text-[10px] font-bold uppercase tracking-wider">Total ({filteredRows.length} crew)</span>
                     </td>
-                    <td className="px-2 py-2 border-r border-blue-700/50" />
                     <td className="px-2 py-2 border-r border-blue-700/50" />
                     <td className="px-2 py-2 text-center border-r border-blue-700/50 tabular-nums text-[11px]">{fmtAmt(totals.offshore)}</td>
                     <td className="px-2 py-2 border-r border-blue-700/50" />
