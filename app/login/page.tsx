@@ -77,6 +77,10 @@ export default function LoginPage() {
         backgroundPosition: 'center',
       }}
     >
+      {/* Version label */}
+      <div className="absolute top-3 left-0 right-0 z-20 text-center">
+        <span className="text-[11px] text-slate-400/70 font-mono tracking-wider">ver:kawie-v2-080226</span>
+      </div>
       {/* Dark overlay for readability */}
       <div className="absolute inset-0 bg-slate-900/75 backdrop-blur-sm" />
       {/* Grid pattern overlay */}
