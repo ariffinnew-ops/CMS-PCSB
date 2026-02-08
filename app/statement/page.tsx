@@ -323,8 +323,9 @@ export default function StatementPage() {
                     <th colSpan={2} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">
                       Medevac
                     </th>
-                    <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-center whitespace-nowrap" style={{ minWidth: "100px" }}>
-                      Grand Total
+                    <th rowSpan={2} className="px-3 py-1.5 text-center whitespace-nowrap" style={{ minWidth: "100px" }}>
+                      <div className="text-[10px] font-black uppercase tracking-wide">Grand Total</div>
+                      <div className="text-[11px] font-black tabular-nums mt-0.5">{fmtAmt(totals.grand)}</div>
                     </th>
                   </tr>
                   {/* Sub-header */}
