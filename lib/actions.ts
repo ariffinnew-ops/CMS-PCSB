@@ -201,8 +201,6 @@ export interface CrewMasterRecord {
   location: string;
   salary: number;
   fixed_allowance: number;
-  oa_rate: number;
-  medevac_rate: number;
   relief_rate: number;
   standby_rate: number;
 }
@@ -212,7 +210,7 @@ export async function getCrewMasterData(): Promise<CrewMasterRecord[]> {
 
   const { data, error } = await supabase
     .from('cms_pcsb_master')
-    .select('id, crew_name, post, client, location, salary, fixed_allowance, oa_rate, medevac_rate, relief_rate, standby_rate')
+    .select('id, crew_name, post, client, location, salary, fixed_allowance, relief_rate, standby_rate')
     .order('crew_name', { ascending: true })
 
   if (error) {
@@ -228,8 +226,6 @@ export async function getCrewMasterData(): Promise<CrewMasterRecord[]> {
     location: d.location || '',
     salary: d.salary ?? 0,
     fixed_allowance: d.fixed_allowance ?? 0,
-    oa_rate: d.oa_rate ?? 0,
-    medevac_rate: d.medevac_rate ?? 0,
     relief_rate: d.relief_rate ?? 0,
     standby_rate: d.standby_rate ?? 0,
   }))

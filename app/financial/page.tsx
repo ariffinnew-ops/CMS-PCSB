@@ -87,8 +87,8 @@ function calcCrewMonthCosts(
     const master = masterMap.get((crew.crew_name || "").toUpperCase().trim());
     const salary = master?.salary ?? 0;
     const fixedAllowance = master?.fixed_allowance ?? 0;
-    const oaRate = master?.oa_rate ?? 0;
-    const medevacRate = master?.medevac_rate ?? 0;
+    const oaRate = 200;       // fixed RM200/day
+    const medevacRate = 500;  // fixed RM500/case
 
     let totalDays = 0;
     let offshoreEligibleDays = 0;
