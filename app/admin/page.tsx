@@ -29,9 +29,14 @@ export default function AdminPage() {
   const [activeNote, setActiveNote] = useState<{
     crewId: string;
     name: string;
+    post: string;
     rotationIdx: number;
     cycleRowId: number | null;
     note: string;
+    relief_all: number | null;
+    standby_all: number | null;
+    is_offshore: boolean | null;
+    medevac_dates: string[];
   } | null>(null);
   const [hoveredNote, setHoveredNote] = useState<{
     text: string;
@@ -227,6 +232,8 @@ export default function AdminPage() {
             notes: null,
             relief_all: null,
             standby_all: null,
+            is_offshore: null,
+            medevac_dates: null,
           };
           return { ...row, cycles: newCycles };
         }));
@@ -248,23 +255,31 @@ export default function AdminPage() {
 
   const saveNote = async () => {
     if (activeNote) {
+      const updates: Record<string, unknown> = {
+        notes: activeNote.note || null,
+        relief_all: activeNote.relief_all,
+        standby_all: activeNote.standby_all,
+        is_offshore: activeNote.is_offshore,
+        medevac_dates: activeNote.medevac_dates.length > 0 ? activeNote.medevac_dates : null,
+      };
+
       if (activeNote.cycleRowId) {
-        // Update existing cycle row note
-        await updateRosterRow(activeNote.cycleRowId, { notes: activeNote.note });
+        await updateRosterRow(activeNote.cycleRowId, updates);
       } else {
-        // Create cycle row with note
-        await createRosterRow({
+        // Create cycle row with all fields
+        const result = await createRosterRow({
           crew_id: activeNote.crewId,
           crew_name: activeNote.name,
-          post: '',
+          post: activeNote.post,
           client: '',
           location: '',
           cycle_number: activeNote.rotationIdx,
         });
-        // Then re-fetch to get the ID and update note
-        await fetchData();
+        if (result.success && result.data) {
+          await updateRosterRow(result.data.id, updates);
+        }
       }
-      showNotification("Note Saved", "success");
+      showNotification("Saved", "success");
       setActiveNote(null);
       fetchData();
     }
@@ -704,9 +719,14 @@ export default function AdminPage() {
                                           setActiveNote({
                                             crewId: row.crew_id,
                                             name: row.crew_name,
+                                            post: row.post || "",
                                             rotationIdx,
                                             cycleRowId: cycle?.id || null,
                                             note: cycle?.notes || "",
+                                            relief_all: cycle?.relief_all ?? null,
+                                            standby_all: cycle?.standby_all ?? null,
+                                            is_offshore: cycle?.is_offshore ?? true,
+                                            medevac_dates: cycle?.medevac_dates ?? [],
                                           })
                                         }
                                         className={`text-[12px] hover:scale-125 transition-all p-1.5 rounded-lg border shadow-sm ${
@@ -763,42 +783,165 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* NOTE MODAL */}
-        {activeNote && (
+        {/* CYCLE DETAIL MODAL */}
+        {activeNote && (() => {
+          const isOM = (activeNote.post || "").toUpperCase().includes("OFFSHORE MEDIC");
+          const isEM = (activeNote.post || "").toUpperCase().includes("ESCORT MEDIC");
+          return (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-card rounded-2xl w-full max-w-sm shadow-2xl border border-border">
-              <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+            <div className="bg-card rounded-2xl w-full max-w-md shadow-2xl border border-border flex flex-col max-h-[85vh]">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-slate-900 rounded-t-2xl shrink-0">
                 <div>
-                  <h3 className="text-xs font-black uppercase tracking-wider text-foreground">{activeNote.name}</h3>
-                  <p className="text-[9px] font-bold text-blue-600 uppercase tracking-wide mt-0.5">
-                    Cycle {activeNote.rotationIdx} Note
+                  <h3 className="text-xs font-black uppercase tracking-wider text-white">{activeNote.name}</h3>
+                  <p className="text-[9px] font-bold text-blue-400 uppercase tracking-wide mt-0.5">
+                    Cycle {activeNote.rotationIdx} &middot; {shortenPost(activeNote.post)}
                   </p>
                 </div>
-                <button type="button" onClick={() => setActiveNote(null)} className="text-muted-foreground hover:text-foreground text-lg font-bold">&times;</button>
+                <button type="button" onClick={() => setActiveNote(null)} className="text-white/60 hover:text-white text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors">&times;</button>
               </div>
 
-              <div className="px-5 py-3">
-                <textarea
-                  value={activeNote.note}
-                  onChange={(e) => setActiveNote({ ...activeNote, note: e.target.value })}
-                  placeholder="Enter cycle notes..."
-                  className="w-full h-28 bg-muted border border-border rounded-lg p-3 text-xs outline-none focus:ring-2 focus:ring-slate-400 resize-none leading-relaxed"
-                />
+              <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: "thin" }}>
+                {/* Field A: Offshore Allowance - only for OFFSHORE MEDIC */}
+                {isOM && (
+                  <div>
+                    <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">
+                      Offshore Allowance
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setActiveNote({ ...activeNote, is_offshore: true })}
+                        className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
+                          activeNote.is_offshore === true
+                            ? "bg-emerald-600 text-white border-emerald-500 shadow-md"
+                            : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                        }`}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveNote({ ...activeNote, is_offshore: false })}
+                        className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
+                          activeNote.is_offshore === false
+                            ? "bg-red-600 text-white border-red-500 shadow-md"
+                            : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                        }`}
+                      >
+                        No
+                      </button>
+                    </div>
+                    <p className="text-[8px] text-muted-foreground mt-1">Offshore allowance will be calculated if set to Yes.</p>
+                  </div>
+                )}
+
+                {/* Field B: Relief & Standby Allowance - all crew */}
+                <div>
+                  <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">
+                    Relief &amp; Standby Allowance
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Relief (RM)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={activeNote.relief_all ?? ""}
+                        onChange={(e) => setActiveNote({ ...activeNote, relief_all: e.target.value ? parseFloat(e.target.value) : null })}
+                        placeholder="0.00"
+                        className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-slate-400 tabular-nums"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Standby (RM)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={activeNote.standby_all ?? ""}
+                        onChange={(e) => setActiveNote({ ...activeNote, standby_all: e.target.value ? parseFloat(e.target.value) : null })}
+                        placeholder="0.00"
+                        className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-slate-400 tabular-nums"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Field C: Medevac Case - only for ESCORT MEDIC */}
+                {isEM && (
+                  <div>
+                    <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">
+                      Medevac Cases
+                    </label>
+                    <div className="space-y-2">
+                      {[0, 1, 2].map((idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="text-[8px] font-bold text-muted-foreground w-4 shrink-0">{idx + 1}.</span>
+                          <input
+                            type="date"
+                            value={activeNote.medevac_dates[idx] || ""}
+                            onChange={(e) => {
+                              const newDates = [...activeNote.medevac_dates];
+                              if (e.target.value) {
+                                newDates[idx] = e.target.value;
+                              } else {
+                                newDates.splice(idx, 1);
+                              }
+                              setActiveNote({ ...activeNote, medevac_dates: newDates.filter(Boolean) });
+                            }}
+                            className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-slate-400"
+                          />
+                          {activeNote.medevac_dates[idx] && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newDates = activeNote.medevac_dates.filter((_, i) => i !== idx);
+                                setActiveNote({ ...activeNote, medevac_dates: newDates });
+                              }}
+                              className="text-red-500 hover:text-red-400 text-xs font-bold"
+                            >
+                              &times;
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[8px] text-muted-foreground mt-1">Up to 3 medevac case dates per cycle.</p>
+                  </div>
+                )}
+
+                {/* Field D: Notes */}
+                <div>
+                  <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">
+                    Notes
+                  </label>
+                  <textarea
+                    value={activeNote.note}
+                    onChange={(e) => setActiveNote({ ...activeNote, note: e.target.value })}
+                    placeholder="Enter cycle notes..."
+                    className="w-full h-24 bg-muted border border-border rounded-lg p-3 text-xs outline-none focus:ring-2 focus:ring-slate-400 resize-none leading-relaxed"
+                  />
+                </div>
               </div>
 
-              <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
+              <div className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-muted/30 rounded-b-2xl shrink-0">
                 {activeNote.cycleRowId && activeNote.note && (
                   <button type="button" onClick={deleteNote} className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-black text-[10px] uppercase tracking-wider transition-all">
-                    Delete
+                    Delete Note
                   </button>
                 )}
-                <button type="button" onClick={saveNote} className="px-5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-black text-[10px] uppercase tracking-wider transition-all">
-                  Save
+                <button type="button" onClick={() => setActiveNote(null)} className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border">
+                  Cancel
+                </button>
+                <button type="button" onClick={saveNote} className="px-5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-black text-[10px] uppercase tracking-wider transition-all shadow-lg">
+                  Save All
                 </button>
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* ADD NEW STAFF MODAL */}
         {addStaffModal && (

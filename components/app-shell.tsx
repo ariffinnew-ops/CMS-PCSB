@@ -31,6 +31,7 @@ const allNavItems: NavItem[] = [
   { id: "roster", label: "Roster", href: "/roster", roles: ["admin", "datalogger", "guest"] },
   { id: "training", label: "Training Matrix", href: "/training", roles: ["admin", "datalogger", "guest"] },
   { id: "staff", label: "Staff Detail", href: "/staff", roles: ["admin", "datalogger", "guest"] },
+  { id: "statement", label: "Statement", href: "/statement", roles: ["admin", "datalogger"] },
   { id: "admin", label: "Data Manager", href: "/admin", roles: ["admin", "datalogger"] },
 ];
 

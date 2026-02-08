@@ -14,8 +14,10 @@ export interface RosterRow {
   sign_on: string | null;    // date string (YYYY-MM-DD)
   sign_off: string | null;   // date string (YYYY-MM-DD)
   notes: string | null;
-  relief_all: number | null; // numeric, >0 = relief shift
+  relief_all: number | null;
   standby_all: number | null;
+  is_offshore: boolean | null;    // only meaningful for OFFSHORE MEDIC
+  medevac_dates: string[] | null; // only meaningful for ESCORT MEDIC (up to 3 dates)
 }
 
 // Pivoted view: one row per crew with all cycles grouped (for UI rendering)
@@ -33,6 +35,8 @@ export interface PivotedCrewRow {
     notes: string | null;
     relief_all: number | null;
     standby_all: number | null;
+    is_offshore: boolean | null;
+    medevac_dates: string[] | null;
   }>;
 }
 

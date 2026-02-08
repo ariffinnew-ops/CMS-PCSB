@@ -49,6 +49,8 @@ export async function getPivotedRosterData(): Promise<PivotedCrewRow[]> {
         notes: row.notes,
         relief_all: row.relief_all,
         standby_all: row.standby_all,
+        is_offshore: row.is_offshore ?? null,
+        medevac_dates: row.medevac_dates ?? null,
       }
     }
   }
