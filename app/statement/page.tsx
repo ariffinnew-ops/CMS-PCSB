@@ -31,7 +31,7 @@ interface StatementRow {
   standbyTotal: number;
   // Medevac
   medevacCount: number;
-  medevacRate: number;
+  MEDEVAC_RATE: number;
   medevacTotal: number;
   // Grand
   grandTotal: number;
@@ -95,9 +95,8 @@ export default function StatementPage() {
       const isOM = (crew.post || "").toUpperCase().includes("OFFSHORE MEDIC");
       const isEM = (crew.post || "").toUpperCase().includes("ESCORT MEDIC");
 
-      const master = masterMap.get((crew.crew_name || "").toUpperCase().trim());
-      const oaRate = master?.oa_rate ?? 0;
-      const medevacRate = master?.medevac_rate ?? 0;
+      const OA_RATE = 200;       // fixed RM200/day
+      const MEDEVAC_RATE = 500;  // fixed RM500/case
 
       const cycleDetails: StatementRow["cycles"] = [];
       let totalOffshoreDays = 0;
@@ -162,8 +161,8 @@ export default function StatementPage() {
 
       if (cycleDetails.length === 0) continue;
 
-      const offshoreTotal = isOM ? totalOffshoreDays * oaRate : 0;
-      const medevacTotal = isEM ? totalMedevacCount * medevacRate : 0;
+      const offshoreTotal = isOM ? totalOffshoreDays * OA_RATE : 0;
+      const medevacTotal = isEM ? totalMedevacCount * MEDEVAC_RATE : 0;
       const grandTotal = offshoreTotal + totalReliefAmount + totalStandbyAmount + medevacTotal;
 
       rows.push({
@@ -173,7 +172,7 @@ export default function StatementPage() {
         client: crew.client,
         location: crew.location,
         offshoreDays: isOM ? totalOffshoreDays : 0,
-        offshoreRate: isOM ? oaRate : 0,
+        offshoreRate: isOM ? OA_RATE : 0,
         offshoreTotal,
         reliefDays: totalReliefDays,
         reliefRate: totalReliefAmount > 0 && totalReliefDays > 0 ? totalReliefAmount / totalReliefDays : 0,
@@ -182,7 +181,7 @@ export default function StatementPage() {
         standbyRate: totalStandbyAmount > 0 && totalStandbyDays > 0 ? totalStandbyAmount / totalStandbyDays : 0,
         standbyTotal: totalStandbyAmount,
         medevacCount: isEM ? totalMedevacCount : 0,
-        medevacRate: isEM ? medevacRate : 0,
+        MEDEVAC_RATE: isEM ? MEDEVAC_RATE : 0,
         medevacTotal,
         grandTotal,
         cycles: cycleDetails.sort((a, b) => a.cycleNum - b.cycleNum),
@@ -403,7 +402,7 @@ export default function StatementPage() {
                               </div>
                               {/* Medevac: Rate */}
                               <div className={`${tdBase}`} style={{ width: "70px" }}>
-                                <span className="text-muted-foreground text-[10px]">{row.medevacRate > 0 ? formatRM(row.medevacRate) : "-"}</span>
+                                <span className="text-muted-foreground text-[10px]">{row.MEDEVAC_RATE > 0 ? formatRM(row.MEDEVAC_RATE) : "-"}</span>
                               </div>
                               {/* Medevac: Total */}
                               <div className={`${tdBase}`} style={{ width: "90px" }}>
