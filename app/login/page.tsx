@@ -107,9 +107,19 @@ export default function LoginPage() {
           <h1 className="text-xl font-bold text-white tracking-tight">
             Crewing Management System
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Sign in to access your account
-          </p>
+          {notification ? (
+            <div className={`mt-1 px-4 py-2 rounded-lg text-sm font-semibold text-center animate-in fade-in slide-in-from-top-2 duration-300 ${
+              notification.type === "success"
+                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                : "bg-red-500/15 text-red-400 border border-red-500/30"
+            }`}>
+              {notification.message}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400 mt-1">
+              Sign in to access your account
+            </p>
+          )}
         </CardHeader>
         
         <CardContent className="pt-4 pb-6">
@@ -169,16 +179,7 @@ export default function LoginPage() {
             Contact your administrator if you need access
           </p>
 
-          {/* Login notification - appears below "contact your admin" */}
-          {notification && (
-            <div className={`mt-3 px-4 py-2.5 rounded-lg text-sm font-semibold text-center animate-in fade-in slide-in-from-bottom-2 duration-300 ${
-              notification.type === "success"
-                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
-                : "bg-red-500/15 text-red-400 border border-red-500/30"
-            }`}>
-              {notification.message}
-            </div>
-          )}
+
         </CardContent>
       </Card>
 
@@ -187,8 +188,8 @@ export default function LoginPage() {
         <p className="text-[11px] text-white font-normal tracking-wide">
           &copy; {new Date().getFullYear()} kawie - Crewing Management System. All Rights Reserved.
         </p>
-        <p className="text-[10px] text-white font-normal tracking-wide mt-0.5">
-          ver:kawie-v2-080226
+        <p className="text-[10px] text-white font-normal tracking-wide mt-0.5 italic">
+          version : v2-080226
         </p>
       </div>
     </div>
