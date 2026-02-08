@@ -192,15 +192,22 @@ export default function StatementPage() {
       });
     }
 
-    // Sort by client, then trade rank, then location, then name (Data Manager order)
+    // Sort: Trade (OM→EM→OHN), Location (alphabetical), Client (SKA→SBA), then Name
+    const clientRank = (c: string) => {
+      const u = (c || "").toUpperCase().trim();
+      if (u.includes("SKA")) return 1;
+      if (u.includes("SBA")) return 2;
+      return 3;
+    };
     return rows.sort((a, b) => {
-      const clientCmp = (a.client || "").localeCompare(b.client || "");
-      if (clientCmp !== 0) return clientCmp;
       const tradeA = getTradeRank(a.post);
       const tradeB = getTradeRank(b.post);
       if (tradeA !== tradeB) return tradeA - tradeB;
       const locCmp = (a.displayLocation || "").localeCompare(b.displayLocation || "");
       if (locCmp !== 0) return locCmp;
+      const cA = clientRank(a.client);
+      const cB = clientRank(b.client);
+      if (cA !== cB) return cA - cB;
       return a.crew_name.localeCompare(b.crew_name);
     });
   }, [data, masterMap, selectedYear, selectedMonthNum]);
