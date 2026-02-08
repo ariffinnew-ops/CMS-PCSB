@@ -24,7 +24,7 @@ interface DocItem { name: string; size: number; created_at: string }
 function roleLevel(u: AuthUser | null): number { return u ? (ROLE_LEVELS[u.role] ?? 99) : 99; }
 function fmtDate(d: string | null | undefined): string {
   if (!d) return "-";
-  try { return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }); } catch { return String(d); }
+  try { const dt = new Date(d); return `${String(dt.getDate()).padStart(2, "0")}/${String(dt.getMonth() + 1).padStart(2, "0")}/${dt.getFullYear()}`; } catch { return String(d); }
 }
 function fmtRM(v: unknown): string {
   const n = Number(v);

@@ -66,7 +66,7 @@ function fmtDate(d: string | null): string {
   if (!d) return "-";
   const date = new Date(d);
   if (isNaN(date.getTime())) return "-";
-  return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getFullYear()).slice(-2)}`;
+  return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
 }
 
 function toInputDate(d: string | null): string {
@@ -365,7 +365,7 @@ function EditableCell({
   );
 }
 
-// ═══════════════════════════════════�������═══
+// ═══════════════════════════════════���������═══
 // MAIN PAGE
 // ════════════════════════════���══════════
 export default function TrainingMatrixPage() {
