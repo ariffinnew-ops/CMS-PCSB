@@ -1,6 +1,7 @@
 export type ClientType = 'SKA' | 'SBA';
 export type TradeType = 'OM' | 'EM' | 'IMP/OHN';
 
+// Normalized roster row: one row per crew per cycle
 export interface RosterRow {
   id: number;
   crew_id?: string;
@@ -9,7 +10,30 @@ export interface RosterRow {
   client: string;
   location: string;
   roles_em?: string;
-  [key: string]: string | number | null | undefined; // For m1, d1, m2, d2, etc.
+  cycle_number: number;      // 1-24 rotation cycle
+  sign_on: string | null;    // date string (YYYY-MM-DD)
+  sign_off: string | null;   // date string (YYYY-MM-DD)
+  notes: string | null;
+  relief_all: number | null; // numeric, >0 = relief shift
+  standby_all: number | null;
+}
+
+// Pivoted view: one row per crew with all cycles grouped (for UI rendering)
+export interface PivotedCrewRow {
+  crew_id: string;
+  crew_name: string;
+  post: string;
+  client: string;
+  location: string;
+  roles_em?: string;
+  cycles: Record<number, {
+    id: number;
+    sign_on: string | null;
+    sign_off: string | null;
+    notes: string | null;
+    relief_all: number | null;
+    standby_all: number | null;
+  }>;
 }
 
 export interface CrewMember {
@@ -41,7 +65,7 @@ export interface PersonnelStatus {
   rotationEnd: Date | null;
 }
 
-// New schema: pcsb_matrix joined with pcsb_crew_detail
+// New schema: cms_pcsb_matrix joined with cms_pcsb_master
 export interface MatrixRecord {
   id: string;
   crew_id: string;
@@ -50,7 +74,7 @@ export interface MatrixRecord {
   expiry_date: string | null;
   attended_date: string | null;
   plan_date: string | null;
-  // Joined from pcsb_crew_detail
+  // Joined from cms_pcsb_master
   crew_name: string;
   post: string;
   client: string;

@@ -2,8 +2,8 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
-import { RosterRow, ClientType, TradeType } from "@/lib/types";
-import { getRosterData } from "@/lib/actions";
+import { PivotedCrewRow, ClientType, TradeType } from "@/lib/types";
+import { getPivotedRosterData } from "@/lib/actions";
 import { safeParseDate, getTradeRank, getFullTradeName } from "@/lib/logic";
 
 // Generate months from Sep 2025 to Dec 2026
@@ -27,14 +27,14 @@ const MONTH_NAMES = [
 
 export default function RosterPage() {
   const [viewDate, setViewDate] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); });
-  const [data, setData] = useState<RosterRow[]>([]);
+  const [data, setData] = useState<PivotedCrewRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [clientFilter, setClientFilter] = useState<ClientType | "ALL">("ALL");
   const [tradeFilter, setTradeFilter] = useState<TradeType | "ALL">("ALL");
 
   useEffect(() => {
-    getRosterData().then((rosterData) => {
-      setData(rosterData);
+    getPivotedRosterData().then((pivotedData) => {
+      setData(pivotedData);
       setLoading(false);
     });
   }, []);
@@ -54,7 +54,7 @@ export default function RosterPage() {
     });
   }, [viewDate]);
 
-  const hasActivityInMonth = (row: RosterRow) => {
+  const hasActivityInMonth = (row: PivotedCrewRow) => {
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
     const monthStart = new Date(year, month, 1, 0, 0, 0, 0).getTime();
@@ -64,9 +64,9 @@ export default function RosterPage() {
       return true;
     }
 
-    for (let i = 1; i <= 24; i++) {
-      const m = safeParseDate(row[`m${i}`] as string);
-      const d = safeParseDate(row[`d${i}`] as string);
+    for (const cycle of Object.values(row.cycles)) {
+      const m = safeParseDate(cycle.sign_on);
+      const d = safeParseDate(cycle.sign_off);
       if (m && d) {
         const rotationStart = m.getTime();
         const rotationEnd = d.getTime();
@@ -110,11 +110,10 @@ export default function RosterPage() {
       });
   }, [data, clientFilter, tradeFilter, viewDate]);
 
-  // crew_name is stored with suffix directly in pcsb_roster
-  const getDisplayName = (row: RosterRow) => row.crew_name;
+  const getDisplayName = (row: PivotedCrewRow) => row.crew_name;
 
   const groupedData = useMemo(() => {
-    const result: { type: 'separator' | 'row'; label?: string; row?: RosterRow; trade?: string }[] = [];
+    const result: { type: 'separator' | 'row'; label?: string; row?: PivotedCrewRow; trade?: string }[] = [];
     let lastGroupKey = "";
     
     sortedData.forEach((row) => {
@@ -136,7 +135,7 @@ export default function RosterPage() {
     return result;
   }, [sortedData]);
 
-  const getDayStatus = (row: RosterRow, day: number) => {
+  const getDayStatus = (row: PivotedCrewRow, day: number) => {
     const checkDate = new Date(
       viewDate.getFullYear(),
       viewDate.getMonth(),
@@ -151,30 +150,32 @@ export default function RosterPage() {
       return "OHN_WEEKDAY";
     }
 
-    for (let i = 1; i <= 24; i++) {
-      const m = safeParseDate(row[`m${i}`] as string);
-      const d = safeParseDate(row[`d${i}`] as string);
+    for (const cycle of Object.values(row.cycles)) {
+      const m = safeParseDate(cycle.sign_on);
+      const d = safeParseDate(cycle.sign_off);
       if (m && d && checkTime >= m.getTime() && checkTime <= d.getTime()) {
+        // Check if relief
+        if (cycle.relief_all && cycle.relief_all > 0) return "RELIEF";
         return row.roles_em === "SECONDARY" ? "SECONDARY" : "PRIMARY";
       }
     }
     return "OFF";
   };
 
-  const getConnectStatus = (row: RosterRow, day: number) => {
+  const getConnectStatus = (row: PivotedCrewRow, day: number) => {
     const status = getDayStatus(row, day);
     if (status === "OHN_WEEKDAY" || status === "OHN_WEEKEND") return "OHN";
     return status;
   };
 
-  const connectsToNext = (row: RosterRow, day: number) => {
+  const connectsToNext = (row: PivotedCrewRow, day: number) => {
     if (day >= daysInMonth.length) return false;
     const currentStatus = getConnectStatus(row, day);
     const nextStatus = getConnectStatus(row, day + 1);
     return currentStatus !== "OFF" && nextStatus !== "OFF";
   };
 
-  const connectsFromPrev = (row: RosterRow, day: number) => {
+  const connectsFromPrev = (row: PivotedCrewRow, day: number) => {
     if (day <= 1) return false;
     const currentStatus = getConnectStatus(row, day);
     const prevStatus = getConnectStatus(row, day - 1);
@@ -320,7 +321,7 @@ export default function RosterPage() {
                     const row = item.row!;
                     return (
                       <tr
-                        key={row.id}
+                        key={row.crew_id}
                         className="hover:bg-blue-50/50 transition-colors group border-b border-gray-300"
                         style={{ height: '28px' }}
                       >
@@ -344,6 +345,8 @@ export default function RosterPage() {
                             barClass = "bg-sky-300";
                           } else if (status === "OHN_WEEKEND") {
                             barClass = "bg-slate-400";
+                          } else if (status === "RELIEF") {
+                            barClass = "bg-amber-500";
                           }
 
                           const roundedLeft = !fromPrev ? "rounded-l-sm" : "";
@@ -393,6 +396,12 @@ export default function RosterPage() {
             <div className="w-5 h-3 bg-sky-300 rounded-sm" />
             <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">
               EM Secondary
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-3 bg-amber-500 rounded-sm" />
+            <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">
+              Relief
             </span>
           </div>
           <div className="flex items-center gap-2">

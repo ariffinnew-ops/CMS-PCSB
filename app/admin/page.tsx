@@ -4,15 +4,15 @@ import React from "react"
 
 import { useEffect, useState, useMemo, useRef, Fragment } from "react";
 import { AppShell } from "@/components/app-shell";
-import { RosterRow, TradeType } from "@/lib/types";
-import { getRosterData, updateRosterRow, createRosterRow, deleteRosterRow, getCrewList } from "@/lib/actions";
+import { PivotedCrewRow, TradeType } from "@/lib/types";
+import { getPivotedRosterData, updateRosterRow, createRosterRow, deleteRosterRow, deleteCrewFromRoster, getCrewList } from "@/lib/actions";
 import { safeParseDate, getTradeRank, shortenPost } from "@/lib/logic";
 import { getClients, getPostsForClient, getLocationsForClientPost } from "@/lib/client-location-map";
 
 interface CrewListItem { id: string; crew_name: string; clean_name: string; post: string; client: string; location: string; status?: string }
 
 export default function AdminPage() {
-  const [data, setData] = useState<RosterRow[]>([]);
+  const [data, setData] = useState<PivotedCrewRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [tradeFilter, setTradeFilter] = useState<TradeType | "ALL">("ALL");
@@ -27,9 +27,10 @@ export default function AdminPage() {
     type: "success" | "error";
   } | null>(null);
   const [activeNote, setActiveNote] = useState<{
-    id: number;
+    crewId: string;
     name: string;
     rotationIdx: number;
+    cycleRowId: number | null;
     note: string;
   } | null>(null);
   const [hoveredNote, setHoveredNote] = useState<{
@@ -38,11 +39,10 @@ export default function AdminPage() {
     y: number;
   } | null>(null);
 
-  const [notesStore, setNotesStore] = useState<Record<string, string>>({});
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
 
-  // Dynamic crew list from pcsb_crew_detail
+  // Dynamic crew list from cms_pcsb_master
   const [crewList, setCrewList] = useState<CrewListItem[]>([]);
 
   // Add Staff Modal State
@@ -53,28 +53,17 @@ export default function AdminPage() {
   const [staffSearchQuery, setStaffSearchQuery] = useState("");
   const [selectedStaff, setSelectedStaff] = useState<CrewListItem | null>(null);
   
-  // Track newly added staff IDs for showing delete button
-  const [newlyAddedIds, setNewlyAddedIds] = useState<Set<number>>(new Set());
+  // Track newly added crew IDs for showing delete button
+  const [newlyAddedCrewIds, setNewlyAddedCrewIds] = useState<Set<string>>(new Set());
   
   // Delete confirmation modal state
-  const [deleteModal, setDeleteModal] = useState<{ id: number; name: string } | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ crewId: string; name: string } | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
-    const [rosterData, crewResult] = await Promise.all([getRosterData(), getCrewList()]);
-    setData(rosterData);
+    const [pivotedData, crewResult] = await Promise.all([getPivotedRosterData(), getCrewList()]);
+    setData(pivotedData);
     if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
-    // Load notes from pcsb_roster note1-note24 columns into notesStore
-    const loadedNotes: Record<string, string> = {};
-    for (const row of rosterData) {
-      for (let i = 1; i <= 24; i++) {
-        const noteVal = row[`note${i}`] as string | null | undefined;
-        if (noteVal && typeof noteVal === "string" && noteVal.trim()) {
-          loadedNotes[`${row.id}-${i}`] = noteVal;
-        }
-      }
-    }
-    setNotesStore(loadedNotes);
     setLoading(false);
   };
 
@@ -154,28 +143,28 @@ export default function AdminPage() {
     setTimeout(() => setNotification(null), 3000);
   };
 
+  // Overlap detection using normalized cycles
   const getOverlaps = useMemo(() => {
     const alerts: Record<string, string[]> = {};
     const oms = data.filter((r) => r.post?.includes("OFFSHORE MEDIC"));
 
     oms.forEach((rowA) => {
-      for (let i = 1; i <= 24; i++) {
-        const mA = safeParseDate(rowA[`m${i}`] as string);
-        const dA = safeParseDate(rowA[`d${i}`] as string);
+      for (const [cycleNumA, cycleA] of Object.entries(rowA.cycles)) {
+        const mA = safeParseDate(cycleA.sign_on);
+        const dA = safeParseDate(cycleA.sign_off);
         if (!mA || !dA) continue;
 
         oms.forEach((rowB) => {
-          if (rowA.id === rowB.id) return;
-          if (rowA.location !== rowB.location || rowA.post !== rowB.post)
-            return;
+          if (rowA.crew_id === rowB.crew_id) return;
+          if (rowA.location !== rowB.location || rowA.post !== rowB.post) return;
 
-          for (let j = 1; j <= 24; j++) {
-            const mB = safeParseDate(rowB[`m${j}`] as string);
-            const dB = safeParseDate(rowB[`d${j}`] as string);
+          for (const cycleB of Object.values(rowB.cycles)) {
+            const mB = safeParseDate(cycleB.sign_on);
+            const dB = safeParseDate(cycleB.sign_off);
             if (!mB || !dB) continue;
 
             if (mA.getTime() < dB.getTime() && dA.getTime() > mB.getTime()) {
-              const key = `${rowA.id}-${i}`;
+              const key = `${rowA.crew_id}-${cycleNumA}`;
               if (!alerts[key]) alerts[key] = [];
               if (!alerts[key].includes(rowB.crew_name))
                 alerts[key].push(rowB.crew_name);
@@ -187,45 +176,65 @@ export default function AdminPage() {
     return alerts;
   }, [data]);
 
-  const handleUpdate = async (id: number, field: string, value: string) => {
+  // Handle updating a cycle's sign_on or sign_off
+  const handleUpdate = async (crewRow: PivotedCrewRow, cycleNum: number, field: 'sign_on' | 'sign_off', value: string) => {
     const finalValue = value === "" ? null : value;
+    const cycle = crewRow.cycles[cycleNum];
     
-    const isMob = field.startsWith("m");
-    const rotationNum = field.replace(/^[md]/, "");
-    const pairedField = isMob ? `d${rotationNum}` : `m${rotationNum}`;
-    
-    const currentRow = data.find(r => r.id === id);
-    if (!currentRow) return;
-    
-    const pairedValue = currentRow[pairedField as keyof RosterRow] as string | null;
-    
-    // Optimistic update - always allow the action
-    const updatedData = data.map((r) =>
-      r.id === id ? { ...r, [field]: finalValue } : r
-    );
-    setData(updatedData);
     setIsSyncing(true);
-    
-    // Persist to Supabase
-    const result = await updateRosterRow(id, { [field]: finalValue });
-    setIsSyncing(false);
-    
-    if (result.success) {
-      setLastSynced(new Date());
-      
-      // Warn if incomplete date pair (but allow action to proceed)
-      if (finalValue && (!pairedValue || pairedValue === "")) {
-        const missingType = isMob ? "DEMOB" : "MOB";
-        showNotification(`Warning: Incomplete date pair (${missingType} missing)`, "error");
-      } else if (!finalValue && pairedValue && pairedValue !== "") {
-        const clearedType = isMob ? "MOB" : "DEMOB";
-        showNotification(`Warning: Incomplete date pair (${clearedType} cleared)`, "error");
-      } else {
+
+    if (cycle?.id) {
+      // Update existing cycle row
+      const result = await updateRosterRow(cycle.id, { [field]: finalValue });
+      setIsSyncing(false);
+      if (result.success) {
+        setLastSynced(new Date());
+        // Optimistic update
+        setData(prev => prev.map(row => {
+          if (row.crew_id !== crewRow.crew_id) return row;
+          const newCycles = { ...row.cycles };
+          if (newCycles[cycleNum]) {
+            newCycles[cycleNum] = { ...newCycles[cycleNum], [field]: finalValue };
+          }
+          return { ...row, cycles: newCycles };
+        }));
         showNotification("Update Synced", "success");
+      } else {
+        showNotification(result.error || "Update failed", "error");
+        fetchData();
       }
     } else {
-      showNotification(result.error || "Update failed", "error");
-      fetchData();
+      // Create new cycle row
+      const result = await createRosterRow({
+        crew_id: crewRow.crew_id,
+        crew_name: crewRow.crew_name,
+        post: crewRow.post,
+        client: crewRow.client,
+        location: crewRow.location,
+        cycle_number: cycleNum,
+        [field]: finalValue,
+      });
+      setIsSyncing(false);
+      if (result.success && result.data) {
+        setLastSynced(new Date());
+        setData(prev => prev.map(row => {
+          if (row.crew_id !== crewRow.crew_id) return row;
+          const newCycles = { ...row.cycles };
+          newCycles[cycleNum] = {
+            id: result.data!.id,
+            sign_on: field === 'sign_on' ? finalValue : null,
+            sign_off: field === 'sign_off' ? finalValue : null,
+            notes: null,
+            relief_all: null,
+            standby_all: null,
+          };
+          return { ...row, cycles: newCycles };
+        }));
+        showNotification("Update Synced", "success");
+      } else {
+        showNotification(result.error || "Update failed", "error");
+        fetchData();
+      }
     }
   };
 
@@ -239,32 +248,39 @@ export default function AdminPage() {
 
   const saveNote = async () => {
     if (activeNote) {
-      const key = `${activeNote.id}-${activeNote.rotationIdx}`;
-      const noteColumn = `note${activeNote.rotationIdx}`;
-      setNotesStore((prev) => ({ ...prev, [key]: activeNote.note }));
-      // Sync to pcsb_roster note{N} column
-      await updateRosterRow(activeNote.id, { [noteColumn]: activeNote.note });
+      if (activeNote.cycleRowId) {
+        // Update existing cycle row note
+        await updateRosterRow(activeNote.cycleRowId, { notes: activeNote.note });
+      } else {
+        // Create cycle row with note
+        await createRosterRow({
+          crew_id: activeNote.crewId,
+          crew_name: activeNote.name,
+          post: '',
+          client: '',
+          location: '',
+          cycle_number: activeNote.rotationIdx,
+        });
+        // Then re-fetch to get the ID and update note
+        await fetchData();
+      }
       showNotification("Note Saved", "success");
       setActiveNote(null);
+      fetchData();
     }
   };
 
   const deleteNote = async () => {
-    if (activeNote) {
-      const key = `${activeNote.id}-${activeNote.rotationIdx}`;
-      const noteColumn = `note${activeNote.rotationIdx}`;
-      const newStore = { ...notesStore };
-      delete newStore[key];
-      setNotesStore(newStore);
-      // Clear note{N} in pcsb_roster
-      await updateRosterRow(activeNote.id, { [noteColumn]: null });
+    if (activeNote && activeNote.cycleRowId) {
+      await updateRosterRow(activeNote.cycleRowId, { notes: null });
       showNotification("Note Deleted", "error");
       setActiveNote(null);
+      fetchData();
     }
   };
 
-  const calculateDays = (start: string, end: string) => {
-    if (!start || !end || start === "-" || end === "-") return null;
+  const calculateDays = (start: string | null, end: string | null) => {
+    if (!start || !end) return null;
     const s = safeParseDate(start);
     const e = safeParseDate(end);
     if (!s || !e) return null;
@@ -277,15 +293,10 @@ export default function AdminPage() {
     return data.some((row) => row.crew_id === crewId);
   };
 
-  // Count how many times a crew_id appears in the roster
-  const getCrewIdCount = (crewId: string) => {
-    return data.filter((row) => row.crew_id === crewId).length;
-  };
+  // Display name
+  const getDisplayName = (row: PivotedCrewRow) => row.crew_name;
 
-  // Display name is now stored directly in pcsb_roster.crew_name (with suffix)
-  const getDisplayName = (row: RosterRow) => row.crew_name;
-
-  // Add new staff to roster - always INSERT a new row
+  // Add new staff to roster
   const handleAddStaff = async () => {
     if (!selectedStaff || !newStaffClient || !newStaffPost || !newStaffLocation) return;
 
@@ -293,41 +304,36 @@ export default function AdminPage() {
 
     const baseName = selectedStaff.clean_name || selectedStaff.crew_name;
 
-    // Count existing rows for this crew_id
-    const existingCount = data.filter((row) => row.crew_id === selectedStaff.id).length;
-
-    // Suffix goes in crew_name ONLY, never in crew_id
-    const isRelief = existingCount > 0;
+    // Check existing entries
+    const alreadyExists = data.some((row) => row.crew_id === selectedStaff.id);
     let finalName = baseName;
-    if (existingCount === 1) {
+    if (alreadyExists) {
       finalName = `${baseName} (R)`;
-    } else if (existingCount > 1) {
-      finalName = `${baseName} (R${existingCount})`;
     }
 
-    // crew_id is always the ORIGINAL UUID - never modified
+    // Create initial cycle 1 row for this crew
     const payload = {
       crew_id: selectedStaff.id,
       crew_name: finalName,
       post: newStaffPost,
       client: newStaffClient,
       location: newStaffLocation,
+      cycle_number: 1,
     };
 
     const result = await createRosterRow(payload);
     setIsSyncing(false);
 
-    if (result.success && result.data) {
-      setData((prev) => [...prev, result.data!]);
-      setNewlyAddedIds((prev) => new Set([...prev, result.data!.id]));
+    if (result.success) {
+      setNewlyAddedCrewIds((prev) => new Set([...prev, selectedStaff.id]));
       setLastSynced(new Date());
-      const displaySuffix = isRelief ? ` (Relief at ${newStaffLocation})` : "";
-      showNotification(`${finalName}${displaySuffix} added successfully`, "success");
+      showNotification(`${finalName} added successfully`, "success");
+      fetchData();
     } else {
       showNotification(result.error || "Failed to add staff", "error");
     }
 
-    // Reset all modal state
+    // Reset modal
     setAddStaffModal(false);
     setSelectedStaff(null);
     setStaffSearchQuery("");
@@ -336,24 +342,19 @@ export default function AdminPage() {
     setNewStaffLocation("");
   };
 
-  // Delete staff - called after confirmation
+  // Delete staff - removes all cycle rows for a crew
   const handleDeleteStaff = async () => {
     if (!deleteModal) return;
     
-    const { id, name } = deleteModal;
+    const { crewId, name } = deleteModal;
     setDeleteModal(null);
     
     setIsSyncing(true);
-    const result = await deleteRosterRow(id);
+    const result = await deleteCrewFromRoster(crewId);
     setIsSyncing(false);
     
     if (result.success) {
-      setData((prev) => prev.filter((row) => row.id !== id));
-      setNewlyAddedIds((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(id);
-        return newSet;
-      });
+      setData((prev) => prev.filter((row) => row.crew_id !== crewId));
       setLastSynced(new Date());
       showNotification(`${name} deleted`, "success");
     } else {
@@ -361,12 +362,12 @@ export default function AdminPage() {
     }
   };
 
-  // Cascading dropdown options from CLIENT_LOCATION_MAP
+  // Cascading dropdown options
   const mapClients = useMemo(() => getClients(), []);
   const mapPosts = useMemo(() => newStaffClient ? getPostsForClient(newStaffClient) : [], [newStaffClient]);
   const mapLocations = useMemo(() => (newStaffClient && newStaffPost) ? getLocationsForClientPost(newStaffClient, newStaffPost) : [], [newStaffClient, newStaffPost]);
 
-  // Filter crew list for modal (search by clean_name or crew_name)
+  // Filter crew list for modal
   const filteredMasterList = useMemo(() => {
     if (!addStaffModal) return [];
     const q = staffSearchQuery.toLowerCase();
@@ -487,8 +488,6 @@ export default function AdminPage() {
                 </button>
               )}
             </div>
-
-            
           </div>
         </div>
 
@@ -575,7 +574,7 @@ export default function AdminPage() {
                     prev.location !== row.location;
 
                   return (
-                    <Fragment key={row.id}>
+                    <Fragment key={row.crew_id}>
                       {showSeparator && (
                         <tr className="sticky top-0 z-[90] bg-slate-900 border-y border-slate-950 shadow-xl w-full">
                           <td className="px-6 py-2 sticky left-0 z-[95] bg-slate-900 border-r border-slate-800">
@@ -599,7 +598,7 @@ export default function AdminPage() {
                             </span>
                             <button
                               type="button"
-                              onClick={() => setDeleteModal({ id: row.id, name: row.crew_name })}
+                              onClick={() => setDeleteModal({ crewId: row.crew_id, name: row.crew_name })}
                               className="flex items-center justify-center w-5 h-5 bg-red-500 hover:bg-red-400 text-white rounded-full text-[14px] font-black transition-all shadow-md hover:shadow-red-500/40 hover:scale-110 flex-shrink-0 opacity-0 group-hover/name:opacity-100"
                               title="Delete Row"
                             >
@@ -611,20 +610,20 @@ export default function AdminPage() {
                           <div className="flex items-center gap-4">
                             {Array.from({ length: 24 }).map((_, i) => {
                               const rotationIdx = i + 1;
-                              const mVal = row[`m${rotationIdx}`] as string;
-                              const dVal = row[`d${rotationIdx}`] as string;
-                              const days = calculateDays(mVal, dVal);
-                              const noteKey = `${row.id}-${rotationIdx}`;
-                              const alertKey = `${row.id}-${rotationIdx}`;
-                              const hasNote = !!notesStore[noteKey];
+                              const cycle = row.cycles[rotationIdx];
+                              const mVal = cycle?.sign_on || '';
+                              const dVal = cycle?.sign_off || '';
+                              const days = calculateDays(mVal || null, dVal || null);
+                              const hasNote = !!(cycle?.notes);
+                              const alertKey = `${row.crew_id}-${rotationIdx}`;
                               const conflicts = getOverlaps[alertKey];
+                              const isRelief = cycle?.relief_all && cycle.relief_all > 0;
 
                               const shouldShowSlot =
                                 rotationIdx <= 12 ||
                                 !!mVal ||
                                 !!dVal ||
-                                (rotationIdx > 1 &&
-                                  !!row[`m${rotationIdx - 1}`]);
+                                (rotationIdx > 1 && !!row.cycles[rotationIdx - 1]?.sign_on);
                               if (!shouldShowSlot) return null;
 
                               return (
@@ -638,12 +637,13 @@ export default function AdminPage() {
                                       conflicts
                                         ? "ring-2 ring-red-500 bg-red-50"
                                         : ""
-                                    }`}
+                                    } ${isRelief ? "ring-2 ring-amber-400" : ""}`}
                                   >
                                     <div className="flex flex-col">
                                       <div className="flex justify-between items-center mb-0.5">
                                         <span className="text-[7px] font-black text-muted-foreground uppercase tracking-tighter">
-                                          MOB {rotationIdx}
+                                          SIGN ON {rotationIdx}
+                                          {isRelief && <span className="ml-1 text-amber-600">(R)</span>}
                                         </span>
                                         {conflicts && (
                                           <span className="text-red-600 text-[8px] font-black animate-pulse">
@@ -655,28 +655,20 @@ export default function AdminPage() {
                                         type="date"
                                         value={mVal || ""}
                                         onChange={(e) =>
-                                          handleUpdate(
-                                            row.id,
-                                            `m${rotationIdx}`,
-                                            e.target.value
-                                          )
+                                          handleUpdate(row, rotationIdx, 'sign_on', e.target.value)
                                         }
                                         className="border border-border rounded-xl px-2.5 py-1.5 text-[11px] font-black w-36 outline-none focus:ring-2 focus:ring-slate-400 bg-muted text-foreground transition-all"
                                       />
                                     </div>
                                     <div className="flex flex-col">
                                       <span className="text-[7px] font-black text-red-500 mb-0.5 ml-1 uppercase tracking-tighter">
-                                        DEMOB {rotationIdx}
+                                        SIGN OFF {rotationIdx}
                                       </span>
                                       <input
                                         type="date"
                                         value={dVal || ""}
                                         onChange={(e) =>
-                                          handleUpdate(
-                                            row.id,
-                                            `d${rotationIdx}`,
-                                            e.target.value
-                                          )
+                                          handleUpdate(row, rotationIdx, 'sign_off', e.target.value)
                                         }
                                         className="border border-border rounded-xl px-2.5 py-1.5 text-[11px] font-black w-36 outline-none focus:ring-2 focus:ring-red-400 bg-muted text-foreground transition-all"
                                       />
@@ -700,7 +692,7 @@ export default function AdminPage() {
                                         onMouseEnter={(e) =>
                                           hasNote &&
                                           setHoveredNote({
-                                            text: notesStore[noteKey],
+                                            text: cycle?.notes || '',
                                             x: e.clientX,
                                             y: e.clientY,
                                           })
@@ -710,10 +702,11 @@ export default function AdminPage() {
                                         }
                                         onClick={() =>
                                           setActiveNote({
-                                            id: row.id,
+                                            crewId: row.crew_id,
                                             name: row.crew_name,
                                             rotationIdx,
-                                            note: notesStore[noteKey] || "",
+                                            cycleRowId: cycle?.id || null,
+                                            note: cycle?.notes || "",
                                           })
                                         }
                                         className={`text-[12px] hover:scale-125 transition-all p-1.5 rounded-lg border shadow-sm ${
@@ -740,7 +733,7 @@ export default function AdminPage() {
                                   </div>
                                   {/* Arrow separator between filled rotations */}
                                   {rotationIdx < 24 &&
-                                    !!row[`m${rotationIdx + 1}`] && (
+                                    !!row.cycles[rotationIdx + 1]?.sign_on && (
                                       <div className="text-muted-foreground font-black text-lg select-none mx-1">
                                         {" -> "}
                                       </div>
@@ -770,7 +763,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* NOTE MODAL - Compact */}
+        {/* NOTE MODAL */}
         {activeNote && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-card rounded-2xl w-full max-w-sm shadow-2xl border border-border">
@@ -778,7 +771,7 @@ export default function AdminPage() {
                 <div>
                   <h3 className="text-xs font-black uppercase tracking-wider text-foreground">{activeNote.name}</h3>
                   <p className="text-[9px] font-bold text-blue-600 uppercase tracking-wide mt-0.5">
-                    Rotation {activeNote.rotationIdx} Note
+                    Cycle {activeNote.rotationIdx} Note
                   </p>
                 </div>
                 <button type="button" onClick={() => setActiveNote(null)} className="text-muted-foreground hover:text-foreground text-lg font-bold">&times;</button>
@@ -788,13 +781,13 @@ export default function AdminPage() {
                 <textarea
                   value={activeNote.note}
                   onChange={(e) => setActiveNote({ ...activeNote, note: e.target.value })}
-                  placeholder="Enter rotation notes..."
+                  placeholder="Enter cycle notes..."
                   className="w-full h-28 bg-muted border border-border rounded-lg p-3 text-xs outline-none focus:ring-2 focus:ring-slate-400 resize-none leading-relaxed"
                 />
               </div>
 
               <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">
-                {notesStore[`${activeNote.id}-${activeNote.rotationIdx}`] && (
+                {activeNote.cycleRowId && activeNote.note && (
                   <button type="button" onClick={deleteNote} className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-black text-[10px] uppercase tracking-wider transition-all">
                     Delete
                   </button>
@@ -877,19 +870,14 @@ export default function AdminPage() {
                 </div>
 
                 {/* Relief Notice */}
-                {selectedStaff && isCrewInRoster(selectedStaff.id) && (() => {
-                  const baseName = selectedStaff.clean_name || selectedStaff.crew_name;
-                  const count = getCrewIdCount(selectedStaff.id);
-                  const suffix = count === 1 ? "(R)" : `(R${count})`;
-                  return (
-                    <div className="bg-amber-50 border border-amber-300 rounded-lg p-2 flex items-start gap-2">
-                      <svg className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      <p className="text-[9px] font-bold text-amber-800">
-                        <strong>{baseName}</strong> exists ({count}). Added as <strong className="text-amber-900">{baseName} {suffix}</strong>.
-                      </p>
-                    </div>
-                  );
-                })()}
+                {selectedStaff && isCrewInRoster(selectedStaff.id) && (
+                  <div className="bg-amber-50 border border-amber-300 rounded-lg p-2 flex items-start gap-2">
+                    <svg className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <p className="text-[9px] font-bold text-amber-800">
+                      <strong>{selectedStaff.clean_name || selectedStaff.crew_name}</strong> exists in roster. Will be added as relief (R).
+                    </p>
+                  </div>
+                )}
 
                 {/* STEP 2: Assign Location */}
                 <div>
@@ -939,13 +927,13 @@ export default function AdminPage() {
                 {selectedStaff && newStaffClient && newStaffPost && newStaffLocation && (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2">
                     <p className="text-[9px] font-bold text-emerald-800">
-                      Adding <strong>{selectedStaff.clean_name || selectedStaff.crew_name}{isCrewInRoster(selectedStaff.id) ? ` ${getCrewIdCount(selectedStaff.id) === 1 ? "(R)" : `(R${getCrewIdCount(selectedStaff.id)})`}` : ""}</strong> as <strong>{shortenPost(newStaffPost)}</strong> at <strong>{newStaffLocation}</strong> / <strong>{newStaffClient}</strong>
+                      Adding <strong>{selectedStaff.clean_name || selectedStaff.crew_name}{isCrewInRoster(selectedStaff.id) ? " (R)" : ""}</strong> as <strong>{shortenPost(newStaffPost)}</strong> at <strong>{newStaffLocation}</strong> / <strong>{newStaffClient}</strong>
                     </p>
                   </div>
                 )}
               </div>
 
-              {/* Action Buttons - always visible */}
+              {/* Action Buttons */}
               <div className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-muted/30 rounded-b-2xl shrink-0">
                 <button
                   type="button"
@@ -981,7 +969,7 @@ export default function AdminPage() {
                   Delete Staff?
                 </h3>
                 <p className="text-muted-foreground text-sm mb-6">
-                  Are you sure you want to delete <strong className="text-foreground">{deleteModal.name}</strong>? This action cannot be undone.
+                  Are you sure you want to delete <strong className="text-foreground">{deleteModal.name}</strong> and all their cycle data? This action cannot be undone.
                 </p>
                 <div className="flex gap-3 w-full">
                   <button
