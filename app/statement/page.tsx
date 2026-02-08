@@ -17,6 +17,8 @@ interface StatementRow {
   post: string;
   client: string;
   location: string;
+  displayLocation: string;
+  masterIndex: number;
   offshoreDays: number;
   offshoreTotal: number;
   reliefDays: number;
@@ -71,6 +73,15 @@ export default function StatementPage() {
     return map;
   }, [masterData]);
 
+  // Map crew name to their index in master data for sorting
+  const masterIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    masterData.forEach((m, idx) => {
+      map.set((m.crew_name || "").toUpperCase().trim(), idx);
+    });
+    return map;
+  }, [masterData]);
+
   const [selectedYear, selectedMonthNum] = useMemo(() => {
     const [y, m] = selectedMonth.split("-").map(Number);
     return [y, m];
@@ -89,6 +100,11 @@ export default function StatementPage() {
     for (const crew of data) {
       const isOM = (crew.post || "").toUpperCase().includes("OFFSHORE MEDIC");
       const isEM = (crew.post || "").toUpperCase().includes("ESCORT MEDIC");
+      const hasR = (crew.crew_name || "").includes("(R)");
+      // (R) crew: use their assigned location from master; non-(R): use roster location
+      const master = masterMap.get((crew.crew_name || "").toUpperCase().trim());
+      const displayLocation = hasR ? (master?.location || crew.location || "") : (crew.location || "");
+      const masterIdx = masterIndexMap.get((crew.crew_name || "").toUpperCase().trim()) ?? 9999;
 
       const cycleDetails: StatementRow["cycles"] = [];
       let totalOffshoreDays = 0;
@@ -159,6 +175,8 @@ export default function StatementPage() {
         post: crew.post,
         client: crew.client,
         location: crew.location,
+        displayLocation,
+        masterIndex: masterIdx,
         offshoreDays: isOM ? totalOffshoreDays : 0,
         offshoreTotal,
         reliefDays: totalReliefDays,
@@ -174,12 +192,8 @@ export default function StatementPage() {
       });
     }
 
-    return rows.sort((a, b) => {
-      const rankA = getTradeRank(a.post);
-      const rankB = getTradeRank(b.post);
-      if (rankA !== rankB) return rankA - rankB;
-      return a.crew_name.localeCompare(b.crew_name);
-    });
+    // Sort by master data order (Data Manager order), no separators
+    return rows.sort((a, b) => a.masterIndex - b.masterIndex);
   }, [data, masterMap, selectedYear, selectedMonthNum]);
 
   const filteredRows = useMemo(() => {
@@ -313,8 +327,11 @@ export default function StatementPage() {
                 <thead className="sticky top-0 z-10">
                   {/* Group header */}
                   <tr className="text-white" style={{ backgroundColor: "#1e3a8a" }}>
-                    <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50 whitespace-nowrap" style={{ minWidth: "240px" }}>
+                    <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50 whitespace-nowrap" style={{ minWidth: "220px" }}>
                       Name / Client / Trade
+                    </th>
+                    <th rowSpan={2} className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50 whitespace-nowrap" style={{ minWidth: "90px" }}>
+                      Location
                     </th>
                     <th colSpan={2} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">
                       Offshore
@@ -369,6 +386,10 @@ export default function StatementPage() {
                               </div>
                             </div>
                           </td>
+                          {/* Location */}
+                          <td className="px-2 py-1 border-r border-border">
+                            <span className="text-[10px] text-muted-foreground font-medium uppercase">{row.displayLocation}</span>
+                          </td>
                           {/* Offshore */}
                           <td className="px-2 py-1 text-center border-r border-border tabular-nums">
                             <span className={row.offshoreDays > 0 ? "text-emerald-600 font-bold" : "text-muted-foreground"}>{fmtNum(row.offshoreDays)}</span>
@@ -411,7 +432,7 @@ export default function StatementPage() {
                         {/* Expanded detail */}
                         {isExpanded && (
                           <tr className="bg-muted/20">
-                            <td colSpan={12} className="px-5 py-2 border-b border-border">
+                            <td colSpan={13} className="px-5 py-2 border-b border-border">
                               <div className="text-[10px] space-y-1">
                                 {row.cycles.map((c) => (
                                   <div key={c.cycleNum} className="flex flex-wrap items-center gap-4 py-0.5 border-b border-border/30 last:border-0">
@@ -438,6 +459,7 @@ export default function StatementPage() {
                     <td className="px-3 py-2 text-left border-r border-blue-700/50">
                       <span className="text-[10px] font-bold uppercase tracking-wider">Total ({filteredRows.length} crew)</span>
                     </td>
+                    <td className="px-2 py-2 border-r border-blue-700/50" />
                     <td className="px-2 py-2 border-r border-blue-700/50" />
                     <td className="px-2 py-2 text-center border-r border-blue-700/50 tabular-nums text-[11px]">{fmtAmt(totals.offshore)}</td>
                     <td className="px-2 py-2 border-r border-blue-700/50" />
