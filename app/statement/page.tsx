@@ -17,6 +17,8 @@ interface StatementRow {
   post: string;
   client: string;
   location: string;
+  displayLocation: string;
+  masterIndex: number;
   offshoreDays: number;
   offshoreTotal: number;
   reliefDays: number;
@@ -71,6 +73,15 @@ export default function StatementPage() {
     return map;
   }, [masterData]);
 
+  // Map crew name to their index in master data for sorting
+  const masterIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    masterData.forEach((m, idx) => {
+      map.set((m.crew_name || "").toUpperCase().trim(), idx);
+    });
+    return map;
+  }, [masterData]);
+
   const [selectedYear, selectedMonthNum] = useMemo(() => {
     const [y, m] = selectedMonth.split("-").map(Number);
     return [y, m];
@@ -89,6 +100,11 @@ export default function StatementPage() {
     for (const crew of data) {
       const isOM = (crew.post || "").toUpperCase().includes("OFFSHORE MEDIC");
       const isEM = (crew.post || "").toUpperCase().includes("ESCORT MEDIC");
+      const hasR = (crew.crew_name || "").includes("(R)");
+      // (R) crew: use their assigned location from master; non-(R): use roster location
+      const master = masterMap.get((crew.crew_name || "").toUpperCase().trim());
+      const displayLocation = hasR ? (master?.location || crew.location || "") : (crew.location || "");
+      const masterIdx = masterIndexMap.get((crew.crew_name || "").toUpperCase().trim()) ?? 9999;
 
       const cycleDetails: StatementRow["cycles"] = [];
       let totalOffshoreDays = 0;
@@ -159,6 +175,8 @@ export default function StatementPage() {
         post: crew.post,
         client: crew.client,
         location: crew.location,
+        displayLocation,
+        masterIndex: masterIdx,
         offshoreDays: isOM ? totalOffshoreDays : 0,
         offshoreTotal,
         reliefDays: totalReliefDays,
@@ -174,10 +192,22 @@ export default function StatementPage() {
       });
     }
 
+    // Sort: Trade (OM→EM→OHN), Location (alphabetical), Client (SKA→SBA), then Name
+    const clientRank = (c: string) => {
+      const u = (c || "").toUpperCase().trim();
+      if (u.includes("SKA")) return 1;
+      if (u.includes("SBA")) return 2;
+      return 3;
+    };
     return rows.sort((a, b) => {
-      const rankA = getTradeRank(a.post);
-      const rankB = getTradeRank(b.post);
-      if (rankA !== rankB) return rankA - rankB;
+      const tradeA = getTradeRank(a.post);
+      const tradeB = getTradeRank(b.post);
+      if (tradeA !== tradeB) return tradeA - tradeB;
+      const locCmp = (a.displayLocation || "").localeCompare(b.displayLocation || "");
+      if (locCmp !== 0) return locCmp;
+      const cA = clientRank(a.client);
+      const cB = clientRank(b.client);
+      if (cA !== cB) return cA - cB;
       return a.crew_name.localeCompare(b.crew_name);
     });
   }, [data, masterMap, selectedYear, selectedMonthNum]);
@@ -314,7 +344,7 @@ export default function StatementPage() {
                   {/* Group header */}
                   <tr className="text-white" style={{ backgroundColor: "#1e3a8a" }}>
                     <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50 whitespace-nowrap" style={{ minWidth: "240px" }}>
-                      Name / Client / Trade
+                      Name / Client / Trade / Location
                     </th>
                     <th colSpan={2} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">
                       Offshore
@@ -364,7 +394,7 @@ export default function StatementPage() {
                               <div>
                                 <div className="text-[11px] font-bold text-foreground uppercase leading-tight whitespace-nowrap">{row.crew_name}</div>
                                 <div className="text-[9px] text-muted-foreground">
-                                  {row.client} / {shortenPost(row.post)}
+                                  {row.client} / {shortenPost(row.post)} / {row.displayLocation}
                                 </div>
                               </div>
                             </div>
