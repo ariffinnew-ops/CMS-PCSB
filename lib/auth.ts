@@ -34,6 +34,7 @@ export const PAGE_ACCESS: Record<string, UserRole[]> = {
   "/roster": ["admin", "datalogger", "guest"],
   "/training": ["admin", "datalogger", "guest"],
   "/staff": ["admin", "datalogger", "guest"],
+  "/statement": ["admin", "datalogger"],
   "/admin": ["admin", "datalogger"],
   "/logs": ["admin"],
 };
