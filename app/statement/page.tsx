@@ -3,19 +3,13 @@
 import { useEffect, useState, useMemo } from "react";
 import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow, TradeType } from "@/lib/types";
-import { getPivotedRosterData } from "@/lib/actions";
-import { safeParseDate, shortenPost, getTradeRank } from "@/lib/logic";
+import { getPivotedRosterData, getCrewMasterData, type CrewMasterRecord } from "@/lib/actions";
+import { safeParseDate, shortenPost, getTradeRank, formatDate } from "@/lib/logic";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
-
-// Default rates (editable per session)
-const DEFAULT_OA_RATE = 150; // RM per day
-const DEFAULT_MEDEVAC_RATE = 500; // RM per case
-const DEFAULT_RELIEF_RATE = 1; // multiplier (use value as-is)
-const DEFAULT_STANDBY_RATE = 1;
 
 interface StatementRow {
   crew_id: string;
@@ -23,6 +17,8 @@ interface StatementRow {
   post: string;
   client: string;
   location: string;
+  salary: number;
+  fixedAllowance: number;
   totalDays: number;
   offshoreAllowance: number;
   reliefAllowance: number;
@@ -45,24 +41,32 @@ interface StatementRow {
 
 export default function StatementPage() {
   const [data, setData] = useState<PivotedCrewRow[]>([]);
+  const [masterData, setMasterData] = useState<CrewMasterRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
   const [tradeFilter, setTradeFilter] = useState<TradeType | "ALL">("ALL");
+  const [clientFilter, setClientFilter] = useState<"ALL" | "SBA" | "SKA">("ALL");
   const [search, setSearch] = useState("");
 
-  // Editable rates
-  const [oaRate, setOaRate] = useState(DEFAULT_OA_RATE);
-  const [medevacRate, setMedevacRate] = useState(DEFAULT_MEDEVAC_RATE);
-
   useEffect(() => {
-    getPivotedRosterData().then((pivotedData) => {
+    Promise.all([getPivotedRosterData(), getCrewMasterData()]).then(([pivotedData, master]) => {
       setData(pivotedData);
+      setMasterData(master);
       setLoading(false);
     });
   }, []);
+
+  // Build master lookup by crew_name (uppercase trimmed for matching)
+  const masterMap = useMemo(() => {
+    const map = new Map<string, CrewMasterRecord>();
+    for (const m of masterData) {
+      map.set((m.crew_name || "").toUpperCase().trim(), m);
+    }
+    return map;
+  }, [masterData]);
 
   const [selectedYear, selectedMonthNum] = useMemo(() => {
     const [y, m] = selectedMonth.split("-").map(Number);
@@ -82,6 +86,13 @@ export default function StatementPage() {
       const isOM = (crew.post || "").toUpperCase().includes("OFFSHORE MEDIC");
       const isEM = (crew.post || "").toUpperCase().includes("ESCORT MEDIC");
 
+      // Lookup master rates
+      const master = masterMap.get((crew.crew_name || "").toUpperCase().trim());
+      const salary = master?.salary ?? 0;
+      const fixedAllowance = master?.fixed_allowance ?? 0;
+      const oaRate = master?.oa_rate ?? 0;
+      const medevacRate = master?.medevac_rate ?? 0;
+
       const cycleDetails: StatementRow["cycles"] = [];
       let totalDays = 0;
       let totalRelief = 0;
@@ -95,12 +106,10 @@ export default function StatementPage() {
 
         if (!signOn || !signOff) continue;
 
-        // Check if cycle overlaps with selected month
         const rotStart = signOn.getTime();
         const rotEnd = signOff.getTime();
         if (rotStart > monthEndTime || rotEnd < monthStartTime) continue;
 
-        // Calculate days within this month only
         const effectiveStart = Math.max(rotStart, monthStartTime);
         const effectiveEnd = Math.min(rotEnd, monthEndTime);
         const daysInMonth = Math.ceil((effectiveEnd - effectiveStart) / (1000 * 60 * 60 * 24)) + 1;
@@ -109,19 +118,16 @@ export default function StatementPage() {
 
         totalDays += daysInMonth;
 
-        // Offshore allowance: only if OM and is_offshore is true
-        const isOffshore = cycle.is_offshore !== false; // default true for OM
+        const isOffshore = cycle.is_offshore !== false;
         if (isOM && isOffshore) {
           offshoreEligibleDays += daysInMonth;
         }
 
-        // Relief & Standby
         const reliefVal = cycle.relief_all ?? 0;
         const standbyVal = cycle.standby_all ?? 0;
         totalRelief += reliefVal;
         totalStandby += standbyVal;
 
-        // Medevac: only count dates that fall within the selected month
         const cycleMedevacDates = (cycle.medevac_dates || []).filter((d) => {
           const md = safeParseDate(d);
           if (!md) return false;
@@ -148,7 +154,7 @@ export default function StatementPage() {
       const medevacAllowance = isEM ? medevacCount * medevacRate : 0;
       const reliefAllowance = totalRelief;
       const standbyAllowance = totalStandby;
-      const grandTotal = offshoreAllowance + medevacAllowance + reliefAllowance + standbyAllowance;
+      const grandTotal = salary + fixedAllowance + offshoreAllowance + medevacAllowance + reliefAllowance + standbyAllowance;
 
       rows.push({
         crew_id: crew.crew_id,
@@ -156,6 +162,8 @@ export default function StatementPage() {
         post: crew.post,
         client: crew.client,
         location: crew.location,
+        salary,
+        fixedAllowance,
         totalDays,
         offshoreAllowance,
         reliefAllowance,
@@ -173,7 +181,7 @@ export default function StatementPage() {
       if (rankA !== rankB) return rankA - rankB;
       return a.crew_name.localeCompare(b.crew_name);
     });
-  }, [data, selectedYear, selectedMonthNum, oaRate, medevacRate]);
+  }, [data, masterMap, selectedYear, selectedMonthNum]);
 
   const filteredRows = useMemo(() => {
     return statementRows.filter((row) => {
@@ -183,13 +191,16 @@ export default function StatementPage() {
         (tradeFilter === "OM" && row.post?.includes("OFFSHORE MEDIC")) ||
         (tradeFilter === "EM" && row.post?.includes("ESCORT MEDIC")) ||
         (tradeFilter === "IMP/OHN" && (row.post?.includes("IM") || row.post?.includes("OHN")));
-      return matchesSearch && matchesTrade;
+      const matchesClient = clientFilter === "ALL" || row.client === clientFilter;
+      return matchesSearch && matchesTrade && matchesClient;
     });
-  }, [statementRows, search, tradeFilter]);
+  }, [statementRows, search, tradeFilter, clientFilter]);
 
   const totals = useMemo(() => {
     return filteredRows.reduce(
       (acc, row) => ({
+        salary: acc.salary + row.salary,
+        fixedAllowance: acc.fixedAllowance + row.fixedAllowance,
         days: acc.days + row.totalDays,
         offshore: acc.offshore + row.offshoreAllowance,
         relief: acc.relief + row.reliefAllowance,
@@ -197,7 +208,7 @@ export default function StatementPage() {
         medevac: acc.medevac + row.medevacAllowance,
         grand: acc.grand + row.grandTotal,
       }),
-      { days: 0, offshore: 0, relief: 0, standby: 0, medevac: 0, grand: 0 }
+      { salary: 0, fixedAllowance: 0, days: 0, offshore: 0, relief: 0, standby: 0, medevac: 0, grand: 0 }
     );
   }, [filteredRows]);
 
@@ -218,12 +229,11 @@ export default function StatementPage() {
               MONTHLY STATEMENT
             </h2>
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
-              Allowance calculation for {MONTH_NAMES[selectedMonthNum - 1]} {selectedYear}
+              Full cost calculation for {MONTH_NAMES[selectedMonthNum - 1]} {selectedYear}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Month Picker */}
             <div className="flex flex-col">
               <label className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Period</label>
               <input
@@ -234,7 +244,19 @@ export default function StatementPage() {
               />
             </div>
 
-            {/* Trade Filter */}
+            <div className="flex flex-col">
+              <label className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Client</label>
+              <select
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value as "ALL" | "SBA" | "SKA")}
+                className="bg-muted border border-border rounded-lg px-3 py-2 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-slate-400"
+              >
+                <option value="ALL">All Clients</option>
+                <option value="SBA">SBA</option>
+                <option value="SKA">SKA</option>
+              </select>
+            </div>
+
             <div className="flex flex-col">
               <label className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Grade</label>
               <select
@@ -249,7 +271,6 @@ export default function StatementPage() {
               </select>
             </div>
 
-            {/* Search */}
             <div className="flex flex-col">
               <label className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Search</label>
               <input
@@ -263,31 +284,13 @@ export default function StatementPage() {
           </div>
         </div>
 
-        {/* RATE SETTINGS */}
-        <div className="flex flex-wrap items-center gap-4 bg-card border border-border rounded-xl px-4 py-3 shadow-sm">
-          <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Rates:</span>
-          <div className="flex items-center gap-2">
-            <label className="text-[9px] font-bold text-muted-foreground uppercase">OA/day</label>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={oaRate}
-              onChange={(e) => setOaRate(parseFloat(e.target.value) || 0)}
-              className="bg-muted border border-border rounded-lg px-2 py-1.5 text-xs font-bold w-24 outline-none focus:ring-2 focus:ring-slate-400 tabular-nums"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-[9px] font-bold text-muted-foreground uppercase">Medevac/case</label>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={medevacRate}
-              onChange={(e) => setMedevacRate(parseFloat(e.target.value) || 0)}
-              className="bg-muted border border-border rounded-lg px-2 py-1.5 text-xs font-bold w-24 outline-none focus:ring-2 focus:ring-slate-400 tabular-nums"
-            />
-          </div>
+        {/* INFO BAR */}
+        <div className="flex flex-wrap items-center gap-3 bg-card border border-border rounded-xl px-4 py-2.5 shadow-sm">
+          <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Rates fetched from cms_pcsb_master</span>
+          <span className="text-[8px] text-muted-foreground">|</span>
+          <span className="text-[8px] font-bold text-muted-foreground">
+            Total = Salary + Fixed Allowance + Offshore + Relief + Standby + Medevac
+          </span>
         </div>
 
         {/* TABLE */}
@@ -302,18 +305,20 @@ export default function StatementPage() {
         ) : (
           <div className="bg-card rounded-2xl border border-border shadow-lg overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
+              <table className="w-full border-collapse min-w-[1100px]">
                 <thead>
                   <tr className="bg-slate-900 text-white">
-                    <th className="px-4 py-3 text-left text-[9px] font-black uppercase tracking-widest">Crew</th>
-                    <th className="px-3 py-3 text-center text-[9px] font-black uppercase tracking-widest">Post</th>
-                    <th className="px-3 py-3 text-center text-[9px] font-black uppercase tracking-widest">Client</th>
-                    <th className="px-3 py-3 text-center text-[9px] font-black uppercase tracking-widest">Days</th>
-                    <th className="px-3 py-3 text-right text-[9px] font-black uppercase tracking-widest">Offshore</th>
-                    <th className="px-3 py-3 text-right text-[9px] font-black uppercase tracking-widest">Relief</th>
-                    <th className="px-3 py-3 text-right text-[9px] font-black uppercase tracking-widest">Standby</th>
-                    <th className="px-3 py-3 text-right text-[9px] font-black uppercase tracking-widest">Medevac</th>
-                    <th className="px-4 py-3 text-right text-[9px] font-black uppercase tracking-widest">Total</th>
+                    <th className="px-3 py-3 text-left text-[9px] font-black uppercase tracking-widest sticky left-0 bg-slate-900 z-10">Crew</th>
+                    <th className="px-2 py-3 text-center text-[9px] font-black uppercase tracking-widest">Post</th>
+                    <th className="px-2 py-3 text-center text-[9px] font-black uppercase tracking-widest">Client</th>
+                    <th className="px-2 py-3 text-right text-[9px] font-black uppercase tracking-widest">Salary</th>
+                    <th className="px-2 py-3 text-right text-[9px] font-black uppercase tracking-widest">Fixed All.</th>
+                    <th className="px-2 py-3 text-center text-[9px] font-black uppercase tracking-widest">Days</th>
+                    <th className="px-2 py-3 text-right text-[9px] font-black uppercase tracking-widest">Offshore</th>
+                    <th className="px-2 py-3 text-right text-[9px] font-black uppercase tracking-widest">Relief</th>
+                    <th className="px-2 py-3 text-right text-[9px] font-black uppercase tracking-widest">Standby</th>
+                    <th className="px-2 py-3 text-right text-[9px] font-black uppercase tracking-widest">Medevac</th>
+                    <th className="px-3 py-3 text-right text-[9px] font-black uppercase tracking-widest">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -321,62 +326,66 @@ export default function StatementPage() {
                     const isExpanded = expandedRow === row.crew_id;
                     return (
                       <tr key={row.crew_id} className="group">
-                        <td colSpan={9} className="p-0">
-                          {/* Main row */}
+                        <td colSpan={11} className="p-0">
                           <button
                             type="button"
                             onClick={() => setExpandedRow(isExpanded ? null : row.crew_id)}
-                            className="w-full flex items-center hover:bg-muted/50 transition-colors"
+                            className="w-full flex items-center hover:bg-muted/50 transition-colors min-w-[1100px]"
                           >
-                            <div className="px-4 py-3 text-left flex-shrink-0" style={{ width: "200px" }}>
-                              <span className="text-[11px] font-black text-foreground uppercase tracking-tight block truncate">{row.crew_name}</span>
+                            <div className="px-3 py-2.5 text-left shrink-0" style={{ width: "180px" }}>
+                              <span className="text-[10px] font-black text-foreground uppercase tracking-tight block truncate">{row.crew_name}</span>
                               <span className="text-[8px] font-medium text-muted-foreground">{row.location}</span>
                             </div>
-                            <div className="px-3 py-3 text-center flex-shrink-0" style={{ width: "60px" }}>
-                              <span className="text-[10px] font-black text-foreground uppercase">{shortenPost(row.post)}</span>
+                            <div className="px-2 py-2.5 text-center shrink-0" style={{ width: "55px" }}>
+                              <span className="text-[9px] font-black text-foreground uppercase">{shortenPost(row.post)}</span>
                             </div>
-                            <div className="px-3 py-3 text-center flex-shrink-0" style={{ width: "70px" }}>
-                              <span className="text-[10px] font-bold text-muted-foreground">{row.client}</span>
+                            <div className="px-2 py-2.5 text-center shrink-0" style={{ width: "55px" }}>
+                              <span className="text-[9px] font-bold text-muted-foreground">{row.client}</span>
                             </div>
-                            <div className="px-3 py-3 text-center flex-shrink-0" style={{ width: "60px" }}>
-                              <span className="text-[11px] font-black text-foreground tabular-nums">{row.totalDays}</span>
+                            <div className="px-2 py-2.5 text-right shrink-0" style={{ width: "100px" }}>
+                              <span className="text-[9px] font-bold text-foreground tabular-nums">{formatRM(row.salary)}</span>
                             </div>
-                            <div className="px-3 py-3 text-right flex-shrink-0" style={{ width: "110px" }}>
-                              <span className={`text-[10px] font-bold tabular-nums ${row.offshoreAllowance > 0 ? "text-emerald-600" : "text-muted-foreground"}`}>
+                            <div className="px-2 py-2.5 text-right shrink-0" style={{ width: "90px" }}>
+                              <span className="text-[9px] font-bold text-foreground tabular-nums">{formatRM(row.fixedAllowance)}</span>
+                            </div>
+                            <div className="px-2 py-2.5 text-center shrink-0" style={{ width: "50px" }}>
+                              <span className="text-[10px] font-black text-foreground tabular-nums">{row.totalDays}</span>
+                            </div>
+                            <div className="px-2 py-2.5 text-right shrink-0" style={{ width: "100px" }}>
+                              <span className={`text-[9px] font-bold tabular-nums ${row.offshoreAllowance > 0 ? "text-emerald-600" : "text-muted-foreground"}`}>
                                 {formatRM(row.offshoreAllowance)}
                               </span>
                             </div>
-                            <div className="px-3 py-3 text-right flex-shrink-0" style={{ width: "100px" }}>
-                              <span className={`text-[10px] font-bold tabular-nums ${row.reliefAllowance > 0 ? "text-blue-600" : "text-muted-foreground"}`}>
+                            <div className="px-2 py-2.5 text-right shrink-0" style={{ width: "90px" }}>
+                              <span className={`text-[9px] font-bold tabular-nums ${row.reliefAllowance > 0 ? "text-blue-600" : "text-muted-foreground"}`}>
                                 {formatRM(row.reliefAllowance)}
                               </span>
                             </div>
-                            <div className="px-3 py-3 text-right flex-shrink-0" style={{ width: "100px" }}>
-                              <span className={`text-[10px] font-bold tabular-nums ${row.standbyAllowance > 0 ? "text-blue-600" : "text-muted-foreground"}`}>
+                            <div className="px-2 py-2.5 text-right shrink-0" style={{ width: "90px" }}>
+                              <span className={`text-[9px] font-bold tabular-nums ${row.standbyAllowance > 0 ? "text-blue-600" : "text-muted-foreground"}`}>
                                 {formatRM(row.standbyAllowance)}
                               </span>
                             </div>
-                            <div className="px-3 py-3 text-right flex-shrink-0" style={{ width: "100px" }}>
-                              <span className={`text-[10px] font-bold tabular-nums ${row.medevacAllowance > 0 ? "text-amber-600" : "text-muted-foreground"}`}>
+                            <div className="px-2 py-2.5 text-right shrink-0" style={{ width: "90px" }}>
+                              <span className={`text-[9px] font-bold tabular-nums ${row.medevacAllowance > 0 ? "text-amber-600" : "text-muted-foreground"}`}>
                                 {formatRM(row.medevacAllowance)}
                               </span>
                             </div>
-                            <div className="px-4 py-3 text-right flex-1">
-                              <span className="text-[11px] font-black text-foreground tabular-nums">
+                            <div className="px-3 py-2.5 text-right flex-1">
+                              <span className="text-[10px] font-black text-foreground tabular-nums">
                                 {formatRM(row.grandTotal)}
                               </span>
                             </div>
                           </button>
 
-                          {/* Expanded cycle detail */}
                           {isExpanded && (
                             <div className="bg-muted/30 border-t border-border px-6 py-3">
                               <div className="space-y-2">
                                 {row.cycles.map((c) => (
                                   <div key={c.cycleNum} className="flex items-center gap-4 text-[9px] py-1 border-b border-border/50 last:border-0">
                                     <span className="font-black text-muted-foreground w-14 shrink-0">Cycle {c.cycleNum}</span>
-                                    <span className="font-bold text-foreground w-32 shrink-0">
-                                      {c.sign_on || "--"} to {c.sign_off || "--"}
+                                    <span className="font-bold text-foreground w-48 shrink-0">
+                                      {formatDate(c.sign_on)} to {formatDate(c.sign_off)}
                                     </span>
                                     <span className="font-bold text-foreground w-14 shrink-0 tabular-nums">{c.days} days</span>
                                     {c.is_offshore && (
@@ -408,15 +417,17 @@ export default function StatementPage() {
 
                   {/* TOTALS ROW */}
                   <tr className="bg-slate-900 text-white font-black">
-                    <td className="px-4 py-3 text-[10px] uppercase tracking-widest" colSpan={3}>
+                    <td className="px-3 py-3 text-[10px] uppercase tracking-widest" colSpan={3}>
                       Total ({filteredRows.length} crew)
                     </td>
-                    <td className="px-3 py-3 text-center text-[11px] tabular-nums">{totals.days}</td>
-                    <td className="px-3 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.offshore)}</td>
-                    <td className="px-3 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.relief)}</td>
-                    <td className="px-3 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.standby)}</td>
-                    <td className="px-3 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.medevac)}</td>
-                    <td className="px-4 py-3 text-right text-[11px] tabular-nums">{formatRM(totals.grand)}</td>
+                    <td className="px-2 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.salary)}</td>
+                    <td className="px-2 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.fixedAllowance)}</td>
+                    <td className="px-2 py-3 text-center text-[10px] tabular-nums">{totals.days}</td>
+                    <td className="px-2 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.offshore)}</td>
+                    <td className="px-2 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.relief)}</td>
+                    <td className="px-2 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.standby)}</td>
+                    <td className="px-2 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.medevac)}</td>
+                    <td className="px-3 py-3 text-right text-[10px] tabular-nums">{formatRM(totals.grand)}</td>
                   </tr>
                 </tbody>
               </table>

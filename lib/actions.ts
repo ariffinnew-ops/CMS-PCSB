@@ -189,6 +189,50 @@ export async function getLoginLogs(): Promise<LoginLogEntry[]> {
   return data || []
 }
 
+// ─── Crew Master Data (salary, fixed_allowance, rates) ───
+
+export interface CrewMasterRecord {
+  id: string;
+  crew_name: string;
+  post: string;
+  client: string;
+  location: string;
+  salary: number;
+  fixed_allowance: number;
+  oa_rate: number;
+  medevac_rate: number;
+  relief_rate: number;
+  standby_rate: number;
+}
+
+export async function getCrewMasterData(): Promise<CrewMasterRecord[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('cms_pcsb_master')
+    .select('id, crew_name, post, client, location, salary, fixed_allowance, oa_rate, medevac_rate, relief_rate, standby_rate')
+    .order('crew_name', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching crew master data:', error)
+    return []
+  }
+
+  return (data || []).map((d) => ({
+    id: d.id,
+    crew_name: d.crew_name || '',
+    post: d.post || '',
+    client: d.client || '',
+    location: d.location || '',
+    salary: d.salary ?? 0,
+    fixed_allowance: d.fixed_allowance ?? 0,
+    oa_rate: d.oa_rate ?? 0,
+    medevac_rate: d.medevac_rate ?? 0,
+    relief_rate: d.relief_rate ?? 0,
+    standby_rate: d.standby_rate ?? 0,
+  }))
+}
+
 // ─── Training Matrix Actions (cms_pcsb_matrix + cms_pcsb_master) ───
 
 export async function getMatrixData(): Promise<{ success: boolean; data?: MatrixRecord[]; error?: string }> {

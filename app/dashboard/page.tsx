@@ -785,7 +785,7 @@ export default function DashboardPage() {
                 {/* Live Time */}
                 <div className="flex items-center gap-2 min-w-[180px] justify-end">
                   <span className="text-xs font-bold text-slate-400 tabular-nums">
-                    {liveTime.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                    {`${String(liveTime.getDate()).padStart(2, "0")}/${String(liveTime.getMonth() + 1).padStart(2, "0")}/${liveTime.getFullYear()}`}
                   </span>
                   <span className="text-lg font-black text-cyan-400 tabular-nums" style={{ textShadow: "0 0 20px rgba(6, 182, 212, 0.5)" }}>
                     {liveTime.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}

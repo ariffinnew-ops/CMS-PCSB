@@ -4,22 +4,20 @@ export function formatDate(dateInput: string | Date | null | undefined): string 
   if (!dateInput || dateInput === '-' || dateInput === 'N/A') return '--';
   const d = (typeof dateInput === 'string') ? safeParseDate(dateInput) : dateInput;
   if (!d || isNaN(d.getTime())) return '--';
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const dayOfMonth = d.getDate().toString().padStart(2, '0');
-  const monthName = months[d.getMonth()];
-  const yearShort = d.getFullYear().toString().slice(-2);
-  return `${dayOfMonth}-${monthName}-${yearShort}`;
+  const day = d.getDate().toString().padStart(2, '0');
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 export function formatDateLong(dateInput: string | Date | null | undefined): string {
   if (!dateInput || dateInput === '-' || dateInput === 'N/A') return 'N/A';
   const d = (typeof dateInput === 'string') ? safeParseDate(dateInput) : dateInput;
   if (!d || isNaN(d.getTime())) return 'N/A';
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const dayOfMonth = d.getDate().toString().padStart(2, '0');
-  const monthName = months[d.getMonth()];
+  const day = d.getDate().toString().padStart(2, '0');
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
   const year = d.getFullYear();
-  return `${dayOfMonth}-${monthName}-${year}`;
+  return `${day}/${month}/${year}`;
 }
 
 export function safeParseDate(dateStr: string | null | undefined): Date | null {

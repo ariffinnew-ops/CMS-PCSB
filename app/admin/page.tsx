@@ -260,7 +260,7 @@ export default function AdminPage() {
         relief_all: activeNote.relief_all,
         standby_all: activeNote.standby_all,
         is_offshore: activeNote.is_offshore,
-        medevac_dates: activeNote.medevac_dates.length > 0 ? activeNote.medevac_dates : null,
+        medevac_dates: activeNote.medevac_dates.filter(Boolean).length > 0 ? activeNote.medevac_dates.filter(Boolean) : null,
       };
 
       if (activeNote.cycleRowId) {
@@ -872,42 +872,49 @@ export default function AdminPage() {
                 {isEM && (
                   <div>
                     <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">
-                      Medevac Cases
+                      Medevac Cases ({activeNote.medevac_dates.length}/5)
                     </label>
                     <div className="space-y-2">
-                      {[0, 1, 2].map((idx) => (
+                      {activeNote.medevac_dates.map((dateVal, idx) => (
                         <div key={idx} className="flex items-center gap-2">
                           <span className="text-[8px] font-bold text-muted-foreground w-4 shrink-0">{idx + 1}.</span>
                           <input
                             type="date"
-                            value={activeNote.medevac_dates[idx] || ""}
+                            value={dateVal}
                             onChange={(e) => {
                               const newDates = [...activeNote.medevac_dates];
-                              if (e.target.value) {
-                                newDates[idx] = e.target.value;
-                              } else {
-                                newDates.splice(idx, 1);
-                              }
-                              setActiveNote({ ...activeNote, medevac_dates: newDates.filter(Boolean) });
+                              newDates[idx] = e.target.value;
+                              setActiveNote({ ...activeNote, medevac_dates: newDates });
                             }}
                             className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-slate-400"
                           />
-                          {activeNote.medevac_dates[idx] && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const newDates = activeNote.medevac_dates.filter((_, i) => i !== idx);
-                                setActiveNote({ ...activeNote, medevac_dates: newDates });
-                              }}
-                              className="text-red-500 hover:text-red-400 text-xs font-bold"
-                            >
-                              &times;
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newDates = activeNote.medevac_dates.filter((_, i) => i !== idx);
+                              setActiveNote({ ...activeNote, medevac_dates: newDates });
+                            }}
+                            className="w-6 h-6 flex items-center justify-center rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-red-400 text-sm font-bold transition-colors shrink-0"
+                            title="Remove date"
+                          >
+                            &times;
+                          </button>
                         </div>
                       ))}
+                      {activeNote.medevac_dates.length < 5 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveNote({ ...activeNote, medevac_dates: [...activeNote.medevac_dates, ""] });
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 font-bold text-[10px] uppercase tracking-wider transition-colors border border-blue-500/20"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                          Add Date
+                        </button>
+                      )}
                     </div>
-                    <p className="text-[8px] text-muted-foreground mt-1">Up to 3 medevac case dates per cycle.</p>
+                    <p className="text-[8px] text-muted-foreground mt-1.5">Up to 5 medevac case dates per cycle.</p>
                   </div>
                 )}
 
