@@ -626,7 +626,7 @@ function CompactTable({
                     </td>
                     <td className="px-3 py-1 text-right">
                       {isOHN ? (
-                        <span className="text-[11px] text-slate-500 italic">Weekdays</span>
+                        <span className="text-[11px] text-amber-400/80 italic font-semibold">OFFICE BASED</span>
                       ) : range.start ? (
                         <span className="text-[11px] text-cyan-400 tabular-nums">
                           {formatDate(range.start)} - {formatDate(range.end)}
