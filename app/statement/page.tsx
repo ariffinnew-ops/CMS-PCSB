@@ -43,62 +43,6 @@ interface StatementRow {
   }[];
 }
 
-// Allowance pill component
-function AllowancePill({
-  label,
-  days,
-  amount,
-  colorClass,
-}: {
-  label: string;
-  days: number;
-  amount: number;
-  colorClass: string;
-}) {
-  if (days === 0 && amount === 0) return null;
-  const fmtAmt = (val: number) =>
-    val === 0
-      ? "-"
-      : val.toLocaleString("en-MY", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        });
-
-  return (
-    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${colorClass}`}>
-      <span className="text-[9px] font-bold uppercase tracking-wider opacity-70">{label}</span>
-      <span className="text-[10px] font-bold tabular-nums">{days}d</span>
-      <span className="text-[11px] font-black tabular-nums">{fmtAmt(amount)}</span>
-    </div>
-  );
-}
-
-// Summary stat card
-function SumCard({
-  label,
-  value,
-  colorClass,
-}: {
-  label: string;
-  value: number;
-  colorClass: string;
-}) {
-  const fmtAmt = (val: number) =>
-    val === 0
-      ? "0.00"
-      : val.toLocaleString("en-MY", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        });
-
-  return (
-    <div className={`flex flex-col items-center px-4 py-2 rounded-xl ${colorClass}`}>
-      <span className="text-[9px] font-bold uppercase tracking-widest opacity-70">{label}</span>
-      <span className="text-sm font-black tabular-nums mt-0.5">{fmtAmt(value)}</span>
-    </div>
-  );
-}
-
 export default function StatementPage() {
   const [data, setData] = useState<PivotedCrewRow[]>([]);
   const [masterData, setMasterData] = useState<CrewMasterRecord[]>([]);
@@ -267,32 +211,17 @@ export default function StatementPage() {
 
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
+  const fmtNum = (val: number) => (val === 0 ? "-" : String(val));
   const fmtAmt = (val: number) =>
     val === 0
       ? "-"
-      : val.toLocaleString("en-MY", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        });
+      : val.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const hasActiveFilters = tradeFilter !== "ALL" || clientFilter !== "ALL" || search.trim() !== "";
   const resetFilters = () => {
     setTradeFilter("ALL");
     setClientFilter("ALL");
     setSearch("");
-  };
-
-  const getTradeShort = (post: string) => {
-    if (post?.includes("OFFSHORE")) return "OM";
-    if (post?.includes("ESCORT")) return "EM";
-    return "OHN";
-  };
-
-  const getTradeBadge = (post: string) => {
-    const trade = getTradeShort(post);
-    if (trade === "OM") return "bg-blue-500/15 text-blue-400 border-blue-500/30";
-    if (trade === "EM") return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
-    return "bg-amber-500/15 text-amber-400 border-amber-500/30";
   };
 
   return (
@@ -366,24 +295,7 @@ export default function StatementPage() {
           </div>
         </div>
 
-        {/* SUMMARY CARDS */}
-        {!loading && filteredRows.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <SumCard label="Offshore" value={totals.offshore} colorClass="bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" />
-            <SumCard label="Relief" value={totals.relief} colorClass="bg-blue-500/10 text-blue-500 border border-blue-500/20" />
-            <SumCard label="Standby" value={totals.standby} colorClass="bg-violet-500/10 text-violet-500 border border-violet-500/20" />
-            <SumCard label="Medevac" value={totals.medevac} colorClass="bg-amber-500/10 text-amber-500 border border-amber-500/20" />
-            <div className="flex flex-col items-center px-5 py-2 rounded-xl bg-foreground/5 border border-foreground/10">
-              <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Grand Total</span>
-              <span className="text-base font-black tabular-nums text-foreground mt-0.5">{fmtAmt(totals.grand)}</span>
-            </div>
-            <span className="ml-auto text-[10px] text-muted-foreground font-bold">
-              {filteredRows.length} crew
-            </span>
-          </div>
-        )}
-
-        {/* CONTENT */}
+        {/* TABLE */}
         {loading ? (
           <div className="flex items-center justify-center h-48">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-foreground" />
@@ -395,148 +307,152 @@ export default function StatementPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-1.5 overflow-auto max-h-[calc(100vh-280px)] pr-1">
-            {filteredRows.map((row, idx) => {
-              const isExpanded = expandedRow === row.crew_id;
-              const trade = getTradeShort(row.post);
-              const tradeBadge = getTradeBadge(row.post);
-
-              return (
-                <div key={row.crew_id}>
-                  {/* Row Card */}
-                  <button
-                    type="button"
-                    onClick={() => setExpandedRow(isExpanded ? null : row.crew_id)}
-                    className={`w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all ${
-                      isExpanded
-                        ? "bg-card border border-border shadow-md ring-1 ring-blue-500/20"
-                        : "bg-card/60 border border-transparent hover:bg-card hover:border-border hover:shadow-sm"
-                    }`}
-                  >
-                    {/* Index */}
-                    <span className="text-[10px] text-muted-foreground font-bold tabular-nums w-5 shrink-0">{idx + 1}</span>
-
-                    {/* Name + meta */}
-                    <div className="flex flex-col min-w-[200px] shrink-0">
-                      <span className="text-[12px] font-bold text-foreground uppercase leading-tight">{row.crew_name}</span>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className={`inline-flex px-1.5 py-px rounded text-[8px] font-bold border ${tradeBadge}`}>
-                          {trade}
-                        </span>
-                        <span className={`inline-flex px-1.5 py-px rounded text-[8px] font-bold border ${
-                          row.client === "SKA"
-                            ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
-                            : "bg-orange-500/15 text-orange-400 border-orange-500/30"
-                        }`}>
-                          {row.client}
-                        </span>
-                        <span className="text-[9px] text-muted-foreground">{row.location}</span>
-                      </div>
-                    </div>
-
-                    {/* Allowance pills */}
-                    <div className="flex flex-wrap items-center gap-1.5 flex-1">
-                      {row.offshoreDays > 0 && (
-                        <AllowancePill
-                          label="OA"
-                          days={row.offshoreDays}
-                          amount={row.offshoreTotal}
-                          colorClass="bg-emerald-500/10 text-emerald-500"
-                        />
-                      )}
-                      {row.reliefDays > 0 && (
-                        <AllowancePill
-                          label="Relief"
-                          days={row.reliefDays}
-                          amount={row.reliefTotal}
-                          colorClass="bg-blue-500/10 text-blue-500"
-                        />
-                      )}
-                      {row.standbyDays > 0 && (
-                        <AllowancePill
-                          label="Standby"
-                          days={row.standbyDays}
-                          amount={row.standbyTotal}
-                          colorClass="bg-violet-500/10 text-violet-500"
-                        />
-                      )}
-                      {row.medevacDays > 0 && (
-                        <AllowancePill
-                          label="Medevac"
-                          days={row.medevacDays}
-                          amount={row.medevacTotal}
-                          colorClass="bg-amber-500/10 text-amber-500"
-                        />
-                      )}
-                    </div>
-
-                    {/* Grand Total */}
-                    <div className="text-right shrink-0 min-w-[90px]">
-                      <span className="text-[13px] font-black text-foreground tabular-nums">
-                        {fmtAmt(row.grandTotal)}
-                      </span>
-                    </div>
-
-                    {/* Expand indicator */}
-                    <svg
-                      className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-
-                  {/* Expanded cycle details */}
-                  {isExpanded && (
-                    <div className="ml-9 mr-4 mt-1 mb-2 bg-muted/30 rounded-lg border border-border/50 overflow-hidden">
-                      {row.cycles.map((c) => (
-                        <div
-                          key={c.cycleNum}
-                          className="flex flex-wrap items-center gap-3 px-4 py-2 text-[10px] border-b border-border/30 last:border-0"
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="overflow-auto max-h-[calc(100vh-220px)]">
+              <table className="w-full text-[12px] font-sans border-collapse" style={{ minWidth: "1000px" }}>
+                <thead className="sticky top-0 z-10">
+                  {/* Group header */}
+                  <tr className="text-white" style={{ backgroundColor: "#1e3a8a" }}>
+                    <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50 whitespace-nowrap" style={{ minWidth: "240px" }}>
+                      Name / Client / Trade
+                    </th>
+                    <th colSpan={2} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">
+                      Offshore
+                    </th>
+                    <th colSpan={3} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">
+                      Relief
+                    </th>
+                    <th colSpan={3} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">
+                      Standby
+                    </th>
+                    <th colSpan={2} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">
+                      Medevac
+                    </th>
+                    <th rowSpan={2} className="px-3 py-1.5 text-center whitespace-nowrap" style={{ minWidth: "100px" }}>
+                      <div className="text-[10px] font-black uppercase tracking-wide">Grand Total</div>
+                      <div className="text-[11px] font-black tabular-nums mt-0.5">{fmtAmt(totals.grand)}</div>
+                    </th>
+                  </tr>
+                  {/* Sub-header */}
+                  <tr className="text-blue-100" style={{ backgroundColor: "#1e3a8a" }}>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "50px" }}>Days</th>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "80px" }}>Total</th>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "50px" }}>Days</th>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "60px" }}>Rate</th>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "80px" }}>Total</th>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "50px" }}>Days</th>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "60px" }}>Rate</th>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "80px" }}>Total</th>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "60px" }}>No of Days</th>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "80px" }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row, idx) => {
+                    const isExpanded = expandedRow === row.crew_id;
+                    return (
+                      <Fragment key={row.crew_id}>
+                        <tr
+                          onClick={() => setExpandedRow(isExpanded ? null : row.crew_id)}
+                          className={`cursor-pointer transition-colors border-b border-border ${
+                            idx % 2 === 0 ? "bg-card" : "bg-muted/30"
+                          } hover:bg-blue-500/5`}
                         >
-                          <span className="font-bold text-muted-foreground w-14 shrink-0">
-                            Cycle {c.cycleNum}
-                          </span>
-                          <span className="font-semibold text-foreground shrink-0">
-                            {formatDate(c.sign_on)} to {formatDate(c.sign_off)}
-                          </span>
-                          <span className="font-semibold text-foreground shrink-0 tabular-nums">
-                            {c.days} days
-                          </span>
-                          {c.is_offshore && (
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 font-bold text-[9px] uppercase">
-                              OA
-                            </span>
-                          )}
-                          {c.day_relief > 0 && (
-                            <span className="px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-600 font-bold text-[9px] uppercase">
-                              Relief: {c.day_relief}d x {fmtAmt(c.relief_rate)}
-                            </span>
-                          )}
-                          {c.day_standby > 0 && (
-                            <span className="px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-600 font-bold text-[9px] uppercase">
-                              Standby: {c.day_standby}d x {fmtAmt(c.standby_rate)}
-                            </span>
-                          )}
-                          {c.medevac_dates.length > 0 && (
-                            <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 font-bold text-[9px] uppercase">
-                              Medevac: {c.medevac_dates.length} day{c.medevac_dates.length > 1 ? "s" : ""}
-                            </span>
-                          )}
-                          {c.notes && (
-                            <span className="text-muted-foreground italic" title={c.notes}>
-                              {c.notes}
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                          <td className="px-3 py-1 border-r border-border">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted-foreground font-bold tabular-nums w-4">{idx + 1}</span>
+                              <div>
+                                <div className="text-[11px] font-bold text-foreground uppercase leading-tight whitespace-nowrap">{row.crew_name}</div>
+                                <div className="text-[9px] text-muted-foreground">
+                                  {row.client} / {shortenPost(row.post)}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          {/* Offshore */}
+                          <td className="px-2 py-1 text-center border-r border-border tabular-nums">
+                            <span className={row.offshoreDays > 0 ? "text-emerald-600 font-bold" : "text-muted-foreground"}>{fmtNum(row.offshoreDays)}</span>
+                          </td>
+                          <td className="px-2 py-1 text-center border-r border-border tabular-nums">
+                            <span className={row.offshoreTotal > 0 ? "text-emerald-600 font-bold" : "text-muted-foreground"}>{fmtAmt(row.offshoreTotal)}</span>
+                          </td>
+                          {/* Relief */}
+                          <td className="px-2 py-1 text-center border-r border-border tabular-nums">
+                            <span className={row.reliefDays > 0 ? "text-blue-600 font-bold" : "text-muted-foreground"}>{fmtNum(row.reliefDays)}</span>
+                          </td>
+                          <td className="px-2 py-1 text-center border-r border-border tabular-nums text-muted-foreground text-[11px]">
+                            {row.reliefRate > 0 ? fmtAmt(row.reliefRate) : "-"}
+                          </td>
+                          <td className="px-2 py-1 text-center border-r border-border tabular-nums">
+                            <span className={row.reliefTotal > 0 ? "text-blue-600 font-bold" : "text-muted-foreground"}>{fmtAmt(row.reliefTotal)}</span>
+                          </td>
+                          {/* Standby */}
+                          <td className="px-2 py-1 text-center border-r border-border tabular-nums">
+                            <span className={row.standbyDays > 0 ? "text-violet-600 font-bold" : "text-muted-foreground"}>{fmtNum(row.standbyDays)}</span>
+                          </td>
+                          <td className="px-2 py-1 text-center border-r border-border tabular-nums text-muted-foreground text-[11px]">
+                            {row.standbyRate > 0 ? fmtAmt(row.standbyRate) : "-"}
+                          </td>
+                          <td className="px-2 py-1 text-center border-r border-border tabular-nums">
+                            <span className={row.standbyTotal > 0 ? "text-violet-600 font-bold" : "text-muted-foreground"}>{fmtAmt(row.standbyTotal)}</span>
+                          </td>
+                          {/* Medevac */}
+                          <td className="px-2 py-1 text-center border-r border-border tabular-nums">
+                            <span className={row.medevacDays > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}>{fmtNum(row.medevacDays)}</span>
+                          </td>
+                          <td className="px-2 py-1 text-center border-r border-border tabular-nums">
+                            <span className={row.medevacTotal > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}>{fmtAmt(row.medevacTotal)}</span>
+                          </td>
+                          {/* Grand Total */}
+                          <td className="px-3 py-1 text-center tabular-nums">
+                            <span className="text-[12px] font-black text-foreground">{fmtAmt(row.grandTotal)}</span>
+                          </td>
+                        </tr>
+                        {/* Expanded detail */}
+                        {isExpanded && (
+                          <tr className="bg-muted/20">
+                            <td colSpan={12} className="px-5 py-2 border-b border-border">
+                              <div className="text-[10px] space-y-1">
+                                {row.cycles.map((c) => (
+                                  <div key={c.cycleNum} className="flex flex-wrap items-center gap-4 py-0.5 border-b border-border/30 last:border-0">
+                                    <span className="font-bold text-foreground w-14">Cycle {c.cycleNum}</span>
+                                    <span className="text-muted-foreground">{formatDate(c.sign_on)} - {formatDate(c.sign_off)}</span>
+                                    <span className="text-muted-foreground">{c.days}d</span>
+                                    {c.is_offshore && <span className="text-emerald-600 font-semibold">Offshore</span>}
+                                    {c.day_relief > 0 && <span className="text-blue-600 font-semibold">Relief: {c.day_relief}d x {fmtAmt(c.relief_rate)}</span>}
+                                    {c.day_standby > 0 && <span className="text-violet-600 font-semibold">Standby: {c.day_standby}d x {fmtAmt(c.standby_rate)}</span>}
+                                    {c.medevac_dates.length > 0 && <span className="text-amber-600 font-semibold">Medevac: {c.medevac_dates.map(d => formatDate(d)).join(", ")}</span>}
+                                    {c.notes && <span className="text-muted-foreground italic">{c.notes}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="text-white font-bold" style={{ backgroundColor: "#1e3a8a" }}>
+                    <td className="px-3 py-2 text-left border-r border-blue-700/50">
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Total ({filteredRows.length} crew)</span>
+                    </td>
+                    <td className="px-2 py-2 border-r border-blue-700/50" />
+                    <td className="px-2 py-2 text-center border-r border-blue-700/50 tabular-nums text-[11px]">{fmtAmt(totals.offshore)}</td>
+                    <td className="px-2 py-2 border-r border-blue-700/50" />
+                    <td className="px-2 py-2 border-r border-blue-700/50" />
+                    <td className="px-2 py-2 text-center border-r border-blue-700/50 tabular-nums text-[11px]">{fmtAmt(totals.relief)}</td>
+                    <td className="px-2 py-2 border-r border-blue-700/50" />
+                    <td className="px-2 py-2 border-r border-blue-700/50" />
+                    <td className="px-2 py-2 text-center border-r border-blue-700/50 tabular-nums text-[11px]">{fmtAmt(totals.standby)}</td>
+                    <td className="px-2 py-2 border-r border-blue-700/50" />
+                    <td className="px-2 py-2 text-center border-r border-blue-700/50 tabular-nums text-[11px]">{fmtAmt(totals.medevac)}</td>
+                    <td className="px-3 py-2 text-center tabular-nums text-[12px] font-black">{fmtAmt(totals.grand)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
         )}
       </div>
