@@ -184,6 +184,7 @@ export default function StatementPage() {
 
   const filteredRows = useMemo(() => {
     return statementRows.filter((row) => {
+      if (row.grandTotal === 0) return false; // hide crew with zero total
       const matchesSearch = !search.trim() || row.crew_name.toLowerCase().includes(search.toLowerCase());
       const matchesTrade =
         tradeFilter === "ALL" ||
@@ -306,42 +307,42 @@ export default function StatementPage() {
               <table className="w-full border-collapse text-[12px] font-sans" style={{ minWidth: "1100px" }}>
                 <thead className="sticky top-0 z-10">
                   {/* Group header */}
-                  <tr className="bg-slate-900 text-white">
-                    <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-slate-700 whitespace-nowrap" style={{ minWidth: "240px" }}>
+                  <tr className="bg-white text-white">
+                    <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-b border-slate-300 whitespace-nowrap bg-slate-800 text-white" style={{ minWidth: "240px" }}>
                       Name / Client / Trade
                     </th>
-                    <th colSpan={2} className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide text-center border-r border-slate-700 border-b border-slate-600">
+                    <th colSpan={2} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-slate-300" style={{ backgroundColor: "#0d9488" }}>
                       Offshore
                     </th>
-                    <th colSpan={3} className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide text-center border-r border-slate-700 border-b border-slate-600">
+                    <th colSpan={3} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-slate-300" style={{ backgroundColor: "#0284c7" }}>
                       Relief
                     </th>
-                    <th colSpan={3} className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide text-center border-r border-slate-700 border-b border-slate-600">
+                    <th colSpan={3} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-slate-300" style={{ backgroundColor: "#7c3aed" }}>
                       Standby
                     </th>
-                    <th colSpan={2} className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide text-center border-r border-slate-700 border-b border-slate-600">
+                    <th colSpan={2} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-slate-300" style={{ backgroundColor: "#d97706" }}>
                       Medevac
                     </th>
-                    <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-center whitespace-nowrap" style={{ minWidth: "100px" }}>
+                    <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-center whitespace-nowrap border-b border-slate-300 bg-slate-800 text-white" style={{ minWidth: "100px" }}>
                       Grand Total
                     </th>
                   </tr>
                   {/* Sub-header */}
-                  <tr className="bg-slate-800 text-slate-300">
-                    {/* Offshore: Days, Total (no Rate) */}
-                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "50px" }}>Days</th>
-                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "80px" }}>Total</th>
-                    {/* Relief: Days, Rate, Total */}
-                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "50px" }}>Days</th>
-                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "60px" }}>Rate</th>
-                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "80px" }}>Total</th>
-                    {/* Standby: Days, Rate, Total */}
-                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "50px" }}>Days</th>
-                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "60px" }}>Rate</th>
-                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "80px" }}>Total</th>
-                    {/* Medevac: No of Days, Total */}
-                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "60px" }}>No of Days</th>
-                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-slate-700" style={{ width: "80px" }}>Total</th>
+                  <tr className="bg-slate-100 text-slate-700">
+                    {/* Offshore */}
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-b border-slate-300" style={{ width: "50px" }}>Days</th>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-b border-slate-300" style={{ width: "80px" }}>Total</th>
+                    {/* Relief */}
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-b border-slate-300" style={{ width: "50px" }}>Days</th>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-b border-slate-300" style={{ width: "60px" }}>Rate</th>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-b border-slate-300" style={{ width: "80px" }}>Total</th>
+                    {/* Standby */}
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-b border-slate-300" style={{ width: "50px" }}>Days</th>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-b border-slate-300" style={{ width: "60px" }}>Rate</th>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-b border-slate-300" style={{ width: "80px" }}>Total</th>
+                    {/* Medevac */}
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-b border-slate-300" style={{ width: "60px" }}>No of Days</th>
+                    <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-b border-slate-300" style={{ width: "80px" }}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -435,8 +436,9 @@ export default function StatementPage() {
                     );
                   })}
 
-                  {/* TOTALS ROW */}
-                  <tr className="bg-slate-900 text-white font-bold sticky bottom-0">
+                </tbody>
+                <tfoot className="sticky bottom-0 z-10">
+                  <tr className="bg-slate-900 text-white font-bold">
                     <td className="px-3 py-2 text-left border-r border-slate-700">
                       <span className="text-[10px] font-bold uppercase tracking-wider">Total ({filteredRows.length} crew)</span>
                     </td>
@@ -452,7 +454,7 @@ export default function StatementPage() {
                     <td className="px-2 py-2 text-center border-r border-slate-700 tabular-nums text-[11px]">{fmtAmt(totals.medevac)}</td>
                     <td className="px-3 py-2 text-center tabular-nums text-[12px] font-black">{fmtAmt(totals.grand)}</td>
                   </tr>
-                </tbody>
+                </tfoot>
               </table>
             </div>
           </div>
