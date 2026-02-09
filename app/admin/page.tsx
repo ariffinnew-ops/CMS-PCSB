@@ -323,12 +323,12 @@ export default function AdminPage() {
     return map;
   }, [crewList]);
 
-  // Display name: resolve crew_name via master list, preserve (R) suffix
+  // Display name: resolve crew_name via master list, preserve any suffix like (R), (R1), (S), (S1), (P)
   const getDisplayName = (row: PivotedCrewRow) => {
     const masterName = crewNameMap.get(row.crew_id);
     if (!masterName) return row.crew_name; // fallback
-    const hasR = (row.crew_name || "").includes("(R)");
-    return hasR ? `${masterName} (R)` : masterName;
+    const suffixMatch = (row.crew_name || "").match(/\s*(\([A-Z]\d*\))\s*$/);
+    return suffixMatch ? `${masterName} ${suffixMatch[1]}` : masterName;
   };
 
   // Add new staff to roster

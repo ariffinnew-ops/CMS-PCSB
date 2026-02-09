@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow, ClientType, TradeType } from "@/lib/types";
-import { getPivotedRosterData } from "@/lib/actions";
+import { getPivotedRosterData, getCrewList } from "@/lib/actions";
 import { safeParseDate, getTradeRank, getFullTradeName } from "@/lib/logic";
 
 // Generate months from Sep 2025 to Dec 2026
@@ -28,13 +28,15 @@ const MONTH_NAMES = [
 export default function RosterPage() {
   const [viewDate, setViewDate] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); });
   const [data, setData] = useState<PivotedCrewRow[]>([]);
+  const [crewList, setCrewList] = useState<{ id: string; crew_name: string; clean_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [clientFilter, setClientFilter] = useState<ClientType | "ALL">("ALL");
   const [tradeFilter, setTradeFilter] = useState<TradeType | "ALL">("ALL");
 
   useEffect(() => {
-    getPivotedRosterData().then((pivotedData) => {
+    Promise.all([getPivotedRosterData(), getCrewList()]).then(([pivotedData, crewResult]) => {
       setData(pivotedData);
+      if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
       setLoading(false);
     });
   }, []);
@@ -110,7 +112,22 @@ export default function RosterPage() {
       });
   }, [data, clientFilter, tradeFilter, viewDate]);
 
-  const getDisplayName = (row: PivotedCrewRow) => row.crew_name;
+  // Build crew_id -> master name lookup
+  const crewNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const staff of crewList) {
+      map.set(staff.id, staff.clean_name || staff.crew_name);
+    }
+    return map;
+  }, [crewList]);
+
+  // Display name: resolve via master, preserve suffix like (R), (R1), (S), (S1), (P)
+  const getDisplayName = (row: PivotedCrewRow) => {
+    const masterName = crewNameMap.get(row.crew_id);
+    if (!masterName) return row.crew_name;
+    const suffixMatch = (row.crew_name || "").match(/\s*(\([A-Z]\d*\))\s*$/);
+    return suffixMatch ? `${masterName} ${suffixMatch[1]}` : masterName;
+  };
 
   const groupedData = useMemo(() => {
     const result: { type: 'separator' | 'row'; label?: string; row?: PivotedCrewRow; trade?: string }[] = [];
