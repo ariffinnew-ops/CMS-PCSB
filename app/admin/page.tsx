@@ -70,11 +70,17 @@ export default function AdminPage() {
   const [deleteModal, setDeleteModal] = useState<{ crewId: string; name: string } | null>(null);
 
   const fetchData = async () => {
-    setLoading(true);
+  setLoading(true);
+  console.log("[v0] fetchData starting...");
+  try {
     const [pivotedData, crewResult] = await Promise.all([getPivotedRosterData(), getCrewList()]);
+    console.log("[v0] fetchData got", pivotedData.length, "roster rows,", crewResult.data?.length || 0, "crew list items");
     setData(pivotedData);
     if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
-    setLoading(false);
+  } catch (err) {
+    console.error("[v0] fetchData CRASHED:", err);
+  }
+  setLoading(false);
   };
 
   const sortedData = useMemo(() => {
@@ -355,6 +361,7 @@ export default function AdminPage() {
     if (!dupeConfirm) return;
     const baseName = dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name;
     const suffix = customSuffix.trim();
+    console.log("[v0] handleDupeConfirmAdd baseName:", baseName, "suffix:", suffix);
     if (!suffix) {
       showNotification("Please enter a suffix (e.g. R1, S, P)", "error");
       return;
@@ -362,6 +369,7 @@ export default function AdminPage() {
     const finalName = `${baseName} (${suffix})`;
     // Check for duplicate name in roster
     const isDupe = data.some((row) => row.crew_name?.trim().toUpperCase() === finalName.trim().toUpperCase());
+    console.log("[v0] handleDupeConfirmAdd finalName:", finalName, "isDupe:", isDupe);
     if (isDupe) {
       showNotification(`"${finalName}" already exists in roster. Use a different suffix.`, "error");
       return;
@@ -384,16 +392,30 @@ export default function AdminPage() {
       cycle_number: 1,
     };
 
-    const result = await createRosterRow(payload);
-    setIsSyncing(false);
+    console.log("[v0] doInsertStaff payload:", JSON.stringify(payload));
 
-    if (result.success) {
-      setNewlyAddedCrewIds((prev) => new Set([...prev, staff.id]));
-      setLastSynced(new Date());
-      showNotification(`${finalName} added successfully`, "success");
-      await fetchData();
-    } else {
-      showNotification(result.error || "Failed to add staff", "error");
+    try {
+      const result = await createRosterRow(payload);
+      console.log("[v0] createRosterRow result:", JSON.stringify(result));
+      setIsSyncing(false);
+
+      if (result.success) {
+        setNewlyAddedCrewIds((prev) => new Set([...prev, staff.id]));
+        setLastSynced(new Date());
+        showNotification(`${finalName} added successfully`, "success");
+        try {
+          await fetchData();
+          console.log("[v0] fetchData after insert completed");
+        } catch (fetchErr) {
+          console.error("[v0] fetchData after insert FAILED:", fetchErr);
+        }
+      } else {
+        showNotification(result.error || "Failed to add staff", "error");
+      }
+    } catch (err) {
+      console.error("[v0] doInsertStaff CRASHED:", err);
+      setIsSyncing(false);
+      showNotification("Server error during insert", "error");
     }
     closeAddModal();
   };
