@@ -5,7 +5,7 @@ import React from "react"
 import { useEffect, useState, useMemo, useRef, Fragment } from "react";
 import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow, TradeType } from "@/lib/types";
-import { getPivotedRosterData, updateRosterRow, createRosterRow, deleteRosterRow, deleteCrewFromRoster, getCrewList } from "@/lib/actions";
+import { getPivotedRosterData, updateRosterRow, createRosterRow, deleteRosterRow, deleteCrewFromRoster, deleteCrewByName, getCrewList } from "@/lib/actions";
 import { safeParseDate, getTradeRank, shortenPost } from "@/lib/logic";
 import { getClients, getPostsForClient, getLocationsForClientPost } from "@/lib/client-location-map";
 
@@ -52,13 +52,16 @@ export default function AdminPage() {
   // Dynamic crew list from cms_pcsb_master
   const [crewList, setCrewList] = useState<CrewListItem[]>([]);
 
-  // Add Staff Modal State
-  const [addStaffModal, setAddStaffModal] = useState<boolean>(false);
+  // Add Staff modal state
+  const [addModal, setAddModal] = useState<{ client: string; post: string; location: string } | null>(null);
+  const [staffSearchQuery, setStaffSearchQuery] = useState("");
+  const [selectedStaff, setSelectedStaff] = useState<CrewListItem | null>(null);
+  // Duplicate confirmation: when the name already exists in roster
+  const [dupeConfirm, setDupeConfirm] = useState<{ staff: CrewListItem; existingCount: number } | null>(null);
+  const [customSuffix, setCustomSuffix] = useState("");
   const [newStaffClient, setNewStaffClient] = useState("");
   const [newStaffPost, setNewStaffPost] = useState("");
   const [newStaffLocation, setNewStaffLocation] = useState("");
-  const [staffSearchQuery, setStaffSearchQuery] = useState("");
-  const [selectedStaff, setSelectedStaff] = useState<CrewListItem | null>(null);
   
   // Track newly added crew IDs for showing delete button
   const [newlyAddedCrewIds, setNewlyAddedCrewIds] = useState<Set<string>>(new Set());
@@ -67,11 +70,17 @@ export default function AdminPage() {
   const [deleteModal, setDeleteModal] = useState<{ crewId: string; name: string } | null>(null);
 
   const fetchData = async () => {
-    setLoading(true);
+  setLoading(true);
+  console.log("[v0] fetchData starting...");
+  try {
     const [pivotedData, crewResult] = await Promise.all([getPivotedRosterData(), getCrewList()]);
+    console.log("[v0] fetchData got", pivotedData.length, "roster rows,", crewResult.data?.length || 0, "crew list items");
     setData(pivotedData);
     if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
-    setLoading(false);
+  } catch (err) {
+    console.error("[v0] fetchData CRASHED:", err);
+  }
+  setLoading(false);
   };
 
   const sortedData = useMemo(() => {
@@ -198,7 +207,7 @@ export default function AdminPage() {
         setLastSynced(new Date());
         // Optimistic update
         setData(prev => prev.map(row => {
-          if (row.crew_id !== crewRow.crew_id) return row;
+          if (row.crew_id !== crewRow.crew_id || row.crew_name !== crewRow.crew_name) return row;
           const newCycles = { ...row.cycles };
           if (newCycles[cycleNum]) {
             newCycles[cycleNum] = { ...newCycles[cycleNum], [field]: finalValue };
@@ -225,7 +234,7 @@ export default function AdminPage() {
       if (result.success && result.data) {
         setLastSynced(new Date());
         setData(prev => prev.map(row => {
-          if (row.crew_id !== crewRow.crew_id) return row;
+          if (row.crew_id !== crewRow.crew_id || row.crew_name !== crewRow.crew_name) return row;
           const newCycles = { ...row.cycles };
           newCycles[cycleNum] = {
             id: result.data!.id,
@@ -327,60 +336,102 @@ export default function AdminPage() {
   const getDisplayName = (row: PivotedCrewRow) => {
     const masterName = crewNameMap.get(row.crew_id);
     if (!masterName) return row.crew_name; // fallback
-    const suffixMatch = (row.crew_name || "").match(/\s*(\([A-Z]\d*\))\s*$/);
+    // Match any parenthesised suffix at end: (R1), (S), (P), (S/P), (R2), etc.
+    const suffixMatch = (row.crew_name || "").match(/\s*(\([^)]+\))\s*$/);
     return suffixMatch ? `${masterName} ${suffixMatch[1]}` : masterName;
   };
 
-  // Add new staff to roster - always INSERT a new row with proper (R)/(R2)/(R3) suffix
-  const handleAddStaff = async () => {
-  if (!selectedStaff || !newStaffClient || !newStaffPost || !newStaffLocation) return;
-  
-  setIsSyncing(true);
-  
-  const baseName = selectedStaff.clean_name || selectedStaff.crew_name;
-  
-  // Count how many roster entries already exist for this crew_id to determine suffix
-  const existingEntries = data.filter((row) => row.crew_id === selectedStaff.id);
-  const count = existingEntries.length;
-  let finalName = baseName;
-  if (count === 1) {
-    finalName = `${baseName} (R)`;
-  } else if (count > 1) {
-    finalName = `${baseName} (R${count})`;
-  }
+  // Handle selecting a staff from the modal list
+  const handleStaffSelect = (staff: CrewListItem) => {
+    const baseName = staff.clean_name || staff.crew_name;
+    const existingCount = data.filter((row) => row.crew_id === staff.id).length;
+    if (existingCount > 0) {
+      // Name exists in roster -- ask user to confirm and enter manual suffix
+      setSelectedStaff(staff);
+      setDupeConfirm({ staff, existingCount });
+      setCustomSuffix("");
+      return;
+    }
+    // Name is new -- insert directly
+    doInsertStaff(staff, baseName);
+  };
 
-    // Create initial cycle 1 row for this crew
+  // Insert after user confirms duplicate with custom suffix
+  const handleDupeConfirmAdd = () => {
+    if (!dupeConfirm) return;
+    const baseName = dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name;
+    const suffix = customSuffix.trim();
+    console.log("[v0] handleDupeConfirmAdd baseName:", baseName, "suffix:", suffix);
+    if (!suffix) {
+      showNotification("Please enter a suffix (e.g. R1, S, P)", "error");
+      return;
+    }
+    const finalName = `${baseName} (${suffix})`;
+    // Check for duplicate name in roster
+    const isDupe = data.some((row) => row.crew_name?.trim().toUpperCase() === finalName.trim().toUpperCase());
+    console.log("[v0] handleDupeConfirmAdd finalName:", finalName, "isDupe:", isDupe);
+    if (isDupe) {
+      showNotification(`"${finalName}" already exists in roster. Use a different suffix.`, "error");
+      return;
+    }
+    doInsertStaff(dupeConfirm.staff, finalName);
+    setDupeConfirm(null);
+    setCustomSuffix("");
+  };
+
+  // Core insert function
+  const doInsertStaff = async (staff: CrewListItem, finalName: string) => {
+    if (!addModal) return;
+    setIsSyncing(true);
     const payload = {
-      crew_id: selectedStaff.id,
+      crew_id: staff.id,
       crew_name: finalName,
-      post: newStaffPost,
-      client: newStaffClient,
-      location: newStaffLocation,
+      post: newStaffPost || addModal.post,
+      client: newStaffClient || addModal.client,
+      location: newStaffLocation || addModal.location,
       cycle_number: 1,
     };
 
-    const result = await createRosterRow(payload);
-    setIsSyncing(false);
+    console.log("[v0] doInsertStaff payload:", JSON.stringify(payload));
 
-    if (result.success) {
-      setNewlyAddedCrewIds((prev) => new Set([...prev, selectedStaff.id]));
-      setLastSynced(new Date());
-      showNotification(`${finalName} added successfully`, "success");
-      fetchData();
-    } else {
-      showNotification(result.error || "Failed to add staff", "error");
+    try {
+      const result = await createRosterRow(payload);
+      console.log("[v0] createRosterRow result:", JSON.stringify(result));
+      setIsSyncing(false);
+
+      if (result.success) {
+        setNewlyAddedCrewIds((prev) => new Set([...prev, staff.id]));
+        setLastSynced(new Date());
+        showNotification(`${finalName} added successfully`, "success");
+        try {
+          await fetchData();
+          console.log("[v0] fetchData after insert completed");
+        } catch (fetchErr) {
+          console.error("[v0] fetchData after insert FAILED:", fetchErr);
+        }
+      } else {
+        showNotification(result.error || "Failed to add staff", "error");
+      }
+    } catch (err) {
+      console.error("[v0] doInsertStaff CRASHED:", err);
+      setIsSyncing(false);
+      showNotification("Server error during insert", "error");
     }
+    closeAddModal();
+  };
 
-    // Reset modal
-    setAddStaffModal(false);
+  const closeAddModal = () => {
+    setAddModal(null);
     setSelectedStaff(null);
     setStaffSearchQuery("");
+    setDupeConfirm(null);
+    setCustomSuffix("");
     setNewStaffClient("");
     setNewStaffPost("");
     setNewStaffLocation("");
   };
 
-  // Delete staff - removes all cycle rows for a crew
+  // Delete staff - removes cycle rows for this specific crew_id + crew_name
   const handleDeleteStaff = async () => {
     if (!deleteModal) return;
     
@@ -388,11 +439,12 @@ export default function AdminPage() {
     setDeleteModal(null);
     
     setIsSyncing(true);
-    const result = await deleteCrewFromRoster(crewId);
+    // Use name-specific delete so suffixed entries don't wipe the original
+    const result = await deleteCrewByName(crewId, name);
     setIsSyncing(false);
     
     if (result.success) {
-      setData((prev) => prev.filter((row) => row.crew_id !== crewId));
+      setData((prev) => prev.filter((row) => !(row.crew_id === crewId && row.crew_name === name)));
       setLastSynced(new Date());
       showNotification(`${name} deleted`, "success");
     } else {
@@ -405,15 +457,15 @@ export default function AdminPage() {
   const mapPosts = useMemo(() => newStaffClient ? getPostsForClient(newStaffClient) : [], [newStaffClient]);
   const mapLocations = useMemo(() => (newStaffClient && newStaffPost) ? getLocationsForClientPost(newStaffClient, newStaffPost) : [], [newStaffClient, newStaffPost]);
 
-  // Filter crew list for modal
+  // Filter crew list for add-staff modal
   const filteredMasterList = useMemo(() => {
-    if (!addStaffModal) return [];
+    if (!addModal) return [];
     const q = staffSearchQuery.toLowerCase();
     return crewList.filter((staff) => {
       return (staff.clean_name || staff.crew_name || '').toLowerCase().includes(q) ||
              (staff.crew_name || '').toLowerCase().includes(q);
     });
-  }, [addStaffModal, staffSearchQuery, crewList]);
+  }, [addModal, staffSearchQuery, crewList]);
 
   if (loading)
     return (
@@ -461,14 +513,6 @@ export default function AdminPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
-            <button
-              type="button"
-              onClick={() => setAddStaffModal(true)}
-              className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] uppercase tracking-widest transition-all shadow-lg hover:shadow-emerald-500/30 flex items-center gap-2 border border-emerald-500"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-              Add New Staff
-            </button>
             <div className="flex flex-wrap items-center gap-4 bg-muted p-3 rounded-2xl border border-border shadow-inner">
               <div className="flex flex-col px-4 border-r border-border">
                 <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
@@ -612,17 +656,34 @@ export default function AdminPage() {
                     prev.location !== row.location;
 
                   return (
-                    <Fragment key={row.crew_id}>
+                    <Fragment key={`${row.crew_id}::${row.crew_name}`}>
                       {showSeparator && (
                         <tr className="sticky top-0 z-[90] bg-slate-900 border-y border-slate-950 shadow-xl w-full">
                           <td className="px-6 py-2 sticky left-0 z-[95] bg-slate-900 border-r border-slate-800">
-                            <div className="flex flex-col">
-                              <span className="text-[15px] font-black text-white uppercase tracking-wider leading-tight">
-                                {shortenPost(row.post)}
-                              </span>
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide leading-tight">
-                                {row.location} / {row.client}
-                              </span>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex flex-col">
+                                <span className="text-[15px] font-black text-white uppercase tracking-wider leading-tight">
+                                  {shortenPost(row.post)}
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide leading-tight">
+                                  {row.location} / {row.client}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAddModal({ client: row.client, post: row.post, location: row.location });
+                                  setNewStaffClient(row.client);
+                                  setNewStaffPost(row.post);
+                                  setNewStaffLocation(row.location);
+                                  setSelectedStaff(null);
+                                  setStaffSearchQuery("");
+                                }}
+                                className="flex items-center justify-center w-7 h-7 bg-emerald-500 hover:bg-emerald-400 text-white rounded-full text-lg font-black transition-all shadow-md hover:shadow-emerald-500/40 hover:scale-110 shrink-0"
+                                title={`Add staff to ${shortenPost(row.post)} at ${row.location}`}
+                              >
+                                +
+                              </button>
                             </div>
                           </td>
                           <td className="bg-slate-900 py-2 h-12 w-full" />
@@ -789,6 +850,7 @@ export default function AdminPage() {
                           </div>
                         </td>
                       </tr>
+                      
                     </Fragment>
                   );
                 })}
@@ -1018,156 +1080,140 @@ export default function AdminPage() {
           );
         })()}
 
-        {/* ADD NEW STAFF MODAL */}
-        {addStaffModal && (
+        {/* ADD STAFF MODAL -- popup with searchable name list */}
+        {addModal && !dupeConfirm && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-card rounded-2xl w-full max-w-lg shadow-2xl border border-border flex flex-col max-h-[80vh]">
+            <div className="bg-card rounded-2xl w-full max-w-sm shadow-2xl border border-border flex flex-col max-h-[75vh]">
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-2.5 border-b border-border bg-emerald-600 rounded-t-2xl shrink-0">
                 <div>
-                  <h3 className="text-sm font-black uppercase tracking-wider text-white">Add New Staff</h3>
-                  <p className="text-[9px] font-bold text-emerald-100 uppercase tracking-wide">Select crew and assign location</p>
+                  <h3 className="text-xs font-black uppercase tracking-wider text-white">Add Staff</h3>
+                  <p className="text-[9px] font-bold text-emerald-100 uppercase tracking-wide">
+                    {shortenPost(addModal.post)} &middot; {addModal.location} / {addModal.client}
+                  </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { setAddStaffModal(false); setSelectedStaff(null); setStaffSearchQuery(""); setNewStaffClient(""); setNewStaffPost(""); setNewStaffLocation(""); }}
-                  className="text-white/80 hover:text-white text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
-                >&times;</button>
+                <button type="button" onClick={closeAddModal} className="text-white/80 hover:text-white text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors">&times;</button>
               </div>
 
-              {/* Scrollable body */}
-              <div className="px-5 py-3 space-y-3 overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: "thin" }}>
-                {/* STEP 1: Select Crew Member */}
+              {/* Search */}
+              <div className="px-4 pt-3 pb-2 shrink-0">
+                <input
+                  type="text"
+                  value={staffSearchQuery}
+                  onChange={(e) => setStaffSearchQuery(e.target.value)}
+                  placeholder="Search master list by name..."
+                  autoFocus
+                  className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase"
+                />
+              </div>
+
+              {/* Name List */}
+              <div className="flex-1 overflow-y-auto px-2 pb-2 min-h-0" style={{ scrollbarWidth: "thin" }}>
+                {filteredMasterList.length === 0 && staffSearchQuery.length > 0 ? (
+                  <div className="flex items-center justify-center py-8 text-muted-foreground text-[10px] font-bold uppercase">No results found</div>
+                ) : staffSearchQuery.length === 0 ? (
+                  <div className="flex items-center justify-center py-8 text-muted-foreground text-[10px] font-bold uppercase">Type to search...</div>
+                ) : (
+                  <div className="flex flex-col gap-0.5">
+                    {filteredMasterList.slice(0, 30).map((staff) => {
+                      const alreadyInRoster = isCrewInRoster(staff.id);
+                      return (
+                        <button
+                          key={staff.id}
+                          type="button"
+                          onClick={() => handleStaffSelect(staff)}
+                          className="w-full flex items-center justify-between px-3 py-2 text-left transition-all hover:bg-emerald-50 rounded-lg border border-transparent hover:border-emerald-200"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-black text-[10px] uppercase block truncate text-foreground">{staff.clean_name || staff.crew_name}</span>
+                            <span className="text-[8px] text-muted-foreground">{shortenPost(staff.post)} &middot; {staff.location} &middot; {staff.client}</span>
+                          </div>
+                          {alreadyInRoster && (
+                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full shrink-0 ml-2 bg-amber-100 text-amber-700 border border-amber-200">In Roster</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end px-4 py-2.5 border-t border-border bg-muted/30 rounded-b-2xl shrink-0">
+                <button type="button" onClick={closeAddModal} className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DUPLICATE NAME CONFIRMATION MODAL */}
+        {dupeConfirm && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-card rounded-2xl w-full max-w-sm shadow-2xl border border-border flex flex-col">
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-2.5 border-b border-border bg-amber-500 rounded-t-2xl shrink-0">
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider text-white">Name Already in Roster</h3>
+                  <p className="text-[9px] font-bold text-amber-100 uppercase tracking-wide">
+                    {dupeConfirm.existingCount} existing {dupeConfirm.existingCount === 1 ? "entry" : "entries"}
+                  </p>
+                </div>
+                <button type="button" onClick={() => { setDupeConfirm(null); setCustomSuffix(""); }} className="text-white/80 hover:text-white text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors">&times;</button>
+              </div>
+
+              <div className="px-5 py-4 space-y-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-[10px] font-bold text-amber-900">
+                    <strong>{dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name}</strong> already exists in the roster.
+                  </p>
+                  <p className="text-[9px] text-amber-700 mt-1">
+                    Enter a suffix to differentiate (e.g. R1, R2, S, P).
+                  </p>
+                </div>
+
                 <div>
                   <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">
-                    Step 1 &mdash; Select Crew Member
+                    Name with suffix
                   </label>
-                  <input
-                    type="text"
-                    value={staffSearchQuery}
-                    onChange={(e) => setStaffSearchQuery(e.target.value)}
-                    placeholder="Search by name..."
-                    className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-emerald-400 mb-1.5 font-medium"
-                  />
-                  <div className="h-32 overflow-y-auto bg-muted/30 rounded-lg border border-border p-1.5" style={{ scrollbarWidth: "thin" }}>
-                    {filteredMasterList.length === 0 ? (
-                      <div className="flex items-center justify-center h-full text-muted-foreground text-xs font-medium">No staff found</div>
-                    ) : (
-                      <div className="flex flex-col gap-0.5">
-                        {filteredMasterList.map((staff) => {
-                          const isSelected = selectedStaff?.id === staff.id;
-                          const alreadyInRoster = isCrewInRoster(staff.id);
-                          return (
-                            <button
-                              key={staff.id}
-                              type="button"
-                              onClick={() => setSelectedStaff(staff)}
-                              className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-left transition-all ${
-                                isSelected
-                                  ? "bg-emerald-600 text-white shadow-md"
-                                  : "bg-card hover:bg-muted border border-border"
-                              }`}
-                            >
-                              <div className="min-w-0">
-                                <span className="font-black text-[10px] uppercase block truncate">{staff.clean_name || staff.crew_name}</span>
-                                <span className={`text-[8px] ${isSelected ? "text-emerald-100" : "text-muted-foreground"}`}>
-                                  {shortenPost(staff.post)} &middot; {staff.location} &middot; {staff.client}
-                                </span>
-                              </div>
-                              {alreadyInRoster && (
-                                <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full shrink-0 ml-1 ${
-                                  isSelected ? "bg-emerald-500 text-white" : "bg-amber-100 text-amber-700 border border-amber-200"
-                                }`}>In Roster</span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-foreground uppercase truncate max-w-[180px]">
+                      {dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name}
+                    </span>
+                    <span className="text-muted-foreground font-bold text-sm">(</span>
+                    <input
+                      type="text"
+                      value={customSuffix}
+                      onChange={(e) => setCustomSuffix(e.target.value.toUpperCase())}
+                      placeholder="R1"
+                      autoFocus
+                      className="w-20 bg-muted border-2 border-amber-400 rounded-lg px-2 py-1.5 text-[11px] font-black outline-none focus:ring-2 focus:ring-amber-400 uppercase text-center"
+                    />
+                    <span className="text-muted-foreground font-bold text-sm">)</span>
                   </div>
-                </div>
-
-                {/* Relief Notice */}
-                {selectedStaff && isCrewInRoster(selectedStaff.id) && (
-                  <div className="bg-amber-50 border border-amber-300 rounded-lg p-2 flex items-start gap-2">
-                    <svg className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    <p className="text-[9px] font-bold text-amber-800">
-                      <strong>{selectedStaff.clean_name || selectedStaff.crew_name}</strong> exists in roster ({data.filter((r) => r.crew_id === selectedStaff.id).length} entries). Will be added as relief {data.filter((r) => r.crew_id === selectedStaff.id).length === 1 ? "(R)" : `(R${data.filter((r) => r.crew_id === selectedStaff.id).length})`}.
+                  {customSuffix.trim() && (
+                    <p className="text-[9px] font-bold text-emerald-700 mt-2">
+                      Will be saved as: <strong>{dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name} ({customSuffix.trim()})</strong>
                     </p>
-                  </div>
-                )}
-
-                {/* STEP 2: Assign Location */}
-                <div>
-                  <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">
-                    Step 2 &mdash; Assign to
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Client</label>
-                      <select
-                        value={newStaffClient}
-                        onChange={(e) => { setNewStaffClient(e.target.value); setNewStaffPost(""); setNewStaffLocation(""); }}
-                        className="w-full bg-muted border border-border rounded-lg px-2 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase"
-                      >
-                        <option value="">--</option>
-                        {mapClients.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Trade / Post</label>
-                      <select
-                        value={newStaffPost}
-                        onChange={(e) => { setNewStaffPost(e.target.value); setNewStaffLocation(""); }}
-                        disabled={!newStaffClient}
-                        className="w-full bg-muted border border-border rounded-lg px-2 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase disabled:opacity-50"
-                      >
-                        <option value="">--</option>
-                        {mapPosts.map((p) => <option key={p} value={p}>{p}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Location</label>
-                      <select
-                        value={newStaffLocation}
-                        onChange={(e) => setNewStaffLocation(e.target.value)}
-                        disabled={!newStaffPost}
-                        className="w-full bg-muted border border-border rounded-lg px-2 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase disabled:opacity-50"
-                      >
-                        <option value="">--</option>
-                        {mapLocations.map((l) => <option key={l} value={l}>{l}</option>)}
-                      </select>
-                    </div>
-                  </div>
+                  )}
                 </div>
-
-                {/* Summary */}
-                {selectedStaff && newStaffClient && newStaffPost && newStaffLocation && (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2">
-                    <p className="text-[9px] font-bold text-emerald-800">
-                      Adding <strong>{selectedStaff.clean_name || selectedStaff.crew_name}{isCrewInRoster(selectedStaff.id) ? ` (R${data.filter((r) => r.crew_id === selectedStaff.id).length > 1 ? data.filter((r) => r.crew_id === selectedStaff.id).length : ""})` : ""}</strong> as <strong>{shortenPost(newStaffPost)}</strong> at <strong>{newStaffLocation}</strong> / <strong>{newStaffClient}</strong>
-                    </p>
-                  </div>
-                )}
               </div>
 
-              {/* Action Buttons */}
               <div className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-muted/30 rounded-b-2xl shrink-0">
+                <button type="button" onClick={() => { setDupeConfirm(null); setCustomSuffix(""); }} className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border">
+                  Cancel
+                </button>
                 <button
                   type="button"
-                  onClick={() => { setAddStaffModal(false); setSelectedStaff(null); setStaffSearchQuery(""); setNewStaffClient(""); setNewStaffPost(""); setNewStaffLocation(""); }}
-                  className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border"
-                >Cancel</button>
-                <button
-                  type="button"
-                  onClick={handleAddStaff}
-                  disabled={!selectedStaff || !newStaffClient || !newStaffPost || !newStaffLocation}
+                  onClick={handleDupeConfirmAdd}
+                  disabled={!customSuffix.trim()}
                   className={`px-5 py-2 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all ${
-                    selectedStaff && newStaffClient && newStaffPost && newStaffLocation
+                    customSuffix.trim()
                       ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg hover:shadow-emerald-500/30"
                       : "bg-muted text-muted-foreground cursor-not-allowed"
                   }`}
-                >Add</button>
+                >Confirm &amp; Add</button>
               </div>
             </div>
           </div>
