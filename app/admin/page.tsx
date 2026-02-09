@@ -314,8 +314,22 @@ export default function AdminPage() {
     return data.some((row) => row.crew_id === crewId);
   };
 
-  // Display name
-  const getDisplayName = (row: PivotedCrewRow) => row.crew_name;
+  // Build a lookup from crew_id -> clean display name from master
+  const crewNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const staff of crewList) {
+      map.set(staff.id, staff.clean_name || staff.crew_name);
+    }
+    return map;
+  }, [crewList]);
+
+  // Display name: resolve crew_name via master list, preserve (R) suffix
+  const getDisplayName = (row: PivotedCrewRow) => {
+    const masterName = crewNameMap.get(row.crew_id);
+    if (!masterName) return row.crew_name; // fallback
+    const hasR = (row.crew_name || "").includes("(R)");
+    return hasR ? `${masterName} (R)` : masterName;
+  };
 
   // Add new staff to roster
   const handleAddStaff = async () => {
