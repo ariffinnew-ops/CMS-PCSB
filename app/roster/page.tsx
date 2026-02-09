@@ -260,11 +260,11 @@ export default function RosterPage() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 220px)" }}>
             <table className="w-full border-collapse" style={{ minWidth: '100%' }}>
-              <thead>
+              <thead className="sticky top-0 z-30">
                 <tr className="bg-slate-100">
-                  <th className="px-3 py-2 w-48 min-w-[192px] text-left sticky left-0 bg-slate-200 z-20 border-r border-gray-300">
+                  <th className="px-3 py-2 w-48 min-w-[192px] text-left sticky left-0 bg-slate-200 z-40 border-r border-gray-300">
                     <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider">
                       Crew / Trade
                     </span>
