@@ -127,14 +127,24 @@
 /* Print styles */
 @media print {
   /* Hide everything non-essential */
-  [data-sidebar], nav, header, .no-print,
-  .print-btn, input[type="range"], .animate-pulse,
-  select, input[type="text"], footer,
-  .no-print-header {
+  [data-sidebar], nav, header, footer,
+  .no-print, .print-btn, .animate-pulse,
+  input[type="range"] {
     display: none !important;
   }
+  /* Hide title bars + filter bars on print (NOT Financial) */
+  .no-print-header,
+  .no-print-header *,
+  [data-no-print],
+  [data-no-print] * {
+    display: none !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
   /* Show print header */
-  .print-header { display: flex !important; }
+  .print-header { display: flex !important; height: auto !important; overflow: visible !important; }
   /* Force full width, remove padding/margin from shell */
   main, [role="main"], .print-area {
     margin: 0 !important;
@@ -152,7 +162,7 @@
     width: 100% !important;
     font-size: 8px !important;
   }
-  /* Remove shadows/rounded corners */
+  /* Remove shadows */
   .shadow-lg, .shadow-sm, .shadow-2xl, .shadow-xl, .shadow-md {
     box-shadow: none !important;
   }

@@ -280,83 +280,86 @@ export default function RosterPage() {
       </div>
 
       <div className="space-y-4 animate-in fade-in duration-500 mt-4">
-        <div className="no-print-header flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight leading-none">
-              ROTATION MAP
-            </h2>
-            <div className="flex items-center gap-3 mt-2">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                Period:
-              </span>
-              <select
-                value={`${viewDate.getFullYear()}-${viewDate.getMonth()}`}
-                onChange={(e) => {
-                  const [year, month] = e.target.value.split('-').map(Number);
-                  setViewDate(new Date(year, month, 1));
-                }}
-                className="text-[11px] font-bold text-blue-600 bg-white border border-gray-200 px-3 py-1.5 rounded-lg outline-none cursor-pointer uppercase shadow-sm"
-              >
-                {MONTH_RANGE.map(({ year, month }) => (
-                  <option key={`${year}-${month}`} value={`${year}-${month}`}>
-                    {MONTH_NAMES[month]} {year}
-                  </option>
-                ))}
-              </select>
+        {/* Title + filters -- hidden on print */}
+        <div className="no-print-header" data-no-print>
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 w-full">
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight leading-none">
+                ROTATION MAP
+              </h2>
+              <div className="flex items-center gap-3 mt-2">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  Period:
+                </span>
+                <select
+                  value={`${viewDate.getFullYear()}-${viewDate.getMonth()}`}
+                  onChange={(e) => {
+                    const [year, month] = e.target.value.split('-').map(Number);
+                    setViewDate(new Date(year, month, 1));
+                  }}
+                  className="text-[11px] font-bold text-blue-600 bg-white border border-gray-200 px-3 py-1.5 rounded-lg outline-none cursor-pointer uppercase shadow-sm"
+                >
+                  {MONTH_RANGE.map(({ year, month }) => (
+                    <option key={`${year}-${month}`} value={`${year}-${month}`}>
+                      {MONTH_NAMES[month]} {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-gray-200">
-            <select
-              value={clientFilter}
-              onChange={(e) => setClientFilter(e.target.value as ClientType | "ALL")}
-              className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 uppercase outline-none"
-            >
-              <option value="ALL">All Clients</option>
-              <option value="SKA">SKA</option>
-              <option value="SBA">SBA</option>
-            </select>
-            <select
-              value={tradeFilter}
-              onChange={(e) => setTradeFilter(e.target.value as TradeType | "ALL")}
-              className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 uppercase outline-none"
-            >
-              <option value="ALL">All Trades</option>
-              <option value="OM">OFFSHORE MEDIC</option>
-              <option value="EM">ESCORT MEDIC</option>
-              <option value="IMP/OHN">OHN</option>
-            </select>
-            <input
-              type="text"
-              placeholder="Search by name..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 uppercase outline-none w-36 placeholder:normal-case"
-            />
-            <button
-              type="button"
-              onClick={() => { document.title = `Roster_${MONTH_NAMES[viewDate.getMonth()]}_${viewDate.getFullYear()}`; window.print(); }}
-              className="print-btn p-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm"
-              title="Print Roster"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-            </button>
-            {(clientFilter !== "ALL" || tradeFilter !== "ALL" || search.trim()) && (
+            <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-gray-200">
+              <select
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value as ClientType | "ALL")}
+                className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 uppercase outline-none"
+              >
+                <option value="ALL">All Clients</option>
+                <option value="SKA">SKA</option>
+                <option value="SBA">SBA</option>
+              </select>
+              <select
+                value={tradeFilter}
+                onChange={(e) => setTradeFilter(e.target.value as TradeType | "ALL")}
+                className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 uppercase outline-none"
+              >
+                <option value="ALL">All Trades</option>
+                <option value="OM">OFFSHORE MEDIC</option>
+                <option value="EM">ESCORT MEDIC</option>
+                <option value="IMP/OHN">OHN</option>
+              </select>
+              <input
+                type="text"
+                placeholder="Search by name..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 uppercase outline-none w-36 placeholder:normal-case"
+              />
               <button
                 type="button"
-                onClick={() => {
-                  setClientFilter("ALL");
-                  setTradeFilter("ALL");
-                  setSearch("");
-                  const now = new Date();
-                  setViewDate(new Date(now.getFullYear(), now.getMonth(), 1));
-                  if (typeof window !== "undefined") localStorage.removeItem(ROSTER_FILTER_KEY);
-                }}
-                className="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[9px] uppercase tracking-wider transition-all border border-red-200"
+                onClick={() => { document.title = `Roster_${MONTH_NAMES[viewDate.getMonth()]}_${viewDate.getFullYear()}`; window.print(); }}
+                className="print-btn p-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm"
+                title="Print Roster"
               >
-                Reset All
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
               </button>
-            )}
+              {(clientFilter !== "ALL" || tradeFilter !== "ALL" || search.trim()) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClientFilter("ALL");
+                    setTradeFilter("ALL");
+                    setSearch("");
+                    const now = new Date();
+                    setViewDate(new Date(now.getFullYear(), now.getMonth(), 1));
+                    if (typeof window !== "undefined") localStorage.removeItem(ROSTER_FILTER_KEY);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[9px] uppercase tracking-wider transition-all border border-red-200"
+                >
+                  Reset All
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

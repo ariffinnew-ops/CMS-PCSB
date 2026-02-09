@@ -292,79 +292,81 @@ export default function StatementPage() {
       </div>
 
       <div className="space-y-4 animate-in fade-in duration-500 mt-1">
-        {/* HEADER */}
-        <div className="no-print-header flex flex-col lg:flex-row lg:items-end justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-black text-foreground uppercase tracking-tight leading-none">
-              Monthly Allowance Statement
-            </h2>
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-0.5">
-              Allowance Payable for {MONTH_NAMES[selectedMonthNum - 1]} {selectedYear}
-            </p>
-          </div>
+        {/* HEADER + FILTERS -- hidden on print */}
+        <div className="no-print-header" data-no-print>
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-black text-foreground uppercase tracking-tight leading-none">
+                Monthly Allowance Statement
+              </h2>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-0.5">
+                Allowance Payable for {MONTH_NAMES[selectedMonthNum - 1]} {selectedYear}
+              </p>
+            </div>
 
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Period</label>
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40"
-              />
-            </div>
-            <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Client</label>
-              <select
-                value={clientFilter}
-                onChange={(e) => setClientFilter(e.target.value as "ALL" | "SBA" | "SKA")}
-                className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40"
-              >
-                <option value="ALL">All</option>
-                <option value="SBA">SBA</option>
-                <option value="SKA">SKA</option>
-              </select>
-            </div>
-            <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Grade</label>
-              <select
-                value={tradeFilter}
-                onChange={(e) => setTradeFilter(e.target.value as TradeType | "ALL")}
-                className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40"
-              >
-                <option value="ALL">All</option>
-                <option value="OM">OM</option>
-                <option value="EM">EM</option>
-                <option value="IMP/OHN">OHN</option>
-              </select>
-            </div>
-            <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Search</label>
-              <input
-                type="text"
-                placeholder="Name..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40 w-32"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => { document.title = `Statement_${new Date().toISOString().slice(0,10)}`; window.print(); }}
-              className="print-btn self-end p-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm"
-              title="Print Statement"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-            </button>
-            {hasActiveFilters && (
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex flex-col">
+                <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Period</label>
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40"
+                />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Client</label>
+                <select
+                  value={clientFilter}
+                  onChange={(e) => setClientFilter(e.target.value as "ALL" | "SBA" | "SKA")}
+                  className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40"
+                >
+                  <option value="ALL">All</option>
+                  <option value="SBA">SBA</option>
+                  <option value="SKA">SKA</option>
+                </select>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Grade</label>
+                <select
+                  value={tradeFilter}
+                  onChange={(e) => setTradeFilter(e.target.value as TradeType | "ALL")}
+                  className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40"
+                >
+                  <option value="ALL">All</option>
+                  <option value="OM">OM</option>
+                  <option value="EM">EM</option>
+                  <option value="IMP/OHN">OHN</option>
+                </select>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Search</label>
+                <input
+                  type="text"
+                  placeholder="Name..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40 w-32"
+                />
+              </div>
               <button
                 type="button"
-                onClick={resetFilters}
-                className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors border border-red-500/20"
+                onClick={() => { document.title = `Statement_${new Date().toISOString().slice(0,10)}`; window.print(); }}
+                className="print-btn self-end p-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm"
+                title="Print Statement"
               >
-                Reset
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
               </button>
-            )}
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors border border-red-500/20"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
