@@ -469,6 +469,28 @@ export async function createCrewMember(crewData: Record<string, unknown>): Promi
   return { success: true, id: data?.id }
 }
 
+// Get OHN/IM staff from master for hybrid POB (Dashboard only)
+export async function getOHNStaffFromMaster(): Promise<PivotedCrewRow[]> {
+  const supabase = await createClient()
+  const { data: ohnData } = await supabase
+    .from('cms_pcsb_master')
+    .select('id, crew_name, post, client, location')
+    .or('post.ilike.%IM%,post.ilike.%OHN%')
+    .order('crew_name', { ascending: true })
+
+  if (!ohnData) return []
+
+  return ohnData.map((staff) => ({
+    crew_id: staff.id || '',
+    crew_name: staff.crew_name || '',
+    post: staff.post || '',
+    client: staff.client || '',
+    location: staff.location || '',
+    roles_em: undefined,
+    cycles: {},
+  }))
+}
+
 // Bulk update for Save Changes
 export async function bulkUpdateRosterRows(updates: { id: number; updates: Partial<RosterRow> }[]): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()

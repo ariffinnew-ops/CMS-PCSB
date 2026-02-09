@@ -678,7 +678,7 @@ export default function AdminPage() {
                                       <div className="flex justify-between items-center mb-0.5">
                                         <span className="text-[7px] font-black text-muted-foreground uppercase tracking-tighter">
                                           SIGN ON {rotationIdx}
-                                          {isRelief && <span className="ml-1 text-amber-600">(R)</span>}
+                                          {isRelief && <span className="ml-1 text-amber-600">(R{rotationIdx})</span>}
                                         </span>
                                         {conflicts && (
                                           <span className="text-red-600 text-[8px] font-black animate-pulse">

@@ -122,11 +122,21 @@ export default function RosterPage() {
   }, [crewList]);
 
   // Display name: resolve via master, preserve suffix like (R), (R1), (S), (S1), (P)
+  // Also appends dynamic relief indicators (R1), (R2), etc. for cycles with relief_all > 0
   const getDisplayName = (row: PivotedCrewRow) => {
     const masterName = crewNameMap.get(row.crew_id);
-    if (!masterName) return row.crew_name;
+    const baseName = masterName || row.crew_name;
     const suffixMatch = (row.crew_name || "").match(/\s*(\([A-Z]\d*\))\s*$/);
-    return suffixMatch ? `${masterName} ${suffixMatch[1]}` : masterName;
+    const name = suffixMatch ? `${baseName} ${suffixMatch[1]}` : baseName;
+
+    // Append dynamic relief cycle indicators
+    const reliefCycles = Object.entries(row.cycles)
+      .filter(([, c]) => c.relief_all && c.relief_all > 0)
+      .map(([num]) => `R${num}`);
+    if (reliefCycles.length > 0) {
+      return `${name} (${reliefCycles.join(",")})`;
+    }
+    return name;
   };
 
   const groupedData = useMemo(() => {

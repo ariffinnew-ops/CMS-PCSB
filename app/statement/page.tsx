@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState, useMemo } from "react";
 import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow, TradeType } from "@/lib/types";
-import { getPivotedRosterData, getCrewMasterData, type CrewMasterRecord } from "@/lib/actions";
+import { getPivotedRosterData, getCrewMasterData, getCrewList, type CrewMasterRecord } from "@/lib/actions";
 import { safeParseDate, shortenPost, getTradeRank, formatDate } from "@/lib/logic";
 
 const MONTH_NAMES = [
@@ -48,6 +48,7 @@ interface StatementRow {
 export default function StatementPage() {
   const [data, setData] = useState<PivotedCrewRow[]>([]);
   const [masterData, setMasterData] = useState<CrewMasterRecord[]>([]);
+  const [crewList, setCrewList] = useState<{ id: string; crew_name: string; clean_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
@@ -58,9 +59,10 @@ export default function StatementPage() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    Promise.all([getPivotedRosterData(), getCrewMasterData()]).then(([pivotedData, master]) => {
+    Promise.all([getPivotedRosterData(), getCrewMasterData(), getCrewList()]).then(([pivotedData, master, crewResult]) => {
       setData(pivotedData);
       setMasterData(master);
+      if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
       setLoading(false);
     });
   }, []);
@@ -72,6 +74,23 @@ export default function StatementPage() {
     }
     return map;
   }, [masterData]);
+
+  // Build crew_id -> clean display name from master for consistent naming
+  const crewNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const staff of crewList) {
+      map.set(staff.id, staff.clean_name || staff.crew_name);
+    }
+    return map;
+  }, [crewList]);
+
+  // Resolve display name: master clean_name + preserve suffix like (R), (S), (P)
+  const getDisplayName = (crewId: string, crewName: string) => {
+    const masterName = crewNameMap.get(crewId);
+    if (!masterName) return crewName;
+    const suffixMatch = (crewName || "").match(/\s*(\([A-Z]\d*\))\s*$/);
+    return suffixMatch ? `${masterName} ${suffixMatch[1]}` : masterName;
+  };
 
   // Map crew name to their index in master data for sorting
   const masterIndexMap = useMemo(() => {
@@ -215,7 +234,8 @@ export default function StatementPage() {
   const filteredRows = useMemo(() => {
     return statementRows.filter((row) => {
       if (row.grandTotal === 0) return false;
-      const matchesSearch = !search.trim() || row.crew_name.toLowerCase().includes(search.toLowerCase());
+      const displayName = getDisplayName(row.crew_id, row.crew_name);
+    const matchesSearch = !search.trim() || displayName.toLowerCase().includes(search.toLowerCase());
       const matchesTrade =
         tradeFilter === "ALL" ||
         (tradeFilter === "OM" && row.post?.includes("OFFSHORE MEDIC")) ||
@@ -392,7 +412,7 @@ export default function StatementPage() {
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] text-muted-foreground font-bold tabular-nums w-4">{idx + 1}</span>
                               <div>
-                                <div className="text-[11px] font-bold text-foreground uppercase leading-tight whitespace-nowrap">{row.crew_name}</div>
+                                <div className="text-[11px] font-bold text-foreground uppercase leading-tight whitespace-nowrap">{getDisplayName(row.crew_id, row.crew_name)}</div>
                                 <div className="text-[9px] text-muted-foreground">
                                   {row.client} / {shortenPost(row.post)} / {row.displayLocation}
                                 </div>
