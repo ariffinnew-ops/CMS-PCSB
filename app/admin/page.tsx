@@ -201,7 +201,7 @@ export default function AdminPage() {
         setLastSynced(new Date());
         // Optimistic update
         setData(prev => prev.map(row => {
-          if (row.crew_id !== crewRow.crew_id) return row;
+          if (row.crew_id !== crewRow.crew_id || row.crew_name !== crewRow.crew_name) return row;
           const newCycles = { ...row.cycles };
           if (newCycles[cycleNum]) {
             newCycles[cycleNum] = { ...newCycles[cycleNum], [field]: finalValue };
@@ -228,7 +228,7 @@ export default function AdminPage() {
       if (result.success && result.data) {
         setLastSynced(new Date());
         setData(prev => prev.map(row => {
-          if (row.crew_id !== crewRow.crew_id) return row;
+          if (row.crew_id !== crewRow.crew_id || row.crew_name !== crewRow.crew_name) return row;
           const newCycles = { ...row.cycles };
           newCycles[cycleNum] = {
             id: result.data!.id,
@@ -634,7 +634,7 @@ export default function AdminPage() {
                     prev.location !== row.location;
 
                   return (
-                    <Fragment key={row.crew_id}>
+                    <Fragment key={`${row.crew_id}::${row.crew_name}`}>
                       {showSeparator && (
                         <tr className="sticky top-0 z-[90] bg-slate-900 border-y border-slate-950 shadow-xl w-full">
                           <td className="px-6 py-2 sticky left-0 z-[95] bg-slate-900 border-r border-slate-800">
