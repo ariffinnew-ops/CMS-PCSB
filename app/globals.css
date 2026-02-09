@@ -129,11 +129,11 @@
   /* Hide everything non-essential */
   [data-sidebar], nav, header, .no-print,
   .print-btn, input[type="range"], .animate-pulse,
-  select, input[type="text"] {
+  select, input[type="text"], footer {
     display: none !important;
   }
   /* Show print header */
-  .print-header { display: block !important; }
+  .print-header { display: flex !important; }
   /* Force full width, remove padding/margin from shell */
   main, [role="main"], .print-area {
     margin: 0 !important;

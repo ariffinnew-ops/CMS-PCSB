@@ -365,7 +365,7 @@ function EditableCell({
   );
 }
 
-// ═══════════════════════════════════�������������═══
+// ═══════════════════════════════════���������������═══
 // MAIN PAGE
 // ════════════════════════════���══════════
 export default function TrainingMatrixPage() {
@@ -493,6 +493,22 @@ export default function TrainingMatrixPage() {
 
   return (
     <AppShell>
+      {/* Print-only header */}
+      <div className="print-header hidden items-center justify-between px-2 py-2 border-b border-slate-300 mb-2">
+        <div>
+          <span className="text-sm font-black uppercase tracking-wider">Training Matrix</span>
+          <span className="text-xs font-bold text-slate-600 ml-3">IMS Personnel Competency Tracker</span>
+        </div>
+        <div className="flex items-center gap-3 text-[9px] font-bold text-slate-500 uppercase">
+          {clientFilter !== "ALL" && <span>Client: {clientFilter}</span>}
+          {tradeFilter !== "ALL" && <span>Trade: {tradeFilter}</span>}
+          {locationFilter !== "ALL" && <span>Location: {locationFilter}</span>}
+          {courseFilter !== "ALL" && <span>Course: {courseFilter}</span>}
+          {statusFilter !== "ALL" && <span>Status: {statusFilter}</span>}
+          <span>{filtered.length} staff</span>
+        </div>
+      </div>
+
       <div className="flex flex-col h-[calc(100vh-80px)] animate-in fade-in duration-500">
         {/* Title + Filters */}
         <div className="flex-shrink-0 space-y-1.5 pb-1">

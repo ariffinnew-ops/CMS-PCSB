@@ -276,6 +276,21 @@ export default function StatementPage() {
 
   return (
     <AppShell>
+      {/* Print-only header */}
+      <div className="print-header hidden items-center justify-between px-2 py-2 border-b border-slate-300 mb-2">
+        <div>
+          <span className="text-sm font-black uppercase tracking-wider">Monthly Allowance Statement</span>
+          <span className="text-xs font-bold text-slate-600 ml-3">{MONTH_NAMES[selectedMonthNum - 1]} {selectedYear}</span>
+        </div>
+        <div className="flex items-center gap-3 text-[9px] font-bold text-slate-500 uppercase">
+          {clientFilter !== "ALL" && <span>Client: {clientFilter}</span>}
+          {tradeFilter !== "ALL" && <span>Trade: {tradeFilter}</span>}
+          {search.trim() && <span>Search: {search}</span>}
+          {clientFilter === "ALL" && tradeFilter === "ALL" && !search.trim() && <span>All Crew</span>}
+          <span>{filteredRows.length} staff</span>
+        </div>
+      </div>
+
       <div className="space-y-4 animate-in fade-in duration-500 mt-1">
         {/* HEADER */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3">

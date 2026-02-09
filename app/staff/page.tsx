@@ -138,7 +138,7 @@ function MovementGrid({ rosterRows }: { rosterRows: Record<string, unknown>[] })
                 dayStatuses.push(status);
               }
               return (
-                <tr key={`${year}-${month}`} className={mi % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                <tr key={`${year}-${month}`} className={`${mi % 2 === 0 ? "bg-white" : "bg-slate-50"} border-b-2 border-white`}>
                   <td className="px-1.5 py-0.5 font-bold text-slate-600 sticky left-0 bg-inherit border-r border-slate-200 whitespace-nowrap">
                     {MO[month]} {String(year).slice(-2)}
                   </td>
