@@ -52,19 +52,19 @@ export default function AdminPage() {
   // Dynamic crew list from cms_pcsb_master
   const [crewList, setCrewList] = useState<CrewListItem[]>([]);
 
-  // Location-based Add Staff state
-  const [addingAtGroup, setAddingAtGroup] = useState<{ client: string; post: string; location: string } | null>(null);
+  // Add Staff modal state
+  const [addModal, setAddModal] = useState<{ client: string; post: string; location: string } | null>(null);
   const [staffSearchQuery, setStaffSearchQuery] = useState("");
   const [selectedStaff, setSelectedStaff] = useState<CrewListItem | null>(null);
-  const [confirmModal, setConfirmModal] = useState<{ staff: CrewListItem; client: string; post: string; location: string; label: string } | null>(null);
+  // Duplicate confirmation: when the name already exists in roster
+  const [dupeConfirm, setDupeConfirm] = useState<{ staff: CrewListItem; existingCount: number } | null>(null);
+  const [customSuffix, setCustomSuffix] = useState("");
   const [newStaffClient, setNewStaffClient] = useState("");
   const [newStaffPost, setNewStaffPost] = useState("");
   const [newStaffLocation, setNewStaffLocation] = useState("");
   
   // Track newly added crew IDs for showing delete button
   const [newlyAddedCrewIds, setNewlyAddedCrewIds] = useState<Set<string>>(new Set());
-  // Track crew_ids added in this session to prevent duplicates
-  const [sessionAddedIds, setSessionAddedIds] = useState<Set<string>>(new Set());
   
   // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState<{ crewId: string; name: string } | null>(null);
@@ -334,46 +334,52 @@ export default function AdminPage() {
     return suffixMatch ? `${masterName} ${suffixMatch[1]}` : masterName;
   };
 
-  // Compute (R) label for a crew_id based on existing roster entries
-  const computeReliefLabel = (crewId: string, baseName: string): string => {
-    const existing = data.filter((row) => row.crew_id === crewId);
-    const count = existing.length;
-    if (count === 0) return baseName;
-    if (count === 1) return `${baseName} (R)`;
-    return `${baseName} (R${count})`;
-  };
-
-  // Handle selecting a staff from the inline combobox
-  const handleInlineStaffSelect = (staff: CrewListItem) => {
-    if (sessionAddedIds.has(staff.id)) {
-      showNotification(`${staff.clean_name || staff.crew_name} already added this session`, "error");
+  // Handle selecting a staff from the modal list
+  const handleStaffSelect = (staff: CrewListItem) => {
+    const baseName = staff.clean_name || staff.crew_name;
+    const existingCount = data.filter((row) => row.crew_id === staff.id).length;
+    if (existingCount > 0) {
+      // Name exists in roster -- ask user to confirm and enter manual suffix
+      setSelectedStaff(staff);
+      setDupeConfirm({ staff, existingCount });
+      setCustomSuffix("");
       return;
     }
-    const baseName = staff.clean_name || staff.crew_name;
-    const label = computeReliefLabel(staff.id, baseName);
-    const group = addingAtGroup!;
-    setSelectedStaff(staff);
-    // Open confirmation modal with pre-filled values from the separator
-    setConfirmModal({ staff, client: group.client, post: group.post, location: group.location, label });
-    setNewStaffClient(group.client);
-    setNewStaffPost(group.post);
-    setNewStaffLocation(group.location);
+    // Name is new -- insert directly
+    doInsertStaff(staff, baseName);
   };
 
-  // Confirm and INSERT new staff
-  const handleConfirmAdd = async () => {
-    if (!confirmModal || !newStaffClient || !newStaffPost || !newStaffLocation) return;
-    const { staff } = confirmModal;
-    const baseName = staff.clean_name || staff.crew_name;
-    const finalName = computeReliefLabel(staff.id, baseName);
+  // Insert after user confirms duplicate with custom suffix
+  const handleDupeConfirmAdd = () => {
+    if (!dupeConfirm) return;
+    const baseName = dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name;
+    const suffix = customSuffix.trim();
+    if (!suffix) {
+      showNotification("Please enter a suffix (e.g. R1, S, P)", "error");
+      return;
+    }
+    const finalName = `${baseName} (${suffix})`;
+    // Check for duplicate name in roster
+    const isDupe = data.some((row) => row.crew_name?.trim().toUpperCase() === finalName.trim().toUpperCase());
+    if (isDupe) {
+      showNotification(`"${finalName}" already exists in roster. Use a different suffix.`, "error");
+      return;
+    }
+    doInsertStaff(dupeConfirm.staff, finalName);
+    setDupeConfirm(null);
+    setCustomSuffix("");
+  };
 
+  // Core insert function
+  const doInsertStaff = async (staff: CrewListItem, finalName: string) => {
+    if (!addModal) return;
     setIsSyncing(true);
     const payload = {
       crew_id: staff.id,
       crew_name: finalName,
-      post: newStaffPost,
-      client: newStaffClient,
-      location: newStaffLocation,
+      post: newStaffPost || addModal.post,
+      client: newStaffClient || addModal.client,
+      location: newStaffLocation || addModal.location,
       cycle_number: 1,
     };
 
@@ -382,29 +388,21 @@ export default function AdminPage() {
 
     if (result.success) {
       setNewlyAddedCrewIds((prev) => new Set([...prev, staff.id]));
-      setSessionAddedIds((prev) => new Set([...prev, staff.id]));
       setLastSynced(new Date());
       showNotification(`${finalName} added successfully`, "success");
       fetchData();
     } else {
       showNotification(result.error || "Failed to add staff", "error");
     }
-
-    // Reset
-    setConfirmModal(null);
-    setAddingAtGroup(null);
-    setSelectedStaff(null);
-    setStaffSearchQuery("");
-    setNewStaffClient("");
-    setNewStaffPost("");
-    setNewStaffLocation("");
+    closeAddModal();
   };
 
-  const cancelInlineAdd = () => {
-    setAddingAtGroup(null);
+  const closeAddModal = () => {
+    setAddModal(null);
     setSelectedStaff(null);
     setStaffSearchQuery("");
-    setConfirmModal(null);
+    setDupeConfirm(null);
+    setCustomSuffix("");
     setNewStaffClient("");
     setNewStaffPost("");
     setNewStaffLocation("");
@@ -435,15 +433,15 @@ export default function AdminPage() {
   const mapPosts = useMemo(() => newStaffClient ? getPostsForClient(newStaffClient) : [], [newStaffClient]);
   const mapLocations = useMemo(() => (newStaffClient && newStaffPost) ? getLocationsForClientPost(newStaffClient, newStaffPost) : [], [newStaffClient, newStaffPost]);
 
-  // Filter crew list for inline combobox
+  // Filter crew list for add-staff modal
   const filteredMasterList = useMemo(() => {
-    if (!addingAtGroup) return [];
+    if (!addModal) return [];
     const q = staffSearchQuery.toLowerCase();
     return crewList.filter((staff) => {
       return (staff.clean_name || staff.crew_name || '').toLowerCase().includes(q) ||
              (staff.crew_name || '').toLowerCase().includes(q);
     });
-  }, [addingAtGroup, staffSearchQuery, crewList]);
+  }, [addModal, staffSearchQuery, crewList]);
 
   if (loading)
     return (
@@ -650,7 +648,10 @@ export default function AdminPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  setAddingAtGroup({ client: row.client, post: row.post, location: row.location });
+                                  setAddModal({ client: row.client, post: row.post, location: row.location });
+                                  setNewStaffClient(row.client);
+                                  setNewStaffPost(row.post);
+                                  setNewStaffLocation(row.location);
                                   setSelectedStaff(null);
                                   setStaffSearchQuery("");
                                 }}
@@ -825,68 +826,7 @@ export default function AdminPage() {
                           </div>
                         </td>
                       </tr>
-                      {/* Inline add row: appears at bottom of group when "+" is clicked */}
-                      {(() => {
-                        const next = sortedData[idx + 1];
-                        const isLastInGroup = !next || next.client !== row.client || getTradeRank(next.post) !== getTradeRank(row.post) || next.location !== row.location;
-                        if (isLastInGroup && addingAtGroup && addingAtGroup.client === row.client && addingAtGroup.post === row.post && addingAtGroup.location === row.location) {
-                          return (
-                            <tr className="h-14 bg-emerald-50/40 border-y-2 border-emerald-200">
-                              <td className="px-4 py-2 sticky left-0 bg-emerald-50/90 z-50 border-r border-emerald-200 shadow-sm">
-                                <div className="relative">
-                                  <input
-                                    type="text"
-                                    value={staffSearchQuery}
-                                    onChange={(e) => setStaffSearchQuery(e.target.value)}
-                                    placeholder="Search master list..."
-                                    autoFocus
-                                    className="w-full bg-white border-2 border-emerald-400 rounded-lg px-3 py-1.5 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase"
-                                  />
-                                  {staffSearchQuery.length > 0 && filteredMasterList.length > 0 && !selectedStaff && (
-                                    <div className="absolute top-full left-0 right-0 z-[200] mt-1 bg-card border-2 border-emerald-300 rounded-lg shadow-2xl max-h-48 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
-                                      {filteredMasterList.slice(0, 20).map((staff) => {
-                                        const alreadyInRoster = isCrewInRoster(staff.id);
-                                        const isSessionDupe = sessionAddedIds.has(staff.id);
-                                        return (
-                                          <button
-                                            key={staff.id}
-                                            type="button"
-                                            onClick={() => handleInlineStaffSelect(staff)}
-                                            disabled={isSessionDupe}
-                                            className={`w-full flex items-center justify-between px-3 py-1.5 text-left transition-all hover:bg-emerald-50 border-b border-border last:border-b-0 ${isSessionDupe ? "opacity-40 cursor-not-allowed" : ""}`}
-                                          >
-                                            <div className="min-w-0">
-                                              <span className="font-black text-[10px] uppercase block truncate">{staff.clean_name || staff.crew_name}</span>
-                                              <span className="text-[8px] text-muted-foreground">{shortenPost(staff.post)} &middot; {staff.location}</span>
-                                            </div>
-                                            {alreadyInRoster && <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full shrink-0 ml-1 bg-amber-100 text-amber-700 border border-amber-200">In Roster</span>}
-                                            {isSessionDupe && <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full shrink-0 ml-1 bg-red-100 text-red-700 border border-red-200">Added</span>}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-6 py-1 bg-emerald-50/20">
-                                <div className="flex items-center gap-3">
-                                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
-                                    Select a name from master list...
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={cancelInlineAdd}
-                                    className="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[9px] uppercase tracking-wider transition-all border border-red-200"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        }
-                        return null;
-                      })()}
+                      
                     </Fragment>
                   );
                 })}
@@ -1116,99 +1056,136 @@ export default function AdminPage() {
           );
         })()}
 
-        {/* CONFIGURATION MODAL (after selecting name from inline combobox) */}
-        {confirmModal && (
+        {/* ADD STAFF MODAL -- popup with searchable name list */}
+        {addModal && !dupeConfirm && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-card rounded-2xl w-full max-w-md shadow-2xl border border-border flex flex-col">
+            <div className="bg-card rounded-2xl w-full max-w-sm shadow-2xl border border-border flex flex-col max-h-[75vh]">
               {/* Header */}
-              <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-emerald-600 rounded-t-2xl shrink-0">
+              <div className="flex items-center justify-between px-5 py-2.5 border-b border-border bg-emerald-600 rounded-t-2xl shrink-0">
                 <div>
-                  <h3 className="text-sm font-black uppercase tracking-wider text-white">Confirm Assignment</h3>
+                  <h3 className="text-xs font-black uppercase tracking-wider text-white">Add Staff</h3>
                   <p className="text-[9px] font-bold text-emerald-100 uppercase tracking-wide">
-                    {confirmModal.label}
+                    {shortenPost(addModal.post)} &middot; {addModal.location} / {addModal.client}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={cancelInlineAdd}
-                  className="text-white/80 hover:text-white text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
-                >&times;</button>
+                <button type="button" onClick={closeAddModal} className="text-white/80 hover:text-white text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors">&times;</button>
               </div>
 
-              {/* Body */}
-              <div className="px-5 py-4 space-y-4">
-                {/* Relief Notice */}
-                {isCrewInRoster(confirmModal.staff.id) && (
-                  <div className="bg-amber-50 border border-amber-300 rounded-lg p-2.5 flex items-start gap-2">
-                    <svg className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    <p className="text-[9px] font-bold text-amber-800">
-                      Already in roster ({data.filter((r) => r.crew_id === confirmModal.staff.id).length} entries). Will be labelled as <strong>{confirmModal.label}</strong>.
-                    </p>
+              {/* Search */}
+              <div className="px-4 pt-3 pb-2 shrink-0">
+                <input
+                  type="text"
+                  value={staffSearchQuery}
+                  onChange={(e) => setStaffSearchQuery(e.target.value)}
+                  placeholder="Search master list by name..."
+                  autoFocus
+                  className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase"
+                />
+              </div>
+
+              {/* Name List */}
+              <div className="flex-1 overflow-y-auto px-2 pb-2 min-h-0" style={{ scrollbarWidth: "thin" }}>
+                {filteredMasterList.length === 0 && staffSearchQuery.length > 0 ? (
+                  <div className="flex items-center justify-center py-8 text-muted-foreground text-[10px] font-bold uppercase">No results found</div>
+                ) : staffSearchQuery.length === 0 ? (
+                  <div className="flex items-center justify-center py-8 text-muted-foreground text-[10px] font-bold uppercase">Type to search...</div>
+                ) : (
+                  <div className="flex flex-col gap-0.5">
+                    {filteredMasterList.slice(0, 30).map((staff) => {
+                      const alreadyInRoster = isCrewInRoster(staff.id);
+                      return (
+                        <button
+                          key={staff.id}
+                          type="button"
+                          onClick={() => handleStaffSelect(staff)}
+                          className="w-full flex items-center justify-between px-3 py-2 text-left transition-all hover:bg-emerald-50 rounded-lg border border-transparent hover:border-emerald-200"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-black text-[10px] uppercase block truncate text-foreground">{staff.clean_name || staff.crew_name}</span>
+                            <span className="text-[8px] text-muted-foreground">{shortenPost(staff.post)} &middot; {staff.location} &middot; {staff.client}</span>
+                          </div>
+                          {alreadyInRoster && (
+                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full shrink-0 ml-2 bg-amber-100 text-amber-700 border border-amber-200">In Roster</span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
+              </div>
 
-                {/* Editable assignment fields */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Client</label>
-                    <select
-                      value={newStaffClient}
-                      onChange={(e) => { setNewStaffClient(e.target.value); setNewStaffPost(""); setNewStaffLocation(""); }}
-                      className="w-full bg-muted border border-border rounded-lg px-2 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase"
-                    >
-                      <option value="">--</option>
-                      {mapClients.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Trade</label>
-                    <select
-                      value={newStaffPost}
-                      onChange={(e) => { setNewStaffPost(e.target.value); setNewStaffLocation(""); }}
-                      disabled={!newStaffClient}
-                      className="w-full bg-muted border border-border rounded-lg px-2 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase disabled:opacity-50"
-                    >
-                      <option value="">--</option>
-                      {mapPosts.map((p) => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Location</label>
-                    <select
-                      value={newStaffLocation}
-                      onChange={(e) => setNewStaffLocation(e.target.value)}
-                      disabled={!newStaffPost}
-                      className="w-full bg-muted border border-border rounded-lg px-2 py-2 text-[10px] font-bold outline-none focus:ring-2 focus:ring-emerald-400 uppercase disabled:opacity-50"
-                    >
-                      <option value="">--</option>
-                      {mapLocations.map((l) => <option key={l} value={l}>{l}</option>)}
-                    </select>
-                  </div>
+              {/* Footer */}
+              <div className="flex justify-end px-4 py-2.5 border-t border-border bg-muted/30 rounded-b-2xl shrink-0">
+                <button type="button" onClick={closeAddModal} className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DUPLICATE NAME CONFIRMATION MODAL */}
+        {dupeConfirm && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-card rounded-2xl w-full max-w-sm shadow-2xl border border-border flex flex-col">
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-2.5 border-b border-border bg-amber-500 rounded-t-2xl shrink-0">
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider text-white">Name Already in Roster</h3>
+                  <p className="text-[9px] font-bold text-amber-100 uppercase tracking-wide">
+                    {dupeConfirm.existingCount} existing {dupeConfirm.existingCount === 1 ? "entry" : "entries"}
+                  </p>
+                </div>
+                <button type="button" onClick={() => { setDupeConfirm(null); setCustomSuffix(""); }} className="text-white/80 hover:text-white text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors">&times;</button>
+              </div>
+
+              <div className="px-5 py-4 space-y-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-[10px] font-bold text-amber-900">
+                    <strong>{dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name}</strong> already exists in the roster.
+                  </p>
+                  <p className="text-[9px] text-amber-700 mt-1">
+                    Enter a suffix to differentiate (e.g. R1, R2, S, P).
+                  </p>
                 </div>
 
-                {/* Summary */}
-                {newStaffClient && newStaffPost && newStaffLocation && (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5">
-                    <p className="text-[9px] font-bold text-emerald-800">
-                      Adding <strong>{confirmModal.label}</strong> as <strong>{shortenPost(newStaffPost)}</strong> at <strong>{newStaffLocation}</strong> / <strong>{newStaffClient}</strong>
-                    </p>
+                <div>
+                  <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">
+                    Name with suffix
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-foreground uppercase truncate max-w-[180px]">
+                      {dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name}
+                    </span>
+                    <span className="text-muted-foreground font-bold text-sm">(</span>
+                    <input
+                      type="text"
+                      value={customSuffix}
+                      onChange={(e) => setCustomSuffix(e.target.value.toUpperCase())}
+                      placeholder="R1"
+                      autoFocus
+                      className="w-20 bg-muted border-2 border-amber-400 rounded-lg px-2 py-1.5 text-[11px] font-black outline-none focus:ring-2 focus:ring-amber-400 uppercase text-center"
+                    />
+                    <span className="text-muted-foreground font-bold text-sm">)</span>
                   </div>
-                )}
+                  {customSuffix.trim() && (
+                    <p className="text-[9px] font-bold text-emerald-700 mt-2">
+                      Will be saved as: <strong>{dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name} ({customSuffix.trim()})</strong>
+                    </p>
+                  )}
+                </div>
               </div>
 
-              {/* Action Buttons */}
               <div className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-muted/30 rounded-b-2xl shrink-0">
+                <button type="button" onClick={() => { setDupeConfirm(null); setCustomSuffix(""); }} className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border">
+                  Cancel
+                </button>
                 <button
                   type="button"
-                  onClick={cancelInlineAdd}
-                  className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border"
-                >Cancel</button>
-                <button
-                  type="button"
-                  onClick={handleConfirmAdd}
-                  disabled={!newStaffClient || !newStaffPost || !newStaffLocation}
+                  onClick={handleDupeConfirmAdd}
+                  disabled={!customSuffix.trim()}
                   className={`px-5 py-2 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all ${
-                    newStaffClient && newStaffPost && newStaffLocation
+                    customSuffix.trim()
                       ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg hover:shadow-emerald-500/30"
                       : "bg-muted text-muted-foreground cursor-not-allowed"
                   }`}
