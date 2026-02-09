@@ -365,7 +365,7 @@ function EditableCell({
   );
 }
 
-// ═══════════════════════════════════���������═══
+// ═══════════════════════════════════�����������═══
 // MAIN PAGE
 // ════════════════════════════���══════════
 export default function TrainingMatrixPage() {
@@ -557,6 +557,13 @@ export default function TrainingMatrixPage() {
             <span className="text-[10px] text-slate-300 font-bold">
               Showing <span className="text-white font-black">{filtered.length}</span> of {personnel.length}
             </span>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="print-btn px-3 py-1.5 rounded-lg bg-slate-500/30 hover:bg-slate-500/50 text-slate-200 font-bold text-[9px] uppercase tracking-wider transition-all border border-slate-400/30"
+            >
+              Print
+            </button>
             {(clientFilter !== "ALL" || tradeFilter !== "ALL" || locationFilter !== "ALL" || courseFilter !== "ALL" || statusFilter !== "ALL") && (
               <button
                 type="button"

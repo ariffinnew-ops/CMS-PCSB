@@ -333,6 +333,13 @@ export default function StatementPage() {
                 className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40 w-32"
               />
             </div>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="print-btn self-end px-3 py-1.5 rounded-lg bg-muted hover:bg-accent text-muted-foreground font-bold text-[9px] uppercase tracking-wider transition-all border border-border"
+            >
+              Print
+            </button>
             {hasActiveFilters && (
               <button
                 type="button"

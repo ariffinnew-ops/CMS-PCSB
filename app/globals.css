@@ -123,3 +123,32 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Print styles */
+@media print {
+  /* Hide sidebar, header, nav, action buttons, filters */
+  [data-sidebar], nav, header,
+  .no-print, button, select, input[type="text"] {
+    display: none !important;
+  }
+  /* Keep print button trigger hidden */
+  .print-btn { display: none !important; }
+  /* Force full width, remove padding/margin from shell */
+  main, [role="main"], .print-area {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  /* Tables full width */
+  table {
+    width: 100% !important;
+    font-size: 9px !important;
+  }
+  /* Remove shadows/borders from cards */
+  .shadow-lg, .shadow-sm { box-shadow: none !important; }
+  /* Ensure charts visible */
+  .recharts-wrapper, .recharts-surface, svg { overflow: visible !important; }
+  /* Page setup */
+  @page { margin: 10mm; size: landscape; }
+}

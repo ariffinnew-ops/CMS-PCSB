@@ -43,79 +43,81 @@ function daysUntil(d: string | null | undefined): number | null {
   return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
 }
 
-// ─── Roster Strip (Section C) ───
-function RosterStrip({ rosterRows }: { rosterRows: Record<string, unknown>[] }) {
-  const entries = useMemo(() => {
-    const result: { date: Date; type: "M" | "D" }[] = [];
-    for (const row of rosterRows) {
-      for (let i = 1; i <= 24; i++) {
-        const mVal = row[`m${i}`] as string | null;
-        const dVal = row[`d${i}`] as string | null;
-        if (mVal) try { result.push({ date: new Date(mVal), type: "M" }); } catch {/* */}
-        if (dVal) try { result.push({ date: new Date(dVal), type: "D" }); } catch {/* */}
-      }
-    }
-    result.sort((a, b) => a.date.getTime() - b.date.getTime());
-    return result;
+// ─── Movement Grid (Section C) - Historical cycles from cms_pcsb_roster ───
+function MovementGrid({ rosterRows }: { rosterRows: Record<string, unknown>[] }) {
+  // Parse roster rows as cycles with sign_on/sign_off dates
+  const cycles = useMemo(() => {
+    return rosterRows
+      .map((row) => {
+        const signOn = row.sign_on ? new Date(String(row.sign_on)) : null;
+        const signOff = row.sign_off ? new Date(String(row.sign_off)) : null;
+        const reliefAll = Number(row.relief_all) || 0;
+        const standbyAll = Number(row.standby_all) || 0;
+        const oaDays = (signOn && signOff) ? Math.max(0, Math.ceil((signOff.getTime() - signOn.getTime()) / 86400000)) : 0;
+        const oaRate = 200;
+        const medevacRate = 500;
+        const medevacDates = row.medevac_dates ? String(row.medevac_dates).split(",").filter(Boolean).length : 0;
+        const totalAllowance = (oaDays * oaRate) + reliefAll + standbyAll + (medevacDates * medevacRate);
+        return {
+          cycle: row.cycle_number || "-",
+          signOn,
+          signOff,
+          location: String(row.location || "-"),
+          client: String(row.client || "-"),
+          post: String(row.post || "-"),
+          oaDays,
+          reliefAll,
+          standbyAll,
+          medevacDates,
+          totalAllowance,
+          isRelief: reliefAll > 0,
+        };
+      })
+      .filter((c) => c.signOn) // only show cycles that have a sign_on date
+      .sort((a, b) => (a.signOn?.getTime() || 0) - (b.signOn?.getTime() || 0)); // earliest first
   }, [rosterRows]);
 
-  const months = useMemo(() => {
-    if (entries.length === 0) return [];
-    const monthSet = new Map<string, { year: number; month: number }>();
-    for (const e of entries) {
-      const key = `${e.date.getFullYear()}-${e.date.getMonth()}`;
-      if (!monthSet.has(key)) monthSet.set(key, { year: e.date.getFullYear(), month: e.date.getMonth() });
-    }
-    return Array.from(monthSet.values()).sort((a, b) => a.year - b.year || a.month - b.month);
-  }, [entries]);
-
-  const MO = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-  if (months.length === 0) return <p className="text-xs text-muted-foreground italic p-2">No roster data available.</p>;
+  if (cycles.length === 0) return <p className="text-xs text-muted-foreground italic p-2">No movement history found.</p>;
 
   return (
     <div className="overflow-auto max-h-full">
       <table className="w-full border-collapse" style={{ fontSize: "10px" }}>
         <thead className="sticky top-0 z-10">
-          <tr className="bg-slate-100">
-            <th className="px-2 py-1 text-left font-bold text-slate-500 uppercase tracking-wider sticky left-0 bg-slate-100 min-w-[72px] border-b border-r border-slate-200">Month</th>
-            {Array.from({ length: 31 }, (_, i) => (
-              <th key={i} className="px-0 py-1 text-center font-bold text-slate-400 min-w-[20px] border-b border-r border-slate-200">{i + 1}</th>
-            ))}
+          <tr className="bg-slate-800 text-white">
+            <th className="px-2 py-1.5 text-left font-bold uppercase tracking-wider border-r border-slate-700">#</th>
+            <th className="px-2 py-1.5 text-left font-bold uppercase tracking-wider border-r border-slate-700">Sign On</th>
+            <th className="px-2 py-1.5 text-left font-bold uppercase tracking-wider border-r border-slate-700">Sign Off</th>
+            <th className="px-2 py-1.5 text-left font-bold uppercase tracking-wider border-r border-slate-700">Location</th>
+            <th className="px-2 py-1.5 text-left font-bold uppercase tracking-wider border-r border-slate-700">Client</th>
+            <th className="px-2 py-1.5 text-left font-bold uppercase tracking-wider border-r border-slate-700">Post</th>
+            <th className="px-2 py-1.5 text-right font-bold uppercase tracking-wider border-r border-slate-700">OA Days</th>
+            <th className="px-2 py-1.5 text-right font-bold uppercase tracking-wider">Total Allowance</th>
           </tr>
         </thead>
         <tbody>
-          {months.map(({ year, month }, mi) => {
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-            const monthEntries = entries.filter(e => e.date.getFullYear() === year && e.date.getMonth() === month);
-            const dayMap = new Map<number, "M" | "D" | "W">();
-            for (const e of monthEntries) dayMap.set(e.date.getDate(), e.type);
-            let working = false;
-            for (let day = 1; day <= daysInMonth; day++) {
-              const ev = monthEntries.find(e => e.date.getDate() === day);
-              if (ev?.type === "M") working = true;
-              if (working && !dayMap.has(day)) dayMap.set(day, "W");
-              if (ev?.type === "D") working = false;
-            }
-            return (
-              <tr key={`${year}-${month}`} className={mi > 0 ? "border-t-4 border-slate-200" : ""}>
-                <td className="px-2 py-1 font-bold text-slate-600 sticky left-0 bg-white border-b border-r border-slate-200 whitespace-nowrap">
-                  {MO[month]} {year}
-                </td>
-                {Array.from({ length: 31 }, (_, i) => {
-                  const day = i + 1;
-                  if (day > daysInMonth) return <td key={day} className="bg-slate-50 border-b border-r border-slate-100" />;
-                  const ev = dayMap.get(day);
-                  let bg = "bg-white";
-                  if (ev === "M" || ev === "D" || ev === "W") bg = "bg-blue-500";
-                  return (
-                    <td key={day} className={`${bg} border-b border-r border-slate-200`} style={{ height: "18px" }} />
-                  );
-                })}
-              </tr>
-            );
-          })}
+          {cycles.map((c, i) => (
+            <tr key={i} className={`border-b border-slate-200 ${c.isRelief ? "bg-amber-50" : i % 2 === 0 ? "bg-white" : "bg-slate-50"} hover:bg-blue-50 transition-colors`}>
+              <td className="px-2 py-1.5 font-bold text-slate-500 border-r border-slate-200">{String(c.cycle)}</td>
+              <td className="px-2 py-1.5 font-semibold text-slate-700 border-r border-slate-200 whitespace-nowrap">{c.signOn ? fmtDate(c.signOn.toISOString()) : "-"}</td>
+              <td className="px-2 py-1.5 font-semibold text-slate-700 border-r border-slate-200 whitespace-nowrap">{c.signOff ? fmtDate(c.signOff.toISOString()) : "-"}</td>
+              <td className="px-2 py-1.5 font-semibold text-slate-700 border-r border-slate-200">{c.location}</td>
+              <td className="px-2 py-1.5 font-semibold text-slate-700 border-r border-slate-200">{c.client}</td>
+              <td className="px-2 py-1.5 font-semibold text-slate-700 border-r border-slate-200">
+                {c.post}
+                {c.isRelief && <span className="ml-1 text-amber-600 font-bold">(R)</span>}
+              </td>
+              <td className="px-2 py-1.5 text-right font-bold text-slate-700 border-r border-slate-200 tabular-nums">{c.oaDays}</td>
+              <td className="px-2 py-1.5 text-right font-black text-emerald-700 tabular-nums">{fmtRM(c.totalAllowance)}</td>
+            </tr>
+          ))}
         </tbody>
+        <tfoot>
+          <tr className="bg-slate-800 text-white font-bold">
+            <td colSpan={6} className="px-2 py-1.5 uppercase tracking-wider">Total ({cycles.length} cycles)</td>
+            <td className="px-2 py-1.5 text-right tabular-nums border-r border-slate-700">{cycles.reduce((s, c) => s + c.oaDays, 0)}</td>
+            <td className="px-2 py-1.5 text-right tabular-nums font-black">{fmtRM(cycles.reduce((s, c) => s + c.totalAllowance, 0))}</td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   );
@@ -778,7 +780,7 @@ export default function StaffDetailPage() {
               </div>
             </div>
             <div className="flex-1 overflow-auto p-2">
-              <RosterStrip rosterRows={rosterRows} />
+              <MovementGrid rosterRows={rosterRows} />
             </div>
           </div>
         </div>

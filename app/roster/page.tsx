@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow, ClientType, TradeType } from "@/lib/types";
-import { getPivotedRosterData, getCrewList } from "@/lib/actions";
+import { getPivotedRosterData, getCrewList, getOHNStaffFromMaster } from "@/lib/actions";
 import { safeParseDate, getTradeRank, getFullTradeName } from "@/lib/logic";
 
 // Generate months from Sep 2025 to Dec 2026
@@ -61,8 +61,16 @@ export default function RosterPage() {
   }, [viewDate, clientFilter, tradeFilter, search]);
 
   useEffect(() => {
-    Promise.all([getPivotedRosterData(), getCrewList()]).then(([pivotedData, crewResult]) => {
-      setData(pivotedData);
+    Promise.all([getPivotedRosterData(), getCrewList(), getOHNStaffFromMaster()]).then(([pivotedData, crewResult, ohnStaff]) => {
+      // Merge OHN/IM staff from master into roster data, avoiding duplicates
+      const rosterIds = new Set(pivotedData.map((r) => r.crew_id));
+      const merged = [...pivotedData];
+      for (const ohn of ohnStaff) {
+        if (!rosterIds.has(ohn.crew_id)) {
+          merged.push(ohn);
+        }
+      }
+      setData(merged);
       if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
       setLoading(false);
     });
@@ -309,6 +317,13 @@ export default function RosterPage() {
               onChange={(e) => setSearch(e.target.value)}
               className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 uppercase outline-none w-36 placeholder:normal-case"
             />
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="print-btn px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-[9px] uppercase tracking-wider transition-all border border-slate-200"
+            >
+              Print
+            </button>
             {(clientFilter !== "ALL" || tradeFilter !== "ALL" || search.trim()) && (
               <button
                 type="button"
