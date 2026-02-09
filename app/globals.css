@@ -126,13 +126,14 @@
 
 /* Print styles */
 @media print {
-  /* Hide sidebar, header, nav, action buttons, filters */
-  [data-sidebar], nav, header,
-  .no-print, button, select, input[type="text"] {
+  /* Hide everything non-essential */
+  [data-sidebar], nav, header, .no-print,
+  .print-btn, input[type="range"], .animate-pulse,
+  select, input[type="text"] {
     display: none !important;
   }
-  /* Keep print button trigger hidden */
-  .print-btn { display: none !important; }
+  /* Show print header */
+  .print-header { display: block !important; }
   /* Force full width, remove padding/margin from shell */
   main, [role="main"], .print-area {
     margin: 0 !important;
@@ -140,15 +141,24 @@
     width: 100% !important;
     max-width: 100% !important;
   }
+  /* Remove overflow constraints so full tables print */
+  .overflow-auto, .overflow-hidden, .overflow-x-auto {
+    overflow: visible !important;
+    max-height: none !important;
+  }
   /* Tables full width */
   table {
     width: 100% !important;
-    font-size: 9px !important;
+    font-size: 8px !important;
   }
-  /* Remove shadows/borders from cards */
-  .shadow-lg, .shadow-sm { box-shadow: none !important; }
+  /* Remove shadows/rounded corners */
+  .shadow-lg, .shadow-sm, .shadow-2xl, .shadow-xl, .shadow-md {
+    box-shadow: none !important;
+  }
   /* Ensure charts visible */
   .recharts-wrapper, .recharts-surface, svg { overflow: visible !important; }
+  /* Force white bg for print */
+  body, main { background: white !important; color: black !important; }
   /* Page setup */
-  @page { margin: 10mm; size: landscape; }
+  @page { margin: 8mm; size: landscape; }
 }
