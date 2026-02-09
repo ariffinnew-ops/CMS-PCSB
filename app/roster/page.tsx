@@ -115,6 +115,33 @@ export default function RosterPage() {
     return false;
   };
 
+  // Build crew_id -> master name lookup
+  const crewNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const staff of crewList) {
+      map.set(staff.id, staff.clean_name || staff.crew_name);
+    }
+    return map;
+  }, [crewList]);
+
+  // Display name: resolve via master, preserve suffix like (R), (R1), (S), (S1), (P)
+  // Also appends dynamic relief indicators (R1), (R2), etc. for cycles with relief_all > 0
+  const getDisplayName = (row: PivotedCrewRow) => {
+    const masterName = crewNameMap.get(row.crew_id);
+    const baseName = masterName || row.crew_name;
+    const suffixMatch = (row.crew_name || "").match(/\s*(\([A-Z]\d*\))\s*$/);
+    const name = suffixMatch ? `${baseName} ${suffixMatch[1]}` : baseName;
+
+    // Append dynamic relief cycle indicators
+    const reliefCycles = Object.entries(row.cycles)
+      .filter(([, c]) => c.relief_all && c.relief_all > 0)
+      .map(([num]) => `R${num}`);
+    if (reliefCycles.length > 0) {
+      return `${name} (${reliefCycles.join(",")})`;
+    }
+    return name;
+  };
+
   const sortedData = useMemo(() => {
     return data
       .filter((row) => {
@@ -147,33 +174,7 @@ export default function RosterPage() {
         
         return a.crew_name.localeCompare(b.crew_name);
       });
-  }, [data, clientFilter, tradeFilter, search, viewDate]);
-
-  // Build crew_id -> master name lookup
-  const crewNameMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const staff of crewList) {
-      map.set(staff.id, staff.clean_name || staff.crew_name);
-    }
-    return map;
-  }, [crewList]);
-
-  // Display name: resolve via master, append dynamic relief label based on total cycle count
-  // If crew has N cycles in DB: cycle 1 = base, cycle 2+ = (R1), (R2)...
-  const getDisplayName = (row: PivotedCrewRow) => {
-    const masterName = crewNameMap.get(row.crew_id);
-    const baseName = masterName || row.crew_name;
-    // Strip any existing suffix like (R), (R1), (S), (P) from crew_name
-    const cleanBase = baseName.replace(/\s*\([A-Z]\d*\)\s*$/, "").trim();
-
-    const cycleNums = Object.keys(row.cycles).map(Number).sort((a, b) => a - b);
-    const totalCycles = cycleNums.length;
-
-    if (totalCycles <= 1) return cleanBase;
-    // Show relief indicators for each cycle beyond the first
-    const reliefLabels = cycleNums.slice(1).map((_, i) => `R${i + 1}`);
-    return `${cleanBase} (${reliefLabels.join(",")})`;
-  };
+  }, [data, clientFilter, tradeFilter, search, viewDate, getDisplayName]);
 
   const groupedData = useMemo(() => {
     const result: { type: 'separator' | 'row'; label?: string; row?: PivotedCrewRow; trade?: string }[] = [];
