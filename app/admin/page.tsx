@@ -5,7 +5,7 @@ import React from "react"
 import { useEffect, useState, useMemo, useRef, Fragment } from "react";
 import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow, TradeType } from "@/lib/types";
-import { getPivotedRosterData, updateRosterRow, createRosterRow, deleteRosterRow, deleteCrewFromRoster, getCrewList } from "@/lib/actions";
+import { getPivotedRosterData, updateRosterRow, createRosterRow, deleteRosterRow, deleteCrewFromRoster, deleteCrewByName, getCrewList } from "@/lib/actions";
 import { safeParseDate, getTradeRank, shortenPost } from "@/lib/logic";
 import { getClients, getPostsForClient, getLocationsForClientPost } from "@/lib/client-location-map";
 
@@ -330,7 +330,8 @@ export default function AdminPage() {
   const getDisplayName = (row: PivotedCrewRow) => {
     const masterName = crewNameMap.get(row.crew_id);
     if (!masterName) return row.crew_name; // fallback
-    const suffixMatch = (row.crew_name || "").match(/\s*(\([A-Z]\d*\))\s*$/);
+    // Match any parenthesised suffix at end: (R1), (S), (P), (S/P), (R2), etc.
+    const suffixMatch = (row.crew_name || "").match(/\s*(\([^)]+\))\s*$/);
     return suffixMatch ? `${masterName} ${suffixMatch[1]}` : masterName;
   };
 
@@ -390,7 +391,7 @@ export default function AdminPage() {
       setNewlyAddedCrewIds((prev) => new Set([...prev, staff.id]));
       setLastSynced(new Date());
       showNotification(`${finalName} added successfully`, "success");
-      fetchData();
+      await fetchData();
     } else {
       showNotification(result.error || "Failed to add staff", "error");
     }
@@ -408,7 +409,7 @@ export default function AdminPage() {
     setNewStaffLocation("");
   };
 
-  // Delete staff - removes all cycle rows for a crew
+  // Delete staff - removes cycle rows for this specific crew_id + crew_name
   const handleDeleteStaff = async () => {
     if (!deleteModal) return;
     
@@ -416,11 +417,12 @@ export default function AdminPage() {
     setDeleteModal(null);
     
     setIsSyncing(true);
-    const result = await deleteCrewFromRoster(crewId);
+    // Use name-specific delete so suffixed entries don't wipe the original
+    const result = await deleteCrewByName(crewId, name);
     setIsSyncing(false);
     
     if (result.success) {
-      setData((prev) => prev.filter((row) => row.crew_id !== crewId));
+      setData((prev) => prev.filter((row) => !(row.crew_id === crewId && row.crew_name === name)));
       setLastSynced(new Date());
       showNotification(`${name} deleted`, "success");
     } else {

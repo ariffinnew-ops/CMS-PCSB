@@ -24,12 +24,14 @@ export async function getRosterData(): Promise<RosterRow[]> {
 
 // Pivot roster rows into one entry per crew with all cycles grouped
 // Fetches ONLY from cms_pcsb_roster
+// Key uses crew_id + crew_name so suffixed duplicates (e.g. "JOHN (R1)") get their own row
 export async function getPivotedRosterData(): Promise<PivotedCrewRow[]> {
   const rows = await getRosterData()
   const map = new Map<string, PivotedCrewRow>()
 
   for (const row of rows) {
-    const key = row.crew_id || row.crew_name
+    // Use both crew_id and crew_name as key so suffixed entries stay separate
+    const key = `${row.crew_id || ''}::${row.crew_name || ''}`
     if (!map.has(key)) {
       map.set(key, {
         crew_id: row.crew_id || '',
@@ -132,19 +134,37 @@ export async function deleteRosterRow(id: number): Promise<{ success: boolean; e
 // Delete all roster rows for a crew_id
 export async function deleteCrewFromRoster(crewId: string): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
-
+  
   const { error } = await supabase
-    .from('cms_pcsb_roster')
-    .delete()
-    .eq('crew_id', crewId)
-
+  .from('cms_pcsb_roster')
+  .delete()
+  .eq('crew_id', crewId)
+  
   if (error) {
-    console.error('Error deleting crew roster:', error)
-    return { success: false, error: error.message }
+  console.error('Error deleting crew roster:', error)
+  return { success: false, error: error.message }
+  }
+  
+  return { success: true }
   }
 
+// Delete roster rows for a specific crew_id + crew_name combo (for suffixed entries)
+export async function deleteCrewByName(crewId: string, crewName: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  
+  const { error } = await supabase
+  .from('cms_pcsb_roster')
+  .delete()
+  .eq('crew_id', crewId)
+  .eq('crew_name', crewName)
+  
+  if (error) {
+  console.error('Error deleting crew by name:', error)
+  return { success: false, error: error.message }
+  }
+  
   return { success: true }
-}
+  }
 
 // Login Logs
 export interface LoginLogEntry {
