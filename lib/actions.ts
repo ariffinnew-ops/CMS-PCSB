@@ -200,27 +200,42 @@ export interface CrewMasterRecord {
   post: string;
   client: string;
   location: string;
+  basic: number;
+  fixed_all: number;
 }
 
 export async function getCrewMasterData(): Promise<CrewMasterRecord[]> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  // Try with basic & fixed_all columns first; fall back without them if columns don't exist yet
+  let { data, error } = await supabase
     .from('cms_pcsb_master')
-    .select('id, crew_name, post, client, location')
+    .select('id, crew_name, post, client, location, basic, fixed_all')
     .order('crew_name', { ascending: true })
+
+  if (error?.code === '42703') {
+    // Column doesn't exist yet -- fall back to base columns
+    const fallback = await supabase
+      .from('cms_pcsb_master')
+      .select('id, crew_name, post, client, location')
+      .order('crew_name', { ascending: true })
+    data = fallback.data
+    error = fallback.error
+  }
 
   if (error) {
     console.error('Error fetching crew master data:', error)
     return []
   }
 
-  return (data || []).map((d) => ({
-    id: d.id,
-    crew_name: d.crew_name || '',
-    post: d.post || '',
-    client: d.client || '',
-    location: d.location || '',
+  return (data || []).map((d: Record<string, unknown>) => ({
+    id: String(d.id || ''),
+    crew_name: String(d.crew_name || ''),
+    post: String(d.post || ''),
+    client: String(d.client || ''),
+    location: String(d.location || ''),
+    basic: Number(d.basic) || 0,
+    fixed_all: Number(d.fixed_all) || 0,
   }))
 }
 

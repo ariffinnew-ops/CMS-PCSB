@@ -29,6 +29,8 @@ function generateMonthRange() {
 
 // ─── Colors ───
 const P = {
+  basic: "#334155",
+  fixedAll: "#6366f1",
   offshore: "#10b981",
   relief: "#8b5cf6",
   standby: "#f59e0b",
@@ -38,11 +40,12 @@ const P = {
   primary: "#1e40af",
 };
 const LOC_COLORS = ["#06b6d4", "#8b5cf6", "#f59e0b", "#ef4444", "#10b981"];
-const CAT_COLORS = [P.offshore, P.relief, P.standby, P.medevac];
+const CAT_COLORS = [P.basic, P.fixedAll, P.offshore, P.relief, P.standby, P.medevac];
 
-// ─── Cost Calc: Offshore + Relief + Standby + Medevac from roster ───
+// ─── Cost Calc: Basic + Fixed + Offshore + Relief + Standby + Medevac ───
 interface CrewMonthCost {
   crew_name: string; post: string; client: string; location: string;
+  basic: number; fixedAll: number;
   offshore: number; relief: number; standby: number; medevac: number; total: number;
 }
 
@@ -59,6 +62,9 @@ function calcMonthCosts(
   const oaRate = 200;
   const medevacRate = 500;
 
+  // Track which crew_ids we already accounted basic/fixed_all for (avoid duplicates from multiple roster entries)
+  const basicCounted = new Set<string>();
+
   const results: CrewMonthCost[] = [];
   for (const crew of rosterData) {
     const isOM = (crew.post || "").toUpperCase().includes("OFFSHORE MEDIC");
@@ -68,7 +74,7 @@ function calcMonthCosts(
       const signOn = safeParseDate(cycle.sign_on);
       const signOff = safeParseDate(cycle.sign_off);
       if (!signOn || !signOff) continue;
-      const rotEnd = signOff.getTime() - 86400000; // sign-off day not a working day
+      const rotEnd = signOff.getTime() - 86400000;
       if (signOn.getTime() > monthEndTime || rotEnd < monthStartTime) continue;
       const days = Math.ceil((Math.min(rotEnd, monthEndTime) - Math.max(signOn.getTime(), monthStartTime)) / 864e5) + 1;
       if (days <= 0) continue;
@@ -82,13 +88,41 @@ function calcMonthCosts(
     }
     const offshoreAmt = isOM ? offDays * oaRate : 0;
     const medevacAmt = isEM ? medevac * medevacRate : 0;
-    const total = offshoreAmt + relief + standby + medevacAmt;
+
+    // Monthly basic + fixed_all from master (count once per unique crew_id)
+    let basicAmt = 0, fixedAllAmt = 0;
+    if (crew.crew_id && !basicCounted.has(crew.crew_id)) {
+      const master = masterMap.get((crew.crew_name || "").toUpperCase().trim());
+      if (master) {
+        basicAmt = master.basic || 0;
+        fixedAllAmt = master.fixed_all || 0;
+      }
+      basicCounted.add(crew.crew_id);
+    }
+
+    const total = basicAmt + fixedAllAmt + offshoreAmt + relief + standby + medevacAmt;
     if (total === 0) continue;
     results.push({
       crew_name: crew.crew_name, post: crew.post, client: crew.client, location: crew.location,
+      basic: basicAmt, fixedAll: fixedAllAmt,
       offshore: offshoreAmt, relief, standby, medevac: medevacAmt, total,
     });
   }
+
+  // Also include master staff with basic/fixed_all who may not be in rosterData
+  for (const m of masterData) {
+    if (basicCounted.has(m.id)) continue;
+    const basicAmt = m.basic || 0;
+    const fixedAllAmt = m.fixed_all || 0;
+    if (basicAmt + fixedAllAmt === 0) continue;
+    basicCounted.add(m.id);
+    results.push({
+      crew_name: m.crew_name, post: m.post, client: m.client, location: m.location,
+      basic: basicAmt, fixedAll: fixedAllAmt,
+      offshore: 0, relief: 0, standby: 0, medevac: 0, total: basicAmt + fixedAllAmt,
+    });
+  }
+
   return results;
 }
 
@@ -191,17 +225,21 @@ export default function FinancialDashboardPage() {
   const monthly = useMemo(() => {
     return monthRange.map(({ year, month, label, isFuture }) => {
       const costs = calcMonthCosts(data, masterData, masterMap, year, month);
+      const basic = costs.reduce((s, c) => s + c.basic, 0);
+      const fixedAll = costs.reduce((s, c) => s + c.fixedAll, 0);
       const offshore = costs.reduce((s, c) => s + c.offshore, 0);
       const relief = costs.reduce((s, c) => s + c.relief, 0);
       const standby = costs.reduce((s, c) => s + c.standby, 0);
       const medevac = costs.reduce((s, c) => s + c.medevac, 0);
-      return { label, isFuture, offshore, relief, standby, medevac, total: offshore + relief + standby + medevac };
+      return { label, isFuture, basic, fixedAll, offshore, relief, standby, medevac, total: basic + fixedAll + offshore + relief + standby + medevac };
     });
   }, [data, masterData, masterMap, monthRange]);
 
   const actual = monthly.filter(m => !m.isFuture);
   const estimated = monthly.filter(m => m.isFuture);
   const totalActual = actual.reduce((s, c) => s + c.total, 0);
+  const totalBasic = actual.reduce((s, c) => s + c.basic, 0);
+  const totalFixedAll = actual.reduce((s, c) => s + c.fixedAll, 0);
   const totalOffshore = actual.reduce((s, c) => s + c.offshore, 0);
   const totalRelief = actual.reduce((s, c) => s + c.relief, 0);
   const totalStandby = actual.reduce((s, c) => s + c.standby, 0);
@@ -233,9 +271,11 @@ export default function FinancialDashboardPage() {
 
   // Category share
   const catData = useMemo(() => {
-    let off = 0, rel = 0, stb = 0, med = 0;
-    for (const m of actual) { off += m.offshore; rel += m.relief; stb += m.standby; med += m.medevac; }
+    let bas = 0, fix = 0, off = 0, rel = 0, stb = 0, med = 0;
+    for (const m of actual) { bas += m.basic; fix += m.fixedAll; off += m.offshore; rel += m.relief; stb += m.standby; med += m.medevac; }
     return [
+      { name: "Basic", value: bas },
+      { name: "Fixed All.", value: fix },
       { name: "Offshore", value: off },
       { name: "Relief", value: rel },
       { name: "Standby", value: stb },
@@ -248,10 +288,10 @@ export default function FinancialDashboardPage() {
 
   const aTotal = useCounter(totalActual);
   const aAvg = useCounter(monthlyAvg);
-  const aEst = useCounter(totalEst);
+  const aBas = useCounter(totalBasic);
+  const aFix = useCounter(totalFixedAll);
   const aOff = useCounter(totalOffshore);
   const aRel = useCounter(totalRelief);
-  const aStb = useCounter(totalStandby);
 
   if (loading) return (
     <AppShell>
@@ -269,10 +309,10 @@ export default function FinancialDashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-black text-foreground uppercase tracking-tight leading-none">Financial Dashboard</h2>
-            <p className="text-[9px] text-muted-foreground mt-0.5">Allowance Cost Breakdown | Sept 2025 onwards | Offshore + Relief + Standby + Medevac</p>
+            <p className="text-[9px] text-muted-foreground mt-0.5">Cost Breakdown | Sept 2025 onwards | Basic + Fixed + Offshore + Relief + Standby + Medevac</p>
           </div>
-          <button onClick={() => window.print()} className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider bg-blue-600 hover:bg-blue-500 text-white transition-colors print:hidden">
-            Print
+          <button onClick={() => { document.title = `Financial_Report_${new Date().toISOString().slice(0,10)}`; window.print(); }} className="print-btn p-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors" title="Print Report">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
           </button>
         </div>
 
@@ -281,10 +321,10 @@ export default function FinancialDashboardPage() {
           {[
             { label: "Total Actual", val: aTotal, color: P.primary },
             { label: "Monthly Avg", val: aAvg, color: P.primary },
-            { label: "Estimated (3M)", val: aEst, color: P.standby },
+            { label: "Basic Salary", val: aBas, color: P.basic },
+            { label: "Fixed Allowance", val: aFix, color: P.fixedAll },
             { label: "Offshore Allow.", val: aOff, color: P.offshore },
             { label: "Relief Allow.", val: aRel, color: P.relief },
-            { label: "Standby Allow.", val: aStb, color: P.standby },
           ].map(c => (
             <div key={c.label} className="relative rounded-xl border border-border bg-card overflow-hidden group hover:scale-[1.02] transition-transform">
               <div className="absolute top-0 left-0 w-full h-0.5" style={{ backgroundColor: c.color }} />
@@ -330,6 +370,7 @@ export default function FinancialDashboardPage() {
               <h3 className="text-[9px] font-black text-foreground uppercase tracking-wider">Monthly Breakdown</h3>
               <div className="flex flex-wrap items-center gap-2">
                 {[
+                  { k: "Basic", c: P.basic }, { k: "Fixed All.", c: P.fixedAll },
                   { k: "Offshore", c: P.offshore }, { k: "Relief", c: P.relief },
                   { k: "Standby", c: P.standby }, { k: "Medevac", c: P.medevac },
                 ].map(l => (
@@ -347,6 +388,8 @@ export default function FinancialDashboardPage() {
                   <XAxis dataKey="label" tick={{ fill: "#94a3b8", fontSize: 7, fontWeight: 700 }} interval={0} angle={-45} textAnchor="end" height={35} />
                   <YAxis tick={{ fill: "#94a3b8", fontSize: 7, fontWeight: 700 }} tickFormatter={fmtK} width={40} />
                   <Tooltip content={<TT />} />
+                  <Bar dataKey="basic" stackId="c" name="Basic" fill={P.basic} shape={<Bar3D />} animationDuration={1000} />
+                  <Bar dataKey="fixedAll" stackId="c" name="Fixed All." fill={P.fixedAll} shape={<Bar3D />} animationDuration={1000} />
                   <Bar dataKey="offshore" stackId="c" name="Offshore" fill={P.offshore} shape={<Bar3D />} animationDuration={1000} />
                   <Bar dataKey="relief" stackId="c" name="Relief" fill={P.relief} shape={<Bar3D />} animationDuration={1000} />
                   <Bar dataKey="standby" stackId="c" name="Standby" fill={P.standby} shape={<Bar3D />} animationDuration={1000} />
