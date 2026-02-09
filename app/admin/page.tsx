@@ -314,23 +314,40 @@ export default function AdminPage() {
     return data.some((row) => row.crew_id === crewId);
   };
 
-  // Display name
-  const getDisplayName = (row: PivotedCrewRow) => row.crew_name;
-
-  // Add new staff to roster
-  const handleAddStaff = async () => {
-    if (!selectedStaff || !newStaffClient || !newStaffPost || !newStaffLocation) return;
-
-    setIsSyncing(true);
-
-    const baseName = selectedStaff.clean_name || selectedStaff.crew_name;
-
-    // Check existing entries
-    const alreadyExists = data.some((row) => row.crew_id === selectedStaff.id);
-    let finalName = baseName;
-    if (alreadyExists) {
-      finalName = `${baseName} (R)`;
+  // Build a lookup from crew_id -> clean display name from master
+  const crewNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const staff of crewList) {
+      map.set(staff.id, staff.clean_name || staff.crew_name);
     }
+    return map;
+  }, [crewList]);
+
+  // Display name: resolve crew_name via master list, preserve any suffix like (R), (R1), (S), (S1), (P)
+  const getDisplayName = (row: PivotedCrewRow) => {
+    const masterName = crewNameMap.get(row.crew_id);
+    if (!masterName) return row.crew_name; // fallback
+    const suffixMatch = (row.crew_name || "").match(/\s*(\([A-Z]\d*\))\s*$/);
+    return suffixMatch ? `${masterName} ${suffixMatch[1]}` : masterName;
+  };
+
+  // Add new staff to roster - always INSERT a new row with proper (R)/(R2)/(R3) suffix
+  const handleAddStaff = async () => {
+  if (!selectedStaff || !newStaffClient || !newStaffPost || !newStaffLocation) return;
+  
+  setIsSyncing(true);
+  
+  const baseName = selectedStaff.clean_name || selectedStaff.crew_name;
+  
+  // Count how many roster entries already exist for this crew_id to determine suffix
+  const existingEntries = data.filter((row) => row.crew_id === selectedStaff.id);
+  const count = existingEntries.length;
+  let finalName = baseName;
+  if (count === 1) {
+    finalName = `${baseName} (R)`;
+  } else if (count > 1) {
+    finalName = `${baseName} (R${count})`;
+  }
 
     // Create initial cycle 1 row for this crew
     const payload = {
@@ -664,7 +681,7 @@ export default function AdminPage() {
                                       <div className="flex justify-between items-center mb-0.5">
                                         <span className="text-[7px] font-black text-muted-foreground uppercase tracking-tighter">
                                           SIGN ON {rotationIdx}
-                                          {isRelief && <span className="ml-1 text-amber-600">(R)</span>}
+                                          {isRelief && <span className="ml-1 text-amber-600">(R{rotationIdx})</span>}
                                         </span>
                                         {conflicts && (
                                           <span className="text-red-600 text-[8px] font-black animate-pulse">
@@ -1075,7 +1092,7 @@ export default function AdminPage() {
                   <div className="bg-amber-50 border border-amber-300 rounded-lg p-2 flex items-start gap-2">
                     <svg className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     <p className="text-[9px] font-bold text-amber-800">
-                      <strong>{selectedStaff.clean_name || selectedStaff.crew_name}</strong> exists in roster. Will be added as relief (R).
+                      <strong>{selectedStaff.clean_name || selectedStaff.crew_name}</strong> exists in roster ({data.filter((r) => r.crew_id === selectedStaff.id).length} entries). Will be added as relief {data.filter((r) => r.crew_id === selectedStaff.id).length === 1 ? "(R)" : `(R${data.filter((r) => r.crew_id === selectedStaff.id).length})`}.
                     </p>
                   </div>
                 )}
@@ -1128,7 +1145,7 @@ export default function AdminPage() {
                 {selectedStaff && newStaffClient && newStaffPost && newStaffLocation && (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2">
                     <p className="text-[9px] font-bold text-emerald-800">
-                      Adding <strong>{selectedStaff.clean_name || selectedStaff.crew_name}{isCrewInRoster(selectedStaff.id) ? " (R)" : ""}</strong> as <strong>{shortenPost(newStaffPost)}</strong> at <strong>{newStaffLocation}</strong> / <strong>{newStaffClient}</strong>
+                      Adding <strong>{selectedStaff.clean_name || selectedStaff.crew_name}{isCrewInRoster(selectedStaff.id) ? ` (R${data.filter((r) => r.crew_id === selectedStaff.id).length > 1 ? data.filter((r) => r.crew_id === selectedStaff.id).length : ""})` : ""}</strong> as <strong>{shortenPost(newStaffPost)}</strong> at <strong>{newStaffLocation}</strong> / <strong>{newStaffClient}</strong>
                     </p>
                   </div>
                 )}

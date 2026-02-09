@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow, ClientType, TradeType } from "@/lib/types";
-import { getPivotedRosterData } from "@/lib/actions";
+import { getPivotedRosterData, getCrewList, getOHNStaffFromMaster } from "@/lib/actions";
 import { safeParseDate, getTradeRank, getFullTradeName } from "@/lib/logic";
 
 // Generate months from Sep 2025 to Dec 2026
@@ -25,16 +25,53 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December"
 ];
 
+// Persist filters to localStorage
+const ROSTER_FILTER_KEY = "cms_roster_filters";
+function loadFilters() {
+  if (typeof window === "undefined") return null;
+  try { const raw = localStorage.getItem(ROSTER_FILTER_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+function saveFilters(f: { viewYear: number; viewMonth: number; client: string; trade: string; search: string }) {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(ROSTER_FILTER_KEY, JSON.stringify(f)); } catch { /* */ }
+}
+
 export default function RosterPage() {
-  const [viewDate, setViewDate] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); });
+  const saved = loadFilters();
+  const [viewDate, setViewDate] = useState(() => {
+    if (saved) return new Date(saved.viewYear, saved.viewMonth, 1);
+    const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [data, setData] = useState<PivotedCrewRow[]>([]);
+  const [crewList, setCrewList] = useState<{ id: string; crew_name: string; clean_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [clientFilter, setClientFilter] = useState<ClientType | "ALL">("ALL");
-  const [tradeFilter, setTradeFilter] = useState<TradeType | "ALL">("ALL");
+  const [clientFilter, setClientFilter] = useState<ClientType | "ALL">(saved?.client || "ALL");
+  const [tradeFilter, setTradeFilter] = useState<TradeType | "ALL">(saved?.trade || "ALL");
+  const [search, setSearch] = useState(saved?.search || "");
+
+  // Persist filters on change
+  useEffect(() => {
+    saveFilters({
+      viewYear: viewDate.getFullYear(),
+      viewMonth: viewDate.getMonth(),
+      client: clientFilter,
+      trade: tradeFilter,
+      search,
+    });
+  }, [viewDate, clientFilter, tradeFilter, search]);
 
   useEffect(() => {
-    getPivotedRosterData().then((pivotedData) => {
-      setData(pivotedData);
+    Promise.all([getPivotedRosterData(), getCrewList(), getOHNStaffFromMaster()]).then(([pivotedData, crewResult, ohnStaff]) => {
+      // Merge OHN/IM staff from master into roster data, avoiding duplicates
+      const rosterIds = new Set(pivotedData.map((r) => r.crew_id));
+      const merged = [...pivotedData];
+      for (const ohn of ohnStaff) {
+        if (!rosterIds.has(ohn.crew_id)) {
+          merged.push(ohn);
+        }
+      }
+      setData(merged);
+      if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
       setLoading(false);
     });
   }, []);
@@ -78,6 +115,33 @@ export default function RosterPage() {
     return false;
   };
 
+  // Build crew_id -> master name lookup
+  const crewNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const staff of crewList) {
+      map.set(staff.id, staff.clean_name || staff.crew_name);
+    }
+    return map;
+  }, [crewList]);
+
+  // Display name: resolve via master, preserve suffix like (R), (R1), (S), (S1), (P)
+  // Also appends dynamic relief indicators (R1), (R2), etc. for cycles with relief_all > 0
+  const getDisplayName = (row: PivotedCrewRow) => {
+    const masterName = crewNameMap.get(row.crew_id);
+    const baseName = masterName || row.crew_name;
+    const suffixMatch = (row.crew_name || "").match(/\s*(\([A-Z]\d*\))\s*$/);
+    const name = suffixMatch ? `${baseName} ${suffixMatch[1]}` : baseName;
+
+    // Append dynamic relief cycle indicators
+    const reliefCycles = Object.entries(row.cycles)
+      .filter(([, c]) => c.relief_all && c.relief_all > 0)
+      .map(([num]) => `R${num}`);
+    if (reliefCycles.length > 0) {
+      return `${name} (${reliefCycles.join(",")})`;
+    }
+    return name;
+  };
+
   const sortedData = useMemo(() => {
     return data
       .filter((row) => {
@@ -90,7 +154,9 @@ export default function RosterPage() {
           (tradeFilter === "IMP/OHN" &&
             (row.post?.includes("IM") || row.post?.includes("OHN")));
         const hasActivity = hasActivityInMonth(row);
-        return matchesClient && matchesTrade && hasActivity;
+        const displayName = getDisplayName(row);
+        const matchesSearch = !search.trim() || displayName.toLowerCase().includes(search.toLowerCase());
+        return matchesClient && matchesTrade && hasActivity && matchesSearch;
       })
       .sort((a, b) => {
         const clientOrder = { SKA: 1, SBA: 2 };
@@ -108,9 +174,7 @@ export default function RosterPage() {
         
         return a.crew_name.localeCompare(b.crew_name);
       });
-  }, [data, clientFilter, tradeFilter, viewDate]);
-
-  const getDisplayName = (row: PivotedCrewRow) => row.crew_name;
+  }, [data, clientFilter, tradeFilter, search, viewDate, getDisplayName]);
 
   const groupedData = useMemo(() => {
     const result: { type: 'separator' | 'row'; label?: string; row?: PivotedCrewRow; trade?: string }[] = [];
@@ -200,62 +264,102 @@ export default function RosterPage() {
         }
       `}</style>
       
-      <div className="space-y-4 animate-in fade-in duration-500 mt-4">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight leading-none">
-              ROTATION MAP
-            </h2>
-            <div className="flex items-center gap-3 mt-2">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                Period:
-              </span>
-              <select
-                value={`${viewDate.getFullYear()}-${viewDate.getMonth()}`}
-                onChange={(e) => {
-                  const [year, month] = e.target.value.split('-').map(Number);
-                  setViewDate(new Date(year, month, 1));
-                }}
-                className="text-[11px] font-bold text-blue-600 bg-white border border-gray-200 px-3 py-1.5 rounded-lg outline-none cursor-pointer uppercase shadow-sm"
-              >
-                {MONTH_RANGE.map(({ year, month }) => (
-                  <option key={`${year}-${month}`} value={`${year}-${month}`}>
-                    {MONTH_NAMES[month]} {year}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+      {/* Print-only header */}
+      <div className="print-header hidden items-center justify-between px-2 py-2 border-b border-slate-300 mb-2">
+        <div>
+          <span className="text-sm font-black uppercase tracking-wider">Rotation Map</span>
+          <span className="text-xs font-bold text-slate-600 ml-3">{MONTH_NAMES[viewDate.getMonth()]} {viewDate.getFullYear()}</span>
+        </div>
+        <div className="flex items-center gap-3 text-[9px] font-bold text-slate-500 uppercase">
+          {clientFilter !== "ALL" && <span>Client: {clientFilter}</span>}
+          {tradeFilter !== "ALL" && <span>Trade: {tradeFilter}</span>}
+          {search.trim() && <span>Search: {search}</span>}
+          {clientFilter === "ALL" && tradeFilter === "ALL" && !search.trim() && <span>All Crew</span>}
+          <span>{sortedData.length} staff</span>
+        </div>
+      </div>
 
-          <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-gray-200">
-            <select
-              value={clientFilter}
-              onChange={(e) => setClientFilter(e.target.value as ClientType | "ALL")}
-              className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 uppercase outline-none"
-            >
-              <option value="ALL">All Clients</option>
-              <option value="SKA">SKA</option>
-              <option value="SBA">SBA</option>
-            </select>
-            <select
-              value={tradeFilter}
-              onChange={(e) => setTradeFilter(e.target.value as TradeType | "ALL")}
-              className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 uppercase outline-none"
-            >
-              <option value="ALL">All Trades</option>
-              <option value="OM">OFFSHORE MEDIC</option>
-              <option value="EM">ESCORT MEDIC</option>
-              <option value="IMP/OHN">OHN</option>
-            </select>
-            {(clientFilter !== "ALL" || tradeFilter !== "ALL") && (
+      <div className="space-y-4 animate-in fade-in duration-500 mt-4">
+        {/* Title + filters -- hidden on print */}
+        <div className="no-print-header" data-no-print>
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 w-full">
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight leading-none">
+                ROTATION MAP
+              </h2>
+              <div className="flex items-center gap-3 mt-2">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  Period:
+                </span>
+                <select
+                  value={`${viewDate.getFullYear()}-${viewDate.getMonth()}`}
+                  onChange={(e) => {
+                    const [year, month] = e.target.value.split('-').map(Number);
+                    setViewDate(new Date(year, month, 1));
+                  }}
+                  className="text-[11px] font-bold text-blue-600 bg-white border border-gray-200 px-3 py-1.5 rounded-lg outline-none cursor-pointer uppercase shadow-sm"
+                >
+                  {MONTH_RANGE.map(({ year, month }) => (
+                    <option key={`${year}-${month}`} value={`${year}-${month}`}>
+                      {MONTH_NAMES[month]} {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-xl shadow-sm border border-gray-200">
+              <select
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value as ClientType | "ALL")}
+                className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 uppercase outline-none"
+              >
+                <option value="ALL">All Clients</option>
+                <option value="SKA">SKA</option>
+                <option value="SBA">SBA</option>
+              </select>
+              <select
+                value={tradeFilter}
+                onChange={(e) => setTradeFilter(e.target.value as TradeType | "ALL")}
+                className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 uppercase outline-none"
+              >
+                <option value="ALL">All Trades</option>
+                <option value="OM">OFFSHORE MEDIC</option>
+                <option value="EM">ESCORT MEDIC</option>
+                <option value="IMP/OHN">OHN</option>
+              </select>
+              <input
+                type="text"
+                placeholder="Search by name..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 uppercase outline-none w-36 placeholder:normal-case"
+              />
               <button
                 type="button"
-                onClick={() => { setClientFilter("ALL"); setTradeFilter("ALL"); }}
-                className="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[9px] uppercase tracking-wider transition-all border border-red-200"
+                onClick={() => { document.title = `Roster_${MONTH_NAMES[viewDate.getMonth()]}_${viewDate.getFullYear()}`; window.print(); }}
+                className="print-btn p-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm"
+                title="Print Roster"
               >
-                Reset All
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
               </button>
-            )}
+              {(clientFilter !== "ALL" || tradeFilter !== "ALL" || search.trim()) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClientFilter("ALL");
+                    setTradeFilter("ALL");
+                    setSearch("");
+                    const now = new Date();
+                    setViewDate(new Date(now.getFullYear(), now.getMonth(), 1));
+                    if (typeof window !== "undefined") localStorage.removeItem(ROSTER_FILTER_KEY);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[9px] uppercase tracking-wider transition-all border border-red-200"
+                >
+                  Reset All
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

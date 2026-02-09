@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState, useMemo } from "react";
 import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow, TradeType } from "@/lib/types";
-import { getPivotedRosterData, getCrewMasterData, type CrewMasterRecord } from "@/lib/actions";
+import { getPivotedRosterData, getCrewMasterData, getCrewList, type CrewMasterRecord } from "@/lib/actions";
 import { safeParseDate, shortenPost, getTradeRank, formatDate } from "@/lib/logic";
 
 const MONTH_NAMES = [
@@ -48,6 +48,7 @@ interface StatementRow {
 export default function StatementPage() {
   const [data, setData] = useState<PivotedCrewRow[]>([]);
   const [masterData, setMasterData] = useState<CrewMasterRecord[]>([]);
+  const [crewList, setCrewList] = useState<{ id: string; crew_name: string; clean_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
@@ -58,9 +59,10 @@ export default function StatementPage() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    Promise.all([getPivotedRosterData(), getCrewMasterData()]).then(([pivotedData, master]) => {
+    Promise.all([getPivotedRosterData(), getCrewMasterData(), getCrewList()]).then(([pivotedData, master, crewResult]) => {
       setData(pivotedData);
       setMasterData(master);
+      if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
       setLoading(false);
     });
   }, []);
@@ -72,6 +74,23 @@ export default function StatementPage() {
     }
     return map;
   }, [masterData]);
+
+  // Build crew_id -> clean display name from master for consistent naming
+  const crewNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const staff of crewList) {
+      map.set(staff.id, staff.clean_name || staff.crew_name);
+    }
+    return map;
+  }, [crewList]);
+
+  // Resolve display name: master clean_name + preserve suffix like (R), (S), (P)
+  const getDisplayName = (crewId: string, crewName: string) => {
+    const masterName = crewNameMap.get(crewId);
+    if (!masterName) return crewName;
+    const suffixMatch = (crewName || "").match(/\s*(\([A-Z]\d*\))\s*$/);
+    return suffixMatch ? `${masterName} ${suffixMatch[1]}` : masterName;
+  };
 
   // Map crew name to their index in master data for sorting
   const masterIndexMap = useMemo(() => {
@@ -215,7 +234,8 @@ export default function StatementPage() {
   const filteredRows = useMemo(() => {
     return statementRows.filter((row) => {
       if (row.grandTotal === 0) return false;
-      const matchesSearch = !search.trim() || row.crew_name.toLowerCase().includes(search.toLowerCase());
+      const displayName = getDisplayName(row.crew_id, row.crew_name);
+    const matchesSearch = !search.trim() || displayName.toLowerCase().includes(search.toLowerCase());
       const matchesTrade =
         tradeFilter === "ALL" ||
         (tradeFilter === "OM" && row.post?.includes("OFFSHORE MEDIC")) ||
@@ -256,72 +276,97 @@ export default function StatementPage() {
 
   return (
     <AppShell>
-      <div className="space-y-4 animate-in fade-in duration-500 mt-1">
-        {/* HEADER */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-black text-foreground uppercase tracking-tight leading-none">
-              Monthly Allowance Statement
-            </h2>
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-0.5">
-              Allowance Payable for {MONTH_NAMES[selectedMonthNum - 1]} {selectedYear}
-            </p>
-          </div>
+      {/* Print-only header */}
+      <div className="print-header hidden items-center justify-between px-2 py-2 border-b border-slate-300 mb-2">
+        <div>
+          <span className="text-sm font-black uppercase tracking-wider">Monthly Allowance Statement</span>
+          <span className="text-xs font-bold text-slate-600 ml-3">{MONTH_NAMES[selectedMonthNum - 1]} {selectedYear}</span>
+        </div>
+        <div className="flex items-center gap-3 text-[9px] font-bold text-slate-500 uppercase">
+          {clientFilter !== "ALL" && <span>Client: {clientFilter}</span>}
+          {tradeFilter !== "ALL" && <span>Trade: {tradeFilter}</span>}
+          {search.trim() && <span>Search: {search}</span>}
+          {clientFilter === "ALL" && tradeFilter === "ALL" && !search.trim() && <span>All Crew</span>}
+          <span>{filteredRows.length} staff</span>
+        </div>
+      </div>
 
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Period</label>
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40"
-              />
+      <div className="space-y-4 animate-in fade-in duration-500 mt-1">
+        {/* HEADER + FILTERS -- hidden on print */}
+        <div className="no-print-header" data-no-print>
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-black text-foreground uppercase tracking-tight leading-none">
+                Monthly Allowance Statement
+              </h2>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-0.5">
+                Allowance Payable for {MONTH_NAMES[selectedMonthNum - 1]} {selectedYear}
+              </p>
             </div>
-            <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Client</label>
-              <select
-                value={clientFilter}
-                onChange={(e) => setClientFilter(e.target.value as "ALL" | "SBA" | "SKA")}
-                className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40"
-              >
-                <option value="ALL">All</option>
-                <option value="SBA">SBA</option>
-                <option value="SKA">SKA</option>
-              </select>
-            </div>
-            <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Grade</label>
-              <select
-                value={tradeFilter}
-                onChange={(e) => setTradeFilter(e.target.value as TradeType | "ALL")}
-                className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40"
-              >
-                <option value="ALL">All</option>
-                <option value="OM">OM</option>
-                <option value="EM">EM</option>
-                <option value="IMP/OHN">OHN</option>
-              </select>
-            </div>
-            <div className="flex flex-col">
-              <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Search</label>
-              <input
-                type="text"
-                placeholder="Name..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40 w-32"
-              />
-            </div>
-            {hasActiveFilters && (
+
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex flex-col">
+                <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Period</label>
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40"
+                />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Client</label>
+                <select
+                  value={clientFilter}
+                  onChange={(e) => setClientFilter(e.target.value as "ALL" | "SBA" | "SKA")}
+                  className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40"
+                >
+                  <option value="ALL">All</option>
+                  <option value="SBA">SBA</option>
+                  <option value="SKA">SKA</option>
+                </select>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Grade</label>
+                <select
+                  value={tradeFilter}
+                  onChange={(e) => setTradeFilter(e.target.value as TradeType | "ALL")}
+                  className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40"
+                >
+                  <option value="ALL">All</option>
+                  <option value="OM">OM</option>
+                  <option value="EM">EM</option>
+                  <option value="IMP/OHN">OHN</option>
+                </select>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Search</label>
+                <input
+                  type="text"
+                  placeholder="Name..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40 w-32"
+                />
+              </div>
               <button
                 type="button"
-                onClick={resetFilters}
-                className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors border border-red-500/20"
+                onClick={() => { document.title = `Statement_${new Date().toISOString().slice(0,10)}`; window.print(); }}
+                className="print-btn self-end p-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm"
+                title="Print Statement"
               >
-                Reset
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
               </button>
-            )}
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors border border-red-500/20"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -392,7 +437,7 @@ export default function StatementPage() {
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] text-muted-foreground font-bold tabular-nums w-4">{idx + 1}</span>
                               <div>
-                                <div className="text-[11px] font-bold text-foreground uppercase leading-tight whitespace-nowrap">{row.crew_name}</div>
+                                <div className="text-[11px] font-bold text-foreground uppercase leading-tight whitespace-nowrap">{getDisplayName(row.crew_id, row.crew_name)}</div>
                                 <div className="text-[9px] text-muted-foreground">
                                   {row.client} / {shortenPost(row.post)} / {row.displayLocation}
                                 </div>

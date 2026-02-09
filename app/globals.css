@@ -123,3 +123,53 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Print styles */
+@media print {
+  /* Hide everything non-essential */
+  [data-sidebar], nav, header, footer,
+  .no-print, .print-btn, .animate-pulse,
+  input[type="range"] {
+    display: none !important;
+  }
+  /* Hide title bars + filter bars on print (NOT Financial) */
+  .no-print-header,
+  .no-print-header *,
+  [data-no-print],
+  [data-no-print] * {
+    display: none !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  /* Show print header */
+  .print-header { display: flex !important; height: auto !important; overflow: visible !important; }
+  /* Force full width, remove padding/margin from shell */
+  main, [role="main"], .print-area {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  /* Remove overflow constraints so full tables print */
+  .overflow-auto, .overflow-hidden, .overflow-x-auto {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  /* Tables full width */
+  table {
+    width: 100% !important;
+    font-size: 8px !important;
+  }
+  /* Remove shadows */
+  .shadow-lg, .shadow-sm, .shadow-2xl, .shadow-xl, .shadow-md {
+    box-shadow: none !important;
+  }
+  /* Ensure charts visible */
+  .recharts-wrapper, .recharts-surface, svg { overflow: visible !important; }
+  /* Force white bg for print */
+  body, main { background: white !important; color: black !important; }
+  /* Page setup */
+  @page { margin: 8mm; size: landscape; }
+}

@@ -43,80 +43,125 @@ function daysUntil(d: string | null | undefined): number | null {
   return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
 }
 
-// ─── Roster Strip (Section C) ───
-function RosterStrip({ rosterRows }: { rosterRows: Record<string, unknown>[] }) {
-  const entries = useMemo(() => {
-    const result: { date: Date; type: "M" | "D" }[] = [];
-    for (const row of rosterRows) {
-      for (let i = 1; i <= 24; i++) {
-        const mVal = row[`m${i}`] as string | null;
-        const dVal = row[`d${i}`] as string | null;
-        if (mVal) try { result.push({ date: new Date(mVal), type: "M" }); } catch {/* */}
-        if (dVal) try { result.push({ date: new Date(dVal), type: "D" }); } catch {/* */}
-      }
-    }
-    result.sort((a, b) => a.date.getTime() - b.date.getTime());
-    return result;
+// ─── Movement Grid (Section C) - Mini roster with colored bars per month ───
+function MovementGrid({ rosterRows }: { rosterRows: Record<string, unknown>[] }) {
+  const MO = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const OA_RATE = 200;
+  const MEDEVAC_RATE = 500;
+
+  const cycles = useMemo(() => {
+    return rosterRows
+      .map((row) => {
+        const signOn = row.sign_on ? new Date(String(row.sign_on)) : null;
+        const signOff = row.sign_off ? new Date(String(row.sign_off)) : null;
+        const reliefAll = Number(row.relief_all) || 0;
+        const isRelief = reliefAll > 0;
+        return { signOn, signOff, isRelief, cycle: row.cycle_number };
+      })
+      .filter((c) => c.signOn)
+      .sort((a, b) => (a.signOn?.getTime() || 0) - (b.signOn?.getTime() || 0));
   }, [rosterRows]);
 
+  // Determine month range from earliest sign_on to latest sign_off
   const months = useMemo(() => {
-    if (entries.length === 0) return [];
-    const monthSet = new Map<string, { year: number; month: number }>();
-    for (const e of entries) {
-      const key = `${e.date.getFullYear()}-${e.date.getMonth()}`;
-      if (!monthSet.has(key)) monthSet.set(key, { year: e.date.getFullYear(), month: e.date.getMonth() });
+    if (cycles.length === 0) return [];
+    let minDate = cycles[0].signOn!;
+    let maxDate = cycles[0].signOff || cycles[0].signOn!;
+    for (const c of cycles) {
+      if (c.signOn && c.signOn < minDate) minDate = c.signOn;
+      if (c.signOff && c.signOff > maxDate) maxDate = c.signOff;
+      if (c.signOn && c.signOn > maxDate) maxDate = c.signOn;
     }
-    return Array.from(monthSet.values()).sort((a, b) => a.year - b.year || a.month - b.month);
-  }, [entries]);
+    const result: { year: number; month: number }[] = [];
+    let cur = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+    const end = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+    while (cur <= end) {
+      result.push({ year: cur.getFullYear(), month: cur.getMonth() });
+      cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+    }
+    return result;
+  }, [cycles]);
 
-  const MO = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  // Summary stats
+  const summary = useMemo(() => {
+    let totalDays = 0;
+    let totalAllow = 0;
+    for (const row of rosterRows) {
+      const signOn = row.sign_on ? new Date(String(row.sign_on)) : null;
+      const signOff = row.sign_off ? new Date(String(row.sign_off)) : null;
+      const oaDays = (signOn && signOff) ? Math.max(0, Math.ceil((signOff.getTime() - signOn.getTime()) / 86400000)) : 0;
+      const reliefAll = Number(row.relief_all) || 0;
+      const standbyAll = Number(row.standby_all) || 0;
+      const medevacDates = row.medevac_dates ? String(row.medevac_dates).split(",").filter(Boolean).length : 0;
+      totalDays += oaDays;
+      totalAllow += (oaDays * OA_RATE) + reliefAll + standbyAll + (medevacDates * MEDEVAC_RATE);
+    }
+    return { totalDays, totalAllow, totalCycles: cycles.length };
+  }, [rosterRows, cycles]);
 
-  if (months.length === 0) return <p className="text-xs text-muted-foreground italic p-2">No roster data available.</p>;
+  if (months.length === 0) return <p className="text-xs text-muted-foreground italic p-2">No movement history found.</p>;
 
   return (
-    <div className="overflow-auto max-h-full">
-      <table className="w-full border-collapse" style={{ fontSize: "10px" }}>
-        <thead className="sticky top-0 z-10">
-          <tr className="bg-slate-100">
-            <th className="px-2 py-1 text-left font-bold text-slate-500 uppercase tracking-wider sticky left-0 bg-slate-100 min-w-[72px] border-b border-r border-slate-200">Month</th>
-            {Array.from({ length: 31 }, (_, i) => (
-              <th key={i} className="px-0 py-1 text-center font-bold text-slate-400 min-w-[20px] border-b border-r border-slate-200">{i + 1}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {months.map(({ year, month }, mi) => {
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-            const monthEntries = entries.filter(e => e.date.getFullYear() === year && e.date.getMonth() === month);
-            const dayMap = new Map<number, "M" | "D" | "W">();
-            for (const e of monthEntries) dayMap.set(e.date.getDate(), e.type);
-            let working = false;
-            for (let day = 1; day <= daysInMonth; day++) {
-              const ev = monthEntries.find(e => e.date.getDate() === day);
-              if (ev?.type === "M") working = true;
-              if (working && !dayMap.has(day)) dayMap.set(day, "W");
-              if (ev?.type === "D") working = false;
-            }
-            return (
-              <tr key={`${year}-${month}`} className={mi > 0 ? "border-t-4 border-slate-200" : ""}>
-                <td className="px-2 py-1 font-bold text-slate-600 sticky left-0 bg-white border-b border-r border-slate-200 whitespace-nowrap">
-                  {MO[month]} {year}
-                </td>
-                {Array.from({ length: 31 }, (_, i) => {
-                  const day = i + 1;
-                  if (day > daysInMonth) return <td key={day} className="bg-slate-50 border-b border-r border-slate-100" />;
-                  const ev = dayMap.get(day);
-                  let bg = "bg-white";
-                  if (ev === "M" || ev === "D" || ev === "W") bg = "bg-blue-500";
-                  return (
-                    <td key={day} className={`${bg} border-b border-r border-slate-200`} style={{ height: "18px" }} />
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="flex flex-col gap-2 h-full">
+      {/* Summary bar */}
+      <div className="flex items-center gap-4 px-2 py-1.5 bg-slate-100 rounded-lg">
+        <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">{summary.totalCycles} cycles</span>
+        <span className="text-[9px] font-black text-blue-600 uppercase tracking-wider">{summary.totalDays} OA days</span>
+        <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider">{fmtRM(summary.totalAllow)} total</span>
+      </div>
+      {/* Mini Gantt grid */}
+      <div className="overflow-auto flex-grow">
+        <table className="w-full border-collapse" style={{ fontSize: "9px" }}>
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-slate-800 text-white">
+              <th className="px-1.5 py-1 text-left font-bold uppercase tracking-wider sticky left-0 bg-slate-800 min-w-[56px] border-r border-slate-700">Month</th>
+              {Array.from({ length: 31 }, (_, i) => (
+                <th key={i} className="px-0 py-1 text-center font-bold min-w-[16px] border-r border-slate-700">{i + 1}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {months.map(({ year, month }, mi) => {
+              const daysInMonth = new Date(year, month + 1, 0).getDate();
+              // For each day, determine status
+              const dayStatuses: ("ON" | "RELIEF" | "OFF")[] = [];
+              for (let day = 1; day <= 31; day++) {
+                if (day > daysInMonth) { dayStatuses.push("OFF"); continue; }
+                const checkDate = new Date(year, month, day).getTime();
+                let status: "ON" | "RELIEF" | "OFF" = "OFF";
+                for (const c of cycles) {
+                  if (c.signOn && c.signOff && checkDate >= c.signOn.getTime() && checkDate <= c.signOff.getTime()) {
+                    status = c.isRelief ? "RELIEF" : "ON";
+                    break;
+                  }
+                }
+                dayStatuses.push(status);
+              }
+              return (
+                <tr key={`${year}-${month}`} className={`${mi % 2 === 0 ? "bg-white" : "bg-slate-50"} border-b-2 border-white`}>
+                  <td className="px-1.5 py-0.5 font-bold text-slate-600 sticky left-0 bg-inherit border-r border-slate-200 whitespace-nowrap">
+                    {MO[month]} {String(year).slice(-2)}
+                  </td>
+                  {Array.from({ length: 31 }, (_, i) => {
+                    const day = i + 1;
+                    if (day > daysInMonth) return <td key={day} className="bg-slate-100 border-r border-slate-100" style={{ height: "16px" }} />;
+                    const st = dayStatuses[i];
+                    const bg = st === "ON" ? "bg-blue-500" : st === "RELIEF" ? "bg-amber-500" : "";
+                    return (
+                      <td key={day} className={`${bg} border-r border-slate-200`} style={{ height: "16px" }} />
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {/* Legend */}
+      <div className="flex items-center gap-3 px-2 py-1">
+        <div className="flex items-center gap-1"><div className="w-3 h-2 bg-blue-500 rounded-sm" /><span className="text-[8px] font-bold text-slate-500">On Board</span></div>
+        <div className="flex items-center gap-1"><div className="w-3 h-2 bg-amber-500 rounded-sm" /><span className="text-[8px] font-bold text-slate-500">Relief</span></div>
+      </div>
     </div>
   );
 }
@@ -778,7 +823,7 @@ export default function StaffDetailPage() {
               </div>
             </div>
             <div className="flex-1 overflow-auto p-2">
-              <RosterStrip rosterRows={rosterRows} />
+              <MovementGrid rosterRows={rosterRows} />
             </div>
           </div>
         </div>

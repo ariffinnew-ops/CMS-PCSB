@@ -365,7 +365,7 @@ function EditableCell({
   );
 }
 
-// ═══════════════════════════════════���������═══
+// ═══════════════════════════════════�������������������═══
 // MAIN PAGE
 // ════════════════════════════���══════════
 export default function TrainingMatrixPage() {
@@ -493,9 +493,25 @@ export default function TrainingMatrixPage() {
 
   return (
     <AppShell>
+      {/* Print-only header */}
+      <div className="print-header hidden items-center justify-between px-2 py-2 border-b border-slate-300 mb-2">
+        <div>
+          <span className="text-sm font-black uppercase tracking-wider">Training Matrix</span>
+          <span className="text-xs font-bold text-slate-600 ml-3">IMS Personnel Competency Tracker</span>
+        </div>
+        <div className="flex items-center gap-3 text-[9px] font-bold text-slate-500 uppercase">
+          {clientFilter !== "ALL" && <span>Client: {clientFilter}</span>}
+          {tradeFilter !== "ALL" && <span>Trade: {tradeFilter}</span>}
+          {locationFilter !== "ALL" && <span>Location: {locationFilter}</span>}
+          {courseFilter !== "ALL" && <span>Course: {courseFilter}</span>}
+          {statusFilter !== "ALL" && <span>Status: {statusFilter}</span>}
+          <span>{filtered.length} staff</span>
+        </div>
+      </div>
+
       <div className="flex flex-col h-[calc(100vh-80px)] animate-in fade-in duration-500">
-        {/* Title + Filters */}
-        <div className="flex-shrink-0 space-y-1.5 pb-1">
+        {/* Title + Filters -- hidden on print */}
+        <div className="no-print-header flex-shrink-0 space-y-1.5 pb-1" data-no-print>
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-1">
             <div>
               <h2 className="text-lg font-black text-foreground uppercase tracking-tight">Training Matrix</h2>
@@ -504,6 +520,14 @@ export default function TrainingMatrixPage() {
                 {canEdit && <span className="ml-2 text-blue-400">(Double-click cells to edit)</span>}
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => { document.title = `Training_Matrix_${new Date().toISOString().slice(0,10)}`; window.print(); }}
+              className="print-btn p-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm"
+              title="Print Training Matrix"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+            </button>
           </div>
 
           {/* Filter Bar */}

@@ -3,7 +3,7 @@
 import { useState, useMemo, Fragment, useEffect, useRef, useCallback } from "react";
 import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow } from "@/lib/types";
-import { getPivotedRosterData } from "@/lib/actions";
+import { getPivotedRosterData, getOHNStaffFromMaster } from "@/lib/actions";
 import {
   isPersonnelOnBoard,
   getDaysOnBoard,
@@ -682,8 +682,16 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    getPivotedRosterData().then((pivotedData) => {
-      setData(pivotedData);
+    Promise.all([getPivotedRosterData(), getOHNStaffFromMaster()]).then(([pivotedData, ohnStaff]) => {
+      // Merge OHN from master into roster data, avoiding duplicates
+      const rosterIds = new Set(pivotedData.map((r) => r.crew_id));
+      const merged = [...pivotedData];
+      for (const ohn of ohnStaff) {
+        if (!rosterIds.has(ohn.crew_id)) {
+          merged.push(ohn);
+        }
+      }
+      setData(merged);
       setLoading(false);
     });
   }, []);

@@ -29,22 +29,24 @@ function generateMonthRange() {
 
 // ─── Colors ───
 const P = {
-  salary: "#1e40af",
-  fisec: "#3b82f6",
+  basic: "#334155",
+  fixedAll: "#6366f1",
   offshore: "#10b981",
   relief: "#8b5cf6",
   standby: "#f59e0b",
   medevac: "#ef4444",
   ska: "#0ea5e9",
   sba: "#f97316",
+  primary: "#1e40af",
 };
 const LOC_COLORS = ["#06b6d4", "#8b5cf6", "#f59e0b", "#ef4444", "#10b981"];
-const CAT_COLORS = [P.salary, P.fisec, P.offshore, P.relief, P.standby, P.medevac];
+const CAT_COLORS = [P.basic, P.fixedAll, P.offshore, P.relief, P.standby, P.medevac];
 
-// ─── Cost Calc: includes ALL master crew salary + FISEC every month ───
+// ─── Cost Calc: Basic + Fixed + Offshore + Relief + Standby + Medevac ───
 interface CrewMonthCost {
   crew_name: string; post: string; client: string; location: string;
-  salary: number; fisec: number; offshore: number; relief: number; standby: number; medevac: number; total: number;
+  basic: number; fixedAll: number;
+  offshore: number; relief: number; standby: number; medevac: number; total: number;
 }
 
 function calcMonthCosts(
@@ -60,8 +62,10 @@ function calcMonthCosts(
   const oaRate = 200;
   const medevacRate = 500;
 
-  // Allowances from roster cycles
-  const allowanceMap = new Map<string, { offshore: number; relief: number; standby: number; medevac: number }>();
+  // Track which crew_ids we already accounted basic/fixed_all for (avoid duplicates from multiple roster entries)
+  const basicCounted = new Set<string>();
+
+  const results: CrewMonthCost[] = [];
   for (const crew of rosterData) {
     const isOM = (crew.post || "").toUpperCase().includes("OFFSHORE MEDIC");
     const isEM = (crew.post || "").toUpperCase().includes("ESCORT MEDIC");
@@ -70,39 +74,55 @@ function calcMonthCosts(
       const signOn = safeParseDate(cycle.sign_on);
       const signOff = safeParseDate(cycle.sign_off);
       if (!signOn || !signOff) continue;
-      if (signOn.getTime() > monthEndTime || signOff.getTime() < monthStartTime) continue;
-      const days = Math.ceil((Math.min(signOff.getTime(), monthEndTime) - Math.max(signOn.getTime(), monthStartTime)) / 864e5) + 1;
+      const rotEnd = signOff.getTime() - 86400000;
+      if (signOn.getTime() > monthEndTime || rotEnd < monthStartTime) continue;
+      const days = Math.ceil((Math.min(rotEnd, monthEndTime) - Math.max(signOn.getTime(), monthStartTime)) / 864e5) + 1;
       if (days <= 0) continue;
       if (isOM && cycle.is_offshore !== false) offDays += days;
-      relief += cycle.relief_all ?? 0;
-      standby += cycle.standby_all ?? 0;
+      relief += (cycle.day_relief ?? 0) * (cycle.relief_all ?? 0);
+      standby += (cycle.day_standby ?? 0) * (cycle.standby_all ?? 0);
       medevac += (cycle.medevac_dates || []).filter(d => {
         const md = safeParseDate(d);
         return md && md.getTime() >= monthStartTime && md.getTime() <= monthEndTime;
       }).length;
     }
-    const key = (crew.crew_name || "").toUpperCase().trim();
-    allowanceMap.set(key, {
-      offshore: isOM ? offDays * oaRate : 0,
-      relief, standby,
-      medevac: isEM ? medevac * medevacRate : 0,
+    const offshoreAmt = isOM ? offDays * oaRate : 0;
+    const medevacAmt = isEM ? medevac * medevacRate : 0;
+
+    // Monthly basic + fixed_all from master (count once per unique crew_id)
+    let basicAmt = 0, fixedAllAmt = 0;
+    if (crew.crew_id && !basicCounted.has(crew.crew_id)) {
+      const master = masterMap.get((crew.crew_name || "").toUpperCase().trim());
+      if (master) {
+        basicAmt = master.basic || 0;
+        fixedAllAmt = master.fixed_all || 0;
+      }
+      basicCounted.add(crew.crew_id);
+    }
+
+    const total = basicAmt + fixedAllAmt + offshoreAmt + relief + standby + medevacAmt;
+    if (total === 0) continue;
+    results.push({
+      crew_name: crew.crew_name, post: crew.post, client: crew.client, location: crew.location,
+      basic: basicAmt, fixedAll: fixedAllAmt,
+      offshore: offshoreAmt, relief, standby, medevac: medevacAmt, total,
     });
   }
 
-  // Build rows from ALL master crew (salary + FISEC always included)
-  const results: CrewMonthCost[] = [];
+  // Also include master staff with basic/fixed_all who may not be in rosterData
   for (const m of masterData) {
-    const key = (m.crew_name || "").toUpperCase().trim();
-    const salary = m.salary ?? 0;
-    const fisec = m.fixed_allowance ?? 0;
-    const allow = allowanceMap.get(key) || { offshore: 0, relief: 0, standby: 0, medevac: 0 };
-    const total = salary + fisec + allow.offshore + allow.relief + allow.standby + allow.medevac;
-    if (total === 0) continue;
+    if (basicCounted.has(m.id)) continue;
+    const basicAmt = m.basic || 0;
+    const fixedAllAmt = m.fixed_all || 0;
+    if (basicAmt + fixedAllAmt === 0) continue;
+    basicCounted.add(m.id);
     results.push({
       crew_name: m.crew_name, post: m.post, client: m.client, location: m.location,
-      salary, fisec, ...allow, total,
+      basic: basicAmt, fixedAll: fixedAllAmt,
+      offshore: 0, relief: 0, standby: 0, medevac: 0, total: basicAmt + fixedAllAmt,
     });
   }
+
   return results;
 }
 
@@ -205,22 +225,25 @@ export default function FinancialDashboardPage() {
   const monthly = useMemo(() => {
     return monthRange.map(({ year, month, label, isFuture }) => {
       const costs = calcMonthCosts(data, masterData, masterMap, year, month);
-      const salary = costs.reduce((s, c) => s + c.salary, 0);
-      const fisec = costs.reduce((s, c) => s + c.fisec, 0);
+      const basic = costs.reduce((s, c) => s + c.basic, 0);
+      const fixedAll = costs.reduce((s, c) => s + c.fixedAll, 0);
       const offshore = costs.reduce((s, c) => s + c.offshore, 0);
       const relief = costs.reduce((s, c) => s + c.relief, 0);
       const standby = costs.reduce((s, c) => s + c.standby, 0);
       const medevac = costs.reduce((s, c) => s + c.medevac, 0);
-      return { label, isFuture, salary, fisec, offshore, relief, standby, medevac, total: salary + fisec + offshore + relief + standby + medevac };
+      return { label, isFuture, basic, fixedAll, offshore, relief, standby, medevac, total: basic + fixedAll + offshore + relief + standby + medevac };
     });
   }, [data, masterData, masterMap, monthRange]);
 
   const actual = monthly.filter(m => !m.isFuture);
   const estimated = monthly.filter(m => m.isFuture);
   const totalActual = actual.reduce((s, c) => s + c.total, 0);
-  const totalSalary = actual.reduce((s, c) => s + c.salary, 0);
-  const totalFisec = actual.reduce((s, c) => s + c.fisec, 0);
-  const totalAllowances = totalActual - totalSalary - totalFisec;
+  const totalBasic = actual.reduce((s, c) => s + c.basic, 0);
+  const totalFixedAll = actual.reduce((s, c) => s + c.fixedAll, 0);
+  const totalOffshore = actual.reduce((s, c) => s + c.offshore, 0);
+  const totalRelief = actual.reduce((s, c) => s + c.relief, 0);
+  const totalStandby = actual.reduce((s, c) => s + c.standby, 0);
+  const totalMedevac = actual.reduce((s, c) => s + c.medevac, 0);
   const monthlyAvg = actual.length > 0 ? totalActual / actual.length : 0;
   const totalEst = estimated.reduce((s, c) => s + c.total, 0);
 
@@ -248,11 +271,11 @@ export default function FinancialDashboardPage() {
 
   // Category share
   const catData = useMemo(() => {
-    let sal = 0, fis = 0, off = 0, rel = 0, stb = 0, med = 0;
-    for (const m of actual) { sal += m.salary; fis += m.fisec; off += m.offshore; rel += m.relief; stb += m.standby; med += m.medevac; }
+    let bas = 0, fix = 0, off = 0, rel = 0, stb = 0, med = 0;
+    for (const m of actual) { bas += m.basic; fix += m.fixedAll; off += m.offshore; rel += m.relief; stb += m.standby; med += m.medevac; }
     return [
-      { name: "Salary", value: sal },
-      { name: "FISEC Allowance", value: fis },
+      { name: "Basic", value: bas },
+      { name: "Fixed All.", value: fix },
       { name: "Offshore", value: off },
       { name: "Relief", value: rel },
       { name: "Standby", value: stb },
@@ -265,10 +288,10 @@ export default function FinancialDashboardPage() {
 
   const aTotal = useCounter(totalActual);
   const aAvg = useCounter(monthlyAvg);
-  const aEst = useCounter(totalEst);
-  const aSal = useCounter(totalSalary);
-  const aFis = useCounter(totalFisec);
-  const aAll = useCounter(totalAllowances);
+  const aBas = useCounter(totalBasic);
+  const aFix = useCounter(totalFixedAll);
+  const aOff = useCounter(totalOffshore);
+  const aRel = useCounter(totalRelief);
 
   if (loading) return (
     <AppShell>
@@ -286,22 +309,22 @@ export default function FinancialDashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-black text-foreground uppercase tracking-tight leading-none">Financial Dashboard</h2>
-            <p className="text-[9px] text-muted-foreground mt-0.5">Pecahan Kos | Sept 2025 onwards | Salary + FISEC + Allowances</p>
+            <p className="text-[9px] text-muted-foreground mt-0.5">Cost Breakdown | Sept 2025 onwards | Basic + Fixed + Offshore + Relief + Standby + Medevac</p>
           </div>
-          <button onClick={() => window.print()} className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider bg-blue-600 hover:bg-blue-500 text-white transition-colors">
-            Print
+          <button onClick={() => { document.title = `Financial_Report_${new Date().toISOString().slice(0,10)}`; window.print(); }} className="print-btn p-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm" title="Print Report">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
           </button>
         </div>
 
-        {/* Summary Cards - 6 compact cards in 2 rows */}
+        {/* Summary Cards */}
         <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
           {[
-            { label: "Total Actual", val: aTotal, color: P.offshore },
-            { label: "Monthly Avg", val: aAvg, color: P.salary },
-            { label: "Estimated (3M)", val: aEst, color: P.standby },
-            { label: "Total Salary", val: aSal, color: P.salary },
-            { label: "Total FISEC", val: aFis, color: P.fisec },
-            { label: "Total Allowances", val: aAll, color: P.relief },
+            { label: "Total Actual", val: aTotal, color: P.primary },
+            { label: "Monthly Avg", val: aAvg, color: P.primary },
+            { label: "Basic Salary", val: aBas, color: P.basic },
+            { label: "Fixed Allowance", val: aFix, color: P.fixedAll },
+            { label: "Offshore Allow.", val: aOff, color: P.offshore },
+            { label: "Relief Allow.", val: aRel, color: P.relief },
           ].map(c => (
             <div key={c.label} className="relative rounded-xl border border-border bg-card overflow-hidden group hover:scale-[1.02] transition-transform">
               <div className="absolute top-0 left-0 w-full h-0.5" style={{ backgroundColor: c.color }} />
@@ -325,16 +348,16 @@ export default function FinancialDashboardPage() {
                 <AreaChart data={trendData} margin={{ top: 8, right: 12, left: 5, bottom: 3 }}>
                   <defs>
                     <linearGradient id="tg" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={P.salary} stopOpacity={0.35} />
-                      <stop offset="100%" stopColor={P.salary} stopOpacity={0.02} />
+                      <stop offset="0%" stopColor={P.primary} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={P.primary} stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" strokeOpacity={0.2} />
                   <XAxis dataKey="label" tick={{ fill: "#94a3b8", fontSize: 7, fontWeight: 700 }} interval={1} angle={-45} textAnchor="end" height={35} />
                   <YAxis tick={{ fill: "#94a3b8", fontSize: 7, fontWeight: 700 }} tickFormatter={fmtK} width={40} />
                   <Tooltip content={<TT />} />
-                  <Area type="monotone" dataKey="total" stroke={P.salary} strokeWidth={2} fill="url(#tg)" animationDuration={1200} dot={({ cx, cy, index }: { cx: number; cy: number; index: number }) => (
-                    <circle key={index} cx={cx} cy={cy} r={2.5} fill={trendData[index]?.isFuture ? P.standby : P.salary} stroke="#0f172a" strokeWidth={1.5} />
+                  <Area type="monotone" dataKey="total" stroke={P.primary} strokeWidth={2} fill="url(#tg)" animationDuration={1200} dot={({ cx, cy, index }: { cx: number; cy: number; index: number }) => (
+                    <circle key={index} cx={cx} cy={cy} r={2.5} fill={trendData[index]?.isFuture ? P.standby : P.primary} stroke="#0f172a" strokeWidth={1.5} />
                   )} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -347,7 +370,7 @@ export default function FinancialDashboardPage() {
               <h3 className="text-[9px] font-black text-foreground uppercase tracking-wider">Monthly Breakdown</h3>
               <div className="flex flex-wrap items-center gap-2">
                 {[
-                  { k: "Salary", c: P.salary }, { k: "FISEC", c: P.fisec },
+                  { k: "Basic", c: P.basic }, { k: "Fixed All.", c: P.fixedAll },
                   { k: "Offshore", c: P.offshore }, { k: "Relief", c: P.relief },
                   { k: "Standby", c: P.standby }, { k: "Medevac", c: P.medevac },
                 ].map(l => (
@@ -365,8 +388,8 @@ export default function FinancialDashboardPage() {
                   <XAxis dataKey="label" tick={{ fill: "#94a3b8", fontSize: 7, fontWeight: 700 }} interval={0} angle={-45} textAnchor="end" height={35} />
                   <YAxis tick={{ fill: "#94a3b8", fontSize: 7, fontWeight: 700 }} tickFormatter={fmtK} width={40} />
                   <Tooltip content={<TT />} />
-                  <Bar dataKey="salary" stackId="c" name="Salary" fill={P.salary} shape={<Bar3D />} animationDuration={1000} />
-                  <Bar dataKey="fisec" stackId="c" name="FISEC" fill={P.fisec} shape={<Bar3D />} animationDuration={1000} />
+                  <Bar dataKey="basic" stackId="c" name="Basic" fill={P.basic} shape={<Bar3D />} animationDuration={1000} />
+                  <Bar dataKey="fixedAll" stackId="c" name="Fixed All." fill={P.fixedAll} shape={<Bar3D />} animationDuration={1000} />
                   <Bar dataKey="offshore" stackId="c" name="Offshore" fill={P.offshore} shape={<Bar3D />} animationDuration={1000} />
                   <Bar dataKey="relief" stackId="c" name="Relief" fill={P.relief} shape={<Bar3D />} animationDuration={1000} />
                   <Bar dataKey="standby" stackId="c" name="Standby" fill={P.standby} shape={<Bar3D />} animationDuration={1000} />
@@ -445,7 +468,7 @@ export default function FinancialDashboardPage() {
           {/* Category Share Pie */}
           <div className="rounded-xl border border-border bg-card overflow-hidden">
             <div className="px-3 pt-3 pb-1">
-              <h3 className="text-[9px] font-black text-foreground uppercase tracking-wider">Cost Category Share</h3>
+              <h3 className="text-[9px] font-black text-foreground uppercase tracking-wider">Allowance Category Share</h3>
             </div>
             {catData.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-10">No data</p>
@@ -456,7 +479,7 @@ export default function FinancialDashboardPage() {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie data={catData} cx="50%" cy="50%" outerRadius={60} paddingAngle={3} dataKey="value" nameKey="name" animationDuration={1200}
-                          label={({ name, percent }: { name: string; percent: number }) => `${name.split(" ")[0]} ${(percent * 100).toFixed(0)}%`}
+                          label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}
                           labelLine={{ stroke: "#64748b", strokeWidth: 1 }}
                         >
                           {catData.map((_, i) => <Cell key={i} fill={CAT_COLORS[i]} stroke="#0f172a" strokeWidth={2} />)}
@@ -500,17 +523,17 @@ function SummaryTable({ data, masterData, masterMap }: { data: PivotedCrewRow[];
   const costs = calcMonthCosts(data, masterData, masterMap, now.getFullYear(), now.getMonth() + 1);
 
   const rows = useMemo(() => {
-    const map = new Map<string, Map<string, { count: number; salary: number; fisec: number; offshore: number; relief: number; standby: number; medevac: number; total: number }>>();
+    const map = new Map<string, Map<string, { count: number; offshore: number; relief: number; standby: number; medevac: number; total: number }>>();
     for (const c of costs) {
       const client = c.client || "Unknown";
       const trade = shortenPost(c.post) || "Other";
       if (!map.has(client)) map.set(client, new Map());
       const tm = map.get(client)!;
-      if (!tm.has(trade)) tm.set(trade, { count: 0, salary: 0, fisec: 0, offshore: 0, relief: 0, standby: 0, medevac: 0, total: 0 });
+      if (!tm.has(trade)) tm.set(trade, { count: 0, offshore: 0, relief: 0, standby: 0, medevac: 0, total: 0 });
       const e = tm.get(trade)!;
-      e.count++; e.salary += c.salary; e.fisec += c.fisec; e.offshore += c.offshore; e.relief += c.relief; e.standby += c.standby; e.medevac += c.medevac; e.total += c.total;
+      e.count++; e.offshore += c.offshore; e.relief += c.relief; e.standby += c.standby; e.medevac += c.medevac; e.total += c.total;
     }
-    const out: { client: string; trade: string; count: number; salary: number; fisec: number; offshore: number; relief: number; standby: number; medevac: number; total: number }[] = [];
+    const out: { client: string; trade: string; count: number; offshore: number; relief: number; standby: number; medevac: number; total: number }[] = [];
     for (const [client, tm] of Array.from(map.entries()).sort()) {
       for (const [trade, v] of Array.from(tm.entries()).sort()) out.push({ client, trade, ...v });
     }
@@ -530,8 +553,6 @@ function SummaryTable({ data, masterData, masterMap }: { data: PivotedCrewRow[];
             <th className="px-3 py-2 text-left font-black text-muted-foreground uppercase tracking-widest">Client</th>
             <th className="px-2 py-2 text-left font-black text-muted-foreground uppercase tracking-widest">Trade</th>
             <th className="px-2 py-2 text-center font-black text-muted-foreground uppercase tracking-widest">HC</th>
-            <th className="px-2 py-2 text-right font-black text-muted-foreground uppercase tracking-widest">Salary</th>
-            <th className="px-2 py-2 text-right font-black text-muted-foreground uppercase tracking-widest">FISEC</th>
             <th className="px-2 py-2 text-right font-black text-muted-foreground uppercase tracking-widest">Offshore</th>
             <th className="px-2 py-2 text-right font-black text-muted-foreground uppercase tracking-widest">Relief</th>
             <th className="px-2 py-2 text-right font-black text-muted-foreground uppercase tracking-widest">Standby</th>
@@ -545,8 +566,6 @@ function SummaryTable({ data, masterData, masterMap }: { data: PivotedCrewRow[];
               <td className="px-3 py-1.5 font-black text-foreground uppercase">{r.client}</td>
               <td className="px-2 py-1.5 font-bold text-foreground uppercase">{r.trade}</td>
               <td className="px-2 py-1.5 font-bold text-center text-foreground tabular-nums">{r.count}</td>
-              <td className="px-2 py-1.5 font-bold text-right tabular-nums" style={{ color: P.salary }}>{f(r.salary)}</td>
-              <td className="px-2 py-1.5 font-bold text-right tabular-nums" style={{ color: P.fisec }}>{f(r.fisec)}</td>
               <td className="px-2 py-1.5 font-bold text-right text-emerald-500 tabular-nums">{f(r.offshore)}</td>
               <td className="px-2 py-1.5 font-bold text-right text-violet-500 tabular-nums">{f(r.relief)}</td>
               <td className="px-2 py-1.5 font-bold text-right text-amber-500 tabular-nums">{f(r.standby)}</td>
@@ -557,8 +576,6 @@ function SummaryTable({ data, masterData, masterMap }: { data: PivotedCrewRow[];
           <tr className="text-white font-black" style={{ backgroundColor: "#1e3a8a" }}>
             <td className="px-3 py-2 uppercase tracking-widest" colSpan={2}>Grand Total</td>
             <td className="px-2 py-2 text-center tabular-nums">{rows.reduce((s, r) => s + r.count, 0)}</td>
-            <td className="px-2 py-2 text-right tabular-nums">{f(rows.reduce((s, r) => s + r.salary, 0))}</td>
-            <td className="px-2 py-2 text-right tabular-nums">{f(rows.reduce((s, r) => s + r.fisec, 0))}</td>
             <td className="px-2 py-2 text-right tabular-nums">{f(rows.reduce((s, r) => s + r.offshore, 0))}</td>
             <td className="px-2 py-2 text-right tabular-nums">{f(rows.reduce((s, r) => s + r.relief, 0))}</td>
             <td className="px-2 py-2 text-right tabular-nums">{f(rows.reduce((s, r) => s + r.standby, 0))}</td>
