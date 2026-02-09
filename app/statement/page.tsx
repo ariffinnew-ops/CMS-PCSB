@@ -293,7 +293,7 @@ export default function StatementPage() {
 
       <div className="space-y-4 animate-in fade-in duration-500 mt-1">
         {/* HEADER */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
+        <div className="no-print-header flex flex-col lg:flex-row lg:items-end justify-between gap-3">
           <div>
             <h2 className="text-2xl font-black text-foreground uppercase tracking-tight leading-none">
               Monthly Allowance Statement
@@ -351,7 +351,7 @@ export default function StatementPage() {
             <button
               type="button"
               onClick={() => { document.title = `Statement_${new Date().toISOString().slice(0,10)}`; window.print(); }}
-              className="print-btn self-end p-2 rounded-lg bg-muted hover:bg-accent text-muted-foreground transition-all border border-border"
+              className="print-btn self-end p-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm"
               title="Print Statement"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>

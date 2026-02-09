@@ -365,7 +365,7 @@ function EditableCell({
   );
 }
 
-// ═══════════════════════════════════���������������═══
+// ═══════════════════════════════════�����������������═══
 // MAIN PAGE
 // ════════════════════════════���══════════
 export default function TrainingMatrixPage() {
@@ -511,7 +511,7 @@ export default function TrainingMatrixPage() {
 
       <div className="flex flex-col h-[calc(100vh-80px)] animate-in fade-in duration-500">
         {/* Title + Filters */}
-        <div className="flex-shrink-0 space-y-1.5 pb-1">
+        <div className="no-print-header flex-shrink-0 space-y-1.5 pb-1">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-1">
             <div>
               <h2 className="text-lg font-black text-foreground uppercase tracking-tight">Training Matrix</h2>
@@ -576,7 +576,7 @@ export default function TrainingMatrixPage() {
             <button
               type="button"
               onClick={() => { document.title = `Training_Matrix_${new Date().toISOString().slice(0,10)}`; window.print(); }}
-              className="print-btn p-2 rounded-lg bg-slate-500/30 hover:bg-slate-500/50 text-slate-200 transition-all border border-slate-400/30"
+              className="print-btn p-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm"
               title="Print Training Matrix"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>

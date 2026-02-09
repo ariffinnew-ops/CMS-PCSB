@@ -311,7 +311,7 @@ export default function FinancialDashboardPage() {
             <h2 className="text-xl font-black text-foreground uppercase tracking-tight leading-none">Financial Dashboard</h2>
             <p className="text-[9px] text-muted-foreground mt-0.5">Cost Breakdown | Sept 2025 onwards | Basic + Fixed + Offshore + Relief + Standby + Medevac</p>
           </div>
-          <button onClick={() => { document.title = `Financial_Report_${new Date().toISOString().slice(0,10)}`; window.print(); }} className="print-btn p-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors" title="Print Report">
+          <button onClick={() => { document.title = `Financial_Report_${new Date().toISOString().slice(0,10)}`; window.print(); }} className="print-btn p-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm" title="Print Report">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
           </button>
         </div>

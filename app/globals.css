@@ -129,7 +129,8 @@
   /* Hide everything non-essential */
   [data-sidebar], nav, header, .no-print,
   .print-btn, input[type="range"], .animate-pulse,
-  select, input[type="text"], footer {
+  select, input[type="text"], footer,
+  .no-print-header {
     display: none !important;
   }
   /* Show print header */
