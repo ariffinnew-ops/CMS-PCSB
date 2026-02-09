@@ -192,7 +192,7 @@ export async function getLoginLogs(): Promise<LoginLogEntry[]> {
   return data || []
 }
 
-// ─── Crew Master Data (salary, fixed_allowance, rates) ───
+// ─── Crew Master Data (for rates/financial lookups) ───
 
 export interface CrewMasterRecord {
   id: string;
@@ -200,10 +200,6 @@ export interface CrewMasterRecord {
   post: string;
   client: string;
   location: string;
-  salary: number;
-  fixed_allowance: number;
-  relief_rate: number;
-  standby_rate: number;
 }
 
 export async function getCrewMasterData(): Promise<CrewMasterRecord[]> {
@@ -211,7 +207,7 @@ export async function getCrewMasterData(): Promise<CrewMasterRecord[]> {
 
   const { data, error } = await supabase
     .from('cms_pcsb_master')
-    .select('id, crew_name, post, client, location, salary, fixed_allowance, relief_rate, standby_rate')
+    .select('id, crew_name, post, client, location')
     .order('crew_name', { ascending: true })
 
   if (error) {
@@ -225,10 +221,6 @@ export async function getCrewMasterData(): Promise<CrewMasterRecord[]> {
     post: d.post || '',
     client: d.client || '',
     location: d.location || '',
-    salary: d.salary ?? 0,
-    fixed_allowance: d.fixed_allowance ?? 0,
-    relief_rate: d.relief_rate ?? 0,
-    standby_rate: d.standby_rate ?? 0,
   }))
 }
 
@@ -467,6 +459,32 @@ export async function createCrewMember(crewData: Record<string, unknown>): Promi
     return { success: false, error: error.message }
   }
   return { success: true, id: data?.id }
+}
+
+// Get total cycle count per crew_id from roster (for dynamic relief labeling)
+export async function getCrewCycleCounts(): Promise<Map<string, number>> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('cms_pcsb_roster')
+    .select('crew_id, cycle_number')
+    .order('crew_id')
+
+  const map = new Map<string, number>()
+  if (data) {
+    for (const row of data) {
+      const key = row.crew_id || ''
+      map.set(key, Math.max(map.get(key) || 0, row.cycle_number || 0))
+    }
+  }
+  return map
+}
+
+// Serializable version for client components
+export async function getCrewCycleCountsJSON(): Promise<Record<string, number>> {
+  const map = await getCrewCycleCounts()
+  const obj: Record<string, number> = {}
+  for (const [k, v] of map) obj[k] = v
+  return obj
 }
 
 // Get OHN/IM staff from master for hybrid POB (Dashboard only)

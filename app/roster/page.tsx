@@ -25,13 +25,40 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December"
 ];
 
+// Persist filters to localStorage
+const ROSTER_FILTER_KEY = "cms_roster_filters";
+function loadFilters() {
+  if (typeof window === "undefined") return null;
+  try { const raw = localStorage.getItem(ROSTER_FILTER_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+function saveFilters(f: { viewYear: number; viewMonth: number; client: string; trade: string; search: string }) {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(ROSTER_FILTER_KEY, JSON.stringify(f)); } catch { /* */ }
+}
+
 export default function RosterPage() {
-  const [viewDate, setViewDate] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); });
+  const saved = loadFilters();
+  const [viewDate, setViewDate] = useState(() => {
+    if (saved) return new Date(saved.viewYear, saved.viewMonth, 1);
+    const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [data, setData] = useState<PivotedCrewRow[]>([]);
   const [crewList, setCrewList] = useState<{ id: string; crew_name: string; clean_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [clientFilter, setClientFilter] = useState<ClientType | "ALL">("ALL");
-  const [tradeFilter, setTradeFilter] = useState<TradeType | "ALL">("ALL");
+  const [clientFilter, setClientFilter] = useState<ClientType | "ALL">(saved?.client || "ALL");
+  const [tradeFilter, setTradeFilter] = useState<TradeType | "ALL">(saved?.trade || "ALL");
+  const [search, setSearch] = useState(saved?.search || "");
+
+  // Persist filters on change
+  useEffect(() => {
+    saveFilters({
+      viewYear: viewDate.getFullYear(),
+      viewMonth: viewDate.getMonth(),
+      client: clientFilter,
+      trade: tradeFilter,
+      search,
+    });
+  }, [viewDate, clientFilter, tradeFilter, search]);
 
   useEffect(() => {
     Promise.all([getPivotedRosterData(), getCrewList()]).then(([pivotedData, crewResult]) => {
@@ -92,7 +119,9 @@ export default function RosterPage() {
           (tradeFilter === "IMP/OHN" &&
             (row.post?.includes("IM") || row.post?.includes("OHN")));
         const hasActivity = hasActivityInMonth(row);
-        return matchesClient && matchesTrade && hasActivity;
+        const displayName = getDisplayName(row);
+        const matchesSearch = !search.trim() || displayName.toLowerCase().includes(search.toLowerCase());
+        return matchesClient && matchesTrade && hasActivity && matchesSearch;
       })
       .sort((a, b) => {
         const clientOrder = { SKA: 1, SBA: 2 };
@@ -110,7 +139,7 @@ export default function RosterPage() {
         
         return a.crew_name.localeCompare(b.crew_name);
       });
-  }, [data, clientFilter, tradeFilter, viewDate]);
+  }, [data, clientFilter, tradeFilter, search, viewDate]);
 
   // Build crew_id -> master name lookup
   const crewNameMap = useMemo(() => {
@@ -121,22 +150,21 @@ export default function RosterPage() {
     return map;
   }, [crewList]);
 
-  // Display name: resolve via master, preserve suffix like (R), (R1), (S), (S1), (P)
-  // Also appends dynamic relief indicators (R1), (R2), etc. for cycles with relief_all > 0
+  // Display name: resolve via master, append dynamic relief label based on total cycle count
+  // If crew has N cycles in DB: cycle 1 = base, cycle 2+ = (R1), (R2)...
   const getDisplayName = (row: PivotedCrewRow) => {
     const masterName = crewNameMap.get(row.crew_id);
     const baseName = masterName || row.crew_name;
-    const suffixMatch = (row.crew_name || "").match(/\s*(\([A-Z]\d*\))\s*$/);
-    const name = suffixMatch ? `${baseName} ${suffixMatch[1]}` : baseName;
+    // Strip any existing suffix like (R), (R1), (S), (P) from crew_name
+    const cleanBase = baseName.replace(/\s*\([A-Z]\d*\)\s*$/, "").trim();
 
-    // Append dynamic relief cycle indicators
-    const reliefCycles = Object.entries(row.cycles)
-      .filter(([, c]) => c.relief_all && c.relief_all > 0)
-      .map(([num]) => `R${num}`);
-    if (reliefCycles.length > 0) {
-      return `${name} (${reliefCycles.join(",")})`;
-    }
-    return name;
+    const cycleNums = Object.keys(row.cycles).map(Number).sort((a, b) => a - b);
+    const totalCycles = cycleNums.length;
+
+    if (totalCycles <= 1) return cleanBase;
+    // Show relief indicators for each cycle beyond the first
+    const reliefLabels = cycleNums.slice(1).map((_, i) => `R${i + 1}`);
+    return `${cleanBase} (${reliefLabels.join(",")})`;
   };
 
   const groupedData = useMemo(() => {
@@ -274,10 +302,24 @@ export default function RosterPage() {
               <option value="EM">ESCORT MEDIC</option>
               <option value="IMP/OHN">OHN</option>
             </select>
-            {(clientFilter !== "ALL" || tradeFilter !== "ALL") && (
+            <input
+              type="text"
+              placeholder="Search by name..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 uppercase outline-none w-36 placeholder:normal-case"
+            />
+            {(clientFilter !== "ALL" || tradeFilter !== "ALL" || search.trim()) && (
               <button
                 type="button"
-                onClick={() => { setClientFilter("ALL"); setTradeFilter("ALL"); }}
+                onClick={() => {
+                  setClientFilter("ALL");
+                  setTradeFilter("ALL");
+                  setSearch("");
+                  const now = new Date();
+                  setViewDate(new Date(now.getFullYear(), now.getMonth(), 1));
+                  if (typeof window !== "undefined") localStorage.removeItem(ROSTER_FILTER_KEY);
+                }}
                 className="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[9px] uppercase tracking-wider transition-all border border-red-200"
               >
                 Reset All
