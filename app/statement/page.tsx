@@ -307,12 +307,26 @@ export default function StatementPage() {
             <div className="flex flex-wrap items-end gap-2">
               <div className="flex flex-col">
                 <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Period</label>
-                <input
-                  type="month"
+                <select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40"
-                />
+                  className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40"
+                >
+                  {(() => {
+                    const options: { value: string; label: string }[] = [];
+                    for (let y = 2025; y <= 2026; y++) {
+                      const startM = y === 2025 ? 9 : 1;
+                      const endM = 12;
+                      for (let m = startM; m <= endM; m++) {
+                        const val = `${y}-${String(m).padStart(2, "0")}`;
+                        options.push({ value: val, label: `${MONTH_NAMES[m - 1]} ${y}` });
+                      }
+                    }
+                    return options.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ));
+                  })()}
+                </select>
               </div>
               <div className="flex flex-col">
                 <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Client</label>
