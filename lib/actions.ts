@@ -23,7 +23,7 @@ export async function getRosterData(): Promise<RosterRow[]> {
 }
 
 // Pivot roster rows into one entry per crew with all cycles grouped
-// Also fetches OHN/IM (office-based) staff from cms_pcsb_master who may not have roster entries
+// Fetches ONLY from cms_pcsb_roster
 export async function getPivotedRosterData(): Promise<PivotedCrewRow[]> {
   const rows = await getRosterData()
   const map = new Map<string, PivotedCrewRow>()
@@ -54,31 +54,6 @@ export async function getPivotedRosterData(): Promise<PivotedCrewRow[]> {
         day_standby: row.day_standby ?? null,
         is_offshore: row.is_offshore ?? null,
         medevac_dates: row.medevac_dates ?? null,
-      }
-    }
-  }
-
-  // Fetch OHN / IM (office-based) staff from cms_pcsb_master
-  const supabase = await createClient()
-  const { data: ohnData } = await supabase
-    .from('cms_pcsb_master')
-    .select('id, crew_name, post, client, location')
-    .or('post.ilike.%IM%,post.ilike.%OHN%')
-    .order('crew_name', { ascending: true })
-
-  if (ohnData) {
-    for (const staff of ohnData) {
-      const key = staff.id || staff.crew_name
-      if (!map.has(key)) {
-        map.set(key, {
-          crew_id: staff.id || '',
-          crew_name: staff.crew_name || '',
-          post: staff.post || '',
-          client: staff.client || '',
-          location: staff.location || '',
-          roles_em: undefined,
-          cycles: {},
-        })
       }
     }
   }
