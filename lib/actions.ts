@@ -544,7 +544,7 @@ export async function getOHNStaffFromMaster(): Promise<PivotedCrewRow[]> {
   }))
 }
 
-// ─── Approval Persistence (cms_pcsb_approvals) ───
+// ─── Two-Stage Approval Persistence (cms_pcsb_approvals) ───
 
 export interface ApprovalRecord {
   month_year: string;
@@ -552,12 +552,116 @@ export interface ApprovalRecord {
   approved_by: string;
   approved_role: string;
   approved_at: string;
+  submission_status?: string;
+  submitted_by?: string;
+  submitted_at?: string;
 }
 
+// Get full approval record with submission_status
+export async function getApproval(monthYear: string, client: string): Promise<ApprovalRecord | null> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('cms_pcsb_approvals')
+    .select('*')
+    .eq('month_year', monthYear)
+    .eq('client', client)
+    .maybeSingle()
+
+  if (error) {
+    console.warn('Approval fetch error:', error.message)
+    return null
+  }
+
+  return data as ApprovalRecord | null
+}
+
+// Stage 1: Submit for approval (admin/datalogger)
+export async function submitForApproval(monthYear: string, client: string, submittedBy: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const now = new Date().toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' })
+
+  const { error } = await supabase
+    .from('cms_pcsb_approvals')
+    .upsert(
+      {
+        month_year: monthYear,
+        client,
+        submission_status: 'Submitted',
+        submitted_by: submittedBy,
+        submitted_at: now,
+        approved_by: null,
+        approved_at: null,
+      },
+      { onConflict: 'month_year,client' }
+    )
+
+  if (error) {
+    console.warn('Submit for approval error:', error.message)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true }
+}
+
+// Stage 2: Manager approval (PM only)
+export async function approveStatement(monthYear: string, client: string, approvedBy: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const now = new Date().toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' })
+
+  const { error } = await supabase
+    .from('cms_pcsb_approvals')
+    .upsert(
+      {
+        month_year: monthYear,
+        client,
+        submission_status: 'Approved',
+        approved_by: approvedBy,
+        approved_role: 'Project Manager',
+        approved_at: now,
+      },
+      { onConflict: 'month_year,client' }
+    )
+
+  if (error) {
+    console.warn('Approve statement error:', error.message)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true }
+}
+
+// Reject / Unlock: reset back to Draft
+export async function rejectApproval(monthYear: string, client: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('cms_pcsb_approvals')
+    .upsert(
+      {
+        month_year: monthYear,
+        client,
+        submission_status: 'Draft',
+        submitted_by: null,
+        submitted_at: null,
+        approved_by: null,
+        approved_at: null,
+      },
+      { onConflict: 'month_year,client' }
+    )
+
+  if (error) {
+    console.warn('Reject approval error:', error.message)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true }
+}
+
+// Legacy upsert (kept for backward compatibility)
 export async function upsertApproval(record: ApprovalRecord): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
-  // Try upsert – if the table doesn't exist yet, return a graceful error
   const { error } = await supabase
     .from('cms_pcsb_approvals')
     .upsert(
@@ -577,24 +681,6 @@ export async function upsertApproval(record: ApprovalRecord): Promise<{ success:
   }
 
   return { success: true }
-}
-
-export async function getApproval(monthYear: string, client: string): Promise<ApprovalRecord | null> {
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from('cms_pcsb_approvals')
-    .select('*')
-    .eq('month_year', monthYear)
-    .eq('client', client)
-    .maybeSingle()
-
-  if (error) {
-    console.warn('Approval fetch error:', error.message)
-    return null
-  }
-
-  return data as ApprovalRecord | null
 }
 
 // Bulk update for Save Changes
