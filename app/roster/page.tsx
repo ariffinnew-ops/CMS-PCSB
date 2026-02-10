@@ -106,7 +106,8 @@ export default function RosterPage() {
       const d = safeParseDate(cycle.sign_off);
       if (m && d) {
         const rotationStart = m.getTime();
-        const rotationEnd = d.getTime();
+        // Sign-off date excluded from POB
+        const rotationEnd = d.getTime() - 86400000;
         if (rotationStart <= monthEnd && rotationEnd >= monthStart) {
           return true;
         }
@@ -199,6 +200,8 @@ export default function RosterPage() {
     return result;
   }, [sortedData]);
 
+  // Sign-off date excluded from POB/days count (not shown as active on Gantt)
+  // Returns: "SIGN_ON" | "SIGN_OFF" | "PRIMARY" | "SECONDARY" | "RELIEF" | "OHN_WEEKDAY" | "OHN_WEEKEND" | "OFF"
   const getDayStatus = (row: PivotedCrewRow, day: number) => {
     const checkDate = new Date(
       viewDate.getFullYear(),
@@ -217,8 +220,15 @@ export default function RosterPage() {
     for (const cycle of Object.values(row.cycles)) {
       const m = safeParseDate(cycle.sign_on);
       const d = safeParseDate(cycle.sign_off);
-      if (m && d && checkTime >= m.getTime() && checkTime <= d.getTime()) {
-        // Check if relief
+      if (!m || !d) continue;
+      const mTime = m.getTime();
+      const dTime = d.getTime();
+      // Sign-on date
+      if (checkTime === mTime) return "SIGN_ON";
+      // Sign-off date (shown as demob marker, not counted in POB)
+      if (checkTime === dTime) return "SIGN_OFF";
+      // Active rotation (between sign_on and sign_off, exclusive)
+      if (checkTime > mTime && checkTime < dTime) {
         if (cycle.relief_all && cycle.relief_all > 0) return "RELIEF";
         return row.roles_em === "SECONDARY" ? "SECONDARY" : "PRIMARY";
       }
@@ -229,6 +239,7 @@ export default function RosterPage() {
   const getConnectStatus = (row: PivotedCrewRow, day: number) => {
     const status = getDayStatus(row, day);
     if (status === "OHN_WEEKDAY" || status === "OHN_WEEKEND") return "OHN";
+    if (status === "SIGN_ON" || status === "SIGN_OFF") return "ACTIVE";
     return status;
   };
 
@@ -442,16 +453,16 @@ export default function RosterPage() {
                           const toNext = connectsToNext(row, d.dayNum);
                           const fromPrev = connectsFromPrev(row, d.dayNum);
 
+                          const isSignOn = status === "SIGN_ON";
+                          const isSignOff = status === "SIGN_OFF";
+
                           let barClass = "";
-                          if (status === "PRIMARY" || status === "OHN_WEEKDAY") {
-                            barClass = "bg-blue-500";
-                          } else if (status === "SECONDARY") {
-                            barClass = "bg-sky-300";
-                          } else if (status === "OHN_WEEKEND") {
-                            barClass = "bg-slate-400";
-                          } else if (status === "RELIEF") {
-                            barClass = "bg-amber-500";
-                          }
+                          if (isSignOn) barClass = "bg-emerald-500";
+                          else if (isSignOff) barClass = "bg-rose-500";
+                          else if (status === "PRIMARY" || status === "OHN_WEEKDAY") barClass = "bg-blue-500";
+                          else if (status === "SECONDARY") barClass = "bg-sky-300";
+                          else if (status === "OHN_WEEKEND") barClass = "bg-slate-400";
+                          else if (status === "RELIEF") barClass = "bg-amber-500";
 
                           const roundedLeft = !fromPrev ? "rounded-l-sm" : "";
                           const roundedRight = !toNext ? "rounded-r-sm" : "";
@@ -468,14 +479,17 @@ export default function RosterPage() {
                               
                               {status !== "OFF" && (
                                 <div
-                                  className={`absolute z-10 gantt-bar ${roundedLeft} ${roundedRight} ${barClass}`}
+                                  className={`absolute z-10 gantt-bar ${roundedLeft} ${roundedRight} ${barClass} flex items-center justify-center`}
                                   style={{
                                     top: '4px',
                                     bottom: '4px',
-                                    left: fromPrev ? 0 : 0,
-                                    right: toNext ? 0 : 0,
+                                    left: 0,
+                                    right: 0,
                                   }}
-                                />
+                                >
+                                  {isSignOn && <span className="text-[8px] font-black text-white leading-none">m</span>}
+                                  {isSignOff && <span className="text-[8px] font-black text-white leading-none">d</span>}
+                                </div>
                               )}
                             </td>
                           );
