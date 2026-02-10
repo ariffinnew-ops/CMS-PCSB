@@ -260,6 +260,7 @@ export default function StatementPage() {
   }, [filteredRows]);
 
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [isApproved, setIsApproved] = useState(false);
 
   const fmtNum = (val: number) => (val === 0 ? "-" : String(val));
   const fmtAmt = (val: number) =>
@@ -403,7 +404,28 @@ export default function StatementPage() {
                   {/* Group header */}
                   <tr className="text-white" style={{ backgroundColor: "#1e3a8a" }}>
                     <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50 whitespace-nowrap" style={{ minWidth: "240px" }}>
-                      Name / Client / Trade / Location
+                      <div className="flex items-center justify-between gap-2">
+                        <span>Name / Client / Trade / Location</span>
+                        {isApproved ? (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setIsApproved(false); }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-lg shadow-lg border-2 border-red-400 hover:bg-red-700 transition-colors cursor-pointer"
+                            title="Click to revoke approval"
+                          >
+                            <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" /></svg>
+                            <span className="text-[11px] font-black uppercase tracking-wide leading-none whitespace-nowrap">Certified & Approved</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setIsApproved(true); }}
+                            className="flex items-center gap-1 px-2.5 py-1 bg-blue-500/30 hover:bg-blue-400/40 text-blue-100 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors border border-blue-400/40"
+                          >
+                            Approve
+                          </button>
+                        )}
+                      </div>
                     </th>
                     <th colSpan={2} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">
                       Offshore
@@ -438,11 +460,11 @@ export default function StatementPage() {
                 </thead>
                 <tbody>
                   {filteredRows.map((row, idx) => {
-                    const isExpanded = expandedRow === row.crew_id;
+                    const isExpanded = expandedRow === `${row.crew_id}::${row.crew_name}`;
                     return (
-                      <Fragment key={row.crew_id}>
+                      <Fragment key={`${row.crew_id}::${row.crew_name}::${idx}`}>
                         <tr
-                          onClick={() => setExpandedRow(isExpanded ? null : row.crew_id)}
+                          onClick={() => setExpandedRow(isExpanded ? null : `${row.crew_id}::${row.crew_name}`)}
                           className={`cursor-pointer transition-colors border-b border-border ${
                             idx % 2 === 0 ? "bg-card" : "bg-muted/30"
                           } hover:bg-blue-500/5`}
