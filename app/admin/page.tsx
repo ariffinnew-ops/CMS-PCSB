@@ -908,6 +908,7 @@ export default function AdminPage() {
           });
 
           // Sign-off date excluded from Gantt bar (not counted as POB)
+          // Returns: "SIGN_ON" | "SIGN_OFF" | "PRIMARY" | "RELIEF" | "OHN_WEEKDAY" | "OHN_WEEKEND" | "OFF"
           const getDayStatus = (row: typeof sortedData[0], day: number) => {
             const checkDate = new Date(eYear, eMonth, day, 0, 0, 0, 0);
             const checkTime = checkDate.getTime();
@@ -918,7 +919,12 @@ export default function AdminPage() {
             for (const cycle of Object.values(row.cycles)) {
               const m = safeParseDate(cycle.sign_on);
               const d = safeParseDate(cycle.sign_off);
-              if (m && d && checkTime >= m.getTime() && checkTime < d.getTime()) {
+              if (!m || !d) continue;
+              const mTime = m.getTime();
+              const dTime = d.getTime();
+              if (checkTime === mTime) return "SIGN_ON";
+              if (checkTime === dTime) return "SIGN_OFF";
+              if (checkTime > mTime && checkTime < dTime) {
                 if (cycle.relief_all && cycle.relief_all > 0) return "RELIEF";
                 return "PRIMARY";
               }
@@ -927,7 +933,9 @@ export default function AdminPage() {
           };
           const getConnect = (row: typeof sortedData[0], day: number) => {
             const s = getDayStatus(row, day);
-            return s === "OHN_WEEKDAY" || s === "OHN_WEEKEND" ? "OHN" : s;
+            if (s === "OHN_WEEKDAY" || s === "OHN_WEEKEND") return "OHN";
+            if (s === "SIGN_ON" || s === "SIGN_OFF") return "ACTIVE";
+            return s;
           };
           const connectsToNext = (row: typeof sortedData[0], day: number) => day < daysCount && getConnect(row, day) !== "OFF" && getConnect(row, day + 1) !== "OFF";
           const connectsFromPrev = (row: typeof sortedData[0], day: number) => day > 1 && getConnect(row, day) !== "OFF" && getConnect(row, day - 1) !== "OFF";
@@ -1003,8 +1011,12 @@ export default function AdminPage() {
                             const status = getDayStatus(row, d.dayNum);
                             const toNext = connectsToNext(row, d.dayNum);
                             const fromPrev = connectsFromPrev(row, d.dayNum);
+                            const isSignOn = status === "SIGN_ON";
+                            const isSignOff = status === "SIGN_OFF";
                             let barClass = "";
-                            if (status === "PRIMARY" || status === "OHN_WEEKDAY") barClass = "bg-blue-500";
+                            if (isSignOn) barClass = "bg-emerald-500";
+                            else if (isSignOff) barClass = "bg-rose-500";
+                            else if (status === "PRIMARY" || status === "OHN_WEEKDAY") barClass = "bg-blue-500";
                             else if (status === "OHN_WEEKEND") barClass = "bg-slate-400";
                             else if (status === "RELIEF") barClass = "bg-amber-500";
                             const rL = !fromPrev ? "rounded-l-sm" : "";
@@ -1013,7 +1025,10 @@ export default function AdminPage() {
                               <td key={d.dayNum} className={`p-0 relative ${d.isWeekend ? "bg-gray-50" : "bg-white"}`} style={{ height: "22px" }}>
                                 <div className="absolute inset-y-0 right-0 w-px bg-gray-200 z-0" />
                                 {status !== "OFF" && (
-                                  <div className={`absolute z-10 gantt-bar-admin ${rL} ${rR} ${barClass}`} style={{ top: "3px", bottom: "3px", left: 0, right: 0 }} />
+                                  <div className={`absolute z-10 gantt-bar-admin ${rL} ${rR} ${barClass} flex items-center justify-center`} style={{ top: "3px", bottom: "3px", left: 0, right: 0 }}>
+                                    {isSignOn && <span className="text-[7px] font-black text-white leading-none">m</span>}
+                                    {isSignOff && <span className="text-[7px] font-black text-white leading-none">d</span>}
+                                  </div>
                                 )}
                               </td>
                             );
