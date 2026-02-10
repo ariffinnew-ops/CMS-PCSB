@@ -59,7 +59,7 @@ interface CrewMonthCost {
 
 function calcMonthCosts(rosterData: PivotedCrewRow[], masterData: CrewMasterRecord[], masterMap: Map<string, CrewMasterRecord>, year: number, month: number): CrewMonthCost[] {
   const monthStart = new Date(year, month - 1, 1, 0, 0, 0, 0);
-  const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+  const monthEnd = new Date(year, month, 0, 0, 0, 0, 0);
   const monthStartTime = monthStart.getTime();
   const monthEndTime = monthEnd.getTime();
   const oaRate = 200, medevacRate = 500;
@@ -76,7 +76,7 @@ function calcMonthCosts(rosterData: PivotedCrewRow[], masterData: CrewMasterReco
       if (!signOn || !signOff) continue;
       const rotEnd = signOff.getTime() - 86400000;
       if (signOn.getTime() > monthEndTime || rotEnd < monthStartTime) continue;
-      const days = Math.ceil((Math.min(rotEnd, monthEndTime) - Math.max(signOn.getTime(), monthStartTime)) / 864e5) + 1;
+      const days = Math.round((Math.min(rotEnd, monthEndTime) - Math.max(signOn.getTime(), monthStartTime)) / 864e5) + 1;
       if (days <= 0) continue;
       if (isOM && cycle.is_offshore !== false) offDays += days;
       relief += (cycle.day_relief ?? 0) * (cycle.relief_all ?? 0);

@@ -117,7 +117,7 @@ export default function StatementPage() {
 
   const statementRows = useMemo(() => {
     const monthStart = new Date(selectedYear, selectedMonthNum - 1, 1, 0, 0, 0, 0);
-    const monthEnd = new Date(selectedYear, selectedMonthNum, 0, 23, 59, 59, 999);
+    const monthEnd = new Date(selectedYear, selectedMonthNum, 0, 0, 0, 0, 0); // last day at midnight
     const monthStartTime = monthStart.getTime();
     const monthEndTime = monthEnd.getTime();
     const OA_RATE = 200;
@@ -153,7 +153,8 @@ export default function StatementPage() {
 
         const effectiveStart = Math.max(rotStart, monthStartTime);
         const effectiveEnd = Math.min(rotEnd, monthEndTime);
-        const daysInMonth = Math.ceil((effectiveEnd - effectiveStart) / (1000 * 60 * 60 * 24)) + 1;
+        // Both dates at midnight: inclusive count = difference in days + 1
+        const daysInMonth = Math.round((effectiveEnd - effectiveStart) / 86400000) + 1;
         if (daysInMonth <= 0) continue;
 
         const isOffshore = cycle.is_offshore !== false;
@@ -291,13 +292,10 @@ export default function StatementPage() {
     setSubmitting(true);
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
     const submitterName = user?.username || "Unknown";
-    console.log("[v0] Submitting for approval:", { selectedMonth, key, submitterName });
     const result = await submitForApproval(selectedMonth, key, submitterName);
-    console.log("[v0] Submit result:", result);
     if (result.success) {
       // Reload record from DB
       const rec = await getApproval(selectedMonth, key);
-      console.log("[v0] Reloaded approval record:", rec);
       if (rec) {
         setApprovalRecord(rec);
         setSubmissionStatus((rec.submission_status as "Draft" | "Submitted" | "Approved") || "Draft");
