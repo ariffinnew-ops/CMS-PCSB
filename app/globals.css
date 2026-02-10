@@ -170,6 +170,20 @@
   .recharts-wrapper, .recharts-surface, svg { overflow: visible !important; }
   /* Force white bg for print */
   body, main { background: white !important; color: black !important; }
+  /* Approval stamp visible on print with colors */
+  .approval-stamp {
+    display: flex !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    border: 2px solid #10b981 !important;
+    background-color: #ecfdf5 !important;
+    break-inside: avoid;
+  }
+  .approval-stamp * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   /* Page setup */
   @page { margin: 8mm; size: landscape; }
 }

@@ -69,12 +69,6 @@ export default function AdminPage() {
   // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState<{ crewId: string; name: string } | null>(null);
 
-  // Gantt chart month state
-  const [ganttMonth, setGanttMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  });
-
   const fetchData = async () => {
   setLoading(true);
   console.log("[v0] fetchData starting...");
@@ -473,58 +467,6 @@ export default function AdminPage() {
     });
   }, [addModal, staffSearchQuery, crewList]);
 
-  // Gantt chart computations
-  const ganttDays = useMemo(() => {
-    const [y, m] = ganttMonth.split("-").map(Number);
-    const daysInMonth = new Date(y, m, 0).getDate();
-    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    return Array.from({ length: daysInMonth }, (_, i) => {
-      const d = new Date(y, m - 1, i + 1);
-      return { day: i + 1, dayName: dayNames[d.getDay()], isWeekend: d.getDay() === 0 || d.getDay() === 6 };
-    });
-  }, [ganttMonth]);
-
-  // Check if a crew member is active (on-board) on a given day
-  const getGanttBar = (row: PivotedCrewRow, dayNum: number) => {
-    const [y, m] = ganttMonth.split("-").map(Number);
-    const dayDate = new Date(y, m - 1, dayNum).getTime();
-    for (const cycle of Object.values(row.cycles)) {
-      const signOn = safeParseDate(cycle.sign_on);
-      const signOff = safeParseDate(cycle.sign_off);
-      if (!signOn || !signOff) continue;
-      const start = signOn.getTime();
-      const end = signOff.getTime() - 86400000; // sign_off is exclusive
-      if (dayDate >= start && dayDate <= end) {
-        return { active: true, isRelief: !!(cycle.relief_all && cycle.relief_all > 0), hasNote: !!cycle.notes };
-      }
-    }
-    return { active: false, isRelief: false, hasNote: false };
-  };
-
-  const MONTH_NAMES = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-
-  const sectionARef = useRef<HTMLDivElement>(null);
-  const sectionBRef = useRef<HTMLDivElement>(null);
-  const isSyncingScroll = useRef(false);
-
-  const handleSectionAScroll = () => {
-    if (isSyncingScroll.current) return;
-    isSyncingScroll.current = true;
-    if (sectionARef.current && sectionBRef.current) {
-      sectionBRef.current.scrollTop = sectionARef.current.scrollTop;
-    }
-    requestAnimationFrame(() => { isSyncingScroll.current = false; });
-  };
-
-  const handleSectionBScroll = () => {
-    if (isSyncingScroll.current) return;
-    isSyncingScroll.current = true;
-    if (sectionARef.current && sectionBRef.current) {
-      sectionARef.current.scrollTop = sectionBRef.current.scrollTop;
-    }
-    requestAnimationFrame(() => { isSyncingScroll.current = false; });
-  };
-
   if (loading)
     return (
       <AppShell>
@@ -556,264 +498,364 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* COMPACT FILTER BAR */}
-        <div className="flex items-center justify-between border-b border-border pb-1.5 flex-shrink-0 gap-2">
-          <div className="flex items-center gap-2">
-            <p className="text-muted-foreground font-black text-[9px] tracking-widest uppercase flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Live Edit
-            </p>
-            {lastSynced && (
-              <span className="text-[9px] font-medium text-muted-foreground">
-                Synced {lastSynced.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
+        {/* PAGE HEADER */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between border-b border-border pb-2 flex-shrink-0 gap-4">
+          <div>
+            <h2 className="text-4xl font-black text-foreground uppercase italic tracking-tighter leading-none">
+              MOVEMENT REGISTER
+            </h2>
+            <div className="flex items-center gap-4 mt-2">
+              <p className="text-muted-foreground font-black text-[10px] tracking-[0.3em] uppercase italic flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                Live Edit Enabled - Auto-Sync Active
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <select
-              value={tradeFilter}
-              onChange={(e) => setTradeFilter(e.target.value as TradeType | "ALL")}
-              className="bg-muted border border-border rounded-lg px-2 py-1 text-[10px] font-black uppercase outline-none"
-            >
-              <option value="ALL">All Trades</option>
-              <option value="OM">OM</option>
-              <option value="EM">EM</option>
-              <option value="IMP/OHN">OHN</option>
-            </select>
-            <select
-              value={locationFilter}
-              onChange={(e) => setLocationFilter(e.target.value)}
-              className="bg-muted border border-border rounded-lg px-2 py-1 text-[10px] font-black uppercase outline-none max-w-[140px]"
-            >
-              <option value="ALL">All Sites</option>
-              {locations.map((l) => (
-                <option key={l} value={l}>{l}</option>
-              ))}
-            </select>
-            <input
-              type="text"
-              placeholder="Search..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="bg-muted border border-border rounded-lg px-2 py-1 text-[10px] font-black uppercase outline-none w-28"
-            />
-            {(tradeFilter !== "ALL" || locationFilter !== "ALL" || search) && (
-              <button
-                type="button"
-                onClick={() => { setTradeFilter("ALL"); setLocationFilter("ALL"); setSearch(""); }}
-                className="px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-600 font-black text-[9px] uppercase tracking-wider transition-all border border-red-200"
-              >
-                Reset
-              </button>
-            )}
+
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4 bg-muted p-3 rounded-2xl border border-border shadow-inner">
+              <div className="flex flex-col px-4 border-r border-border">
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
+                  Grade
+                </span>
+                <select
+                  value={tradeFilter}
+                  onChange={(e) =>
+                    setTradeFilter(e.target.value as TradeType | "ALL")
+                  }
+                  className="bg-transparent text-[14px] font-black uppercase outline-none cursor-pointer py-1"
+                >
+                  <option value="ALL">ALL TRADES</option>
+                  <option value="OM">OM</option>
+                  <option value="EM">EM</option>
+                  <option value="IMP/OHN">OHN</option>
+                </select>
+              </div>
+              <div className="flex flex-col px-4 border-r border-border">
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
+                  Site
+                </span>
+                <select
+                  value={locationFilter}
+                  onChange={(e) => setLocationFilter(e.target.value)}
+                  className="bg-transparent text-[14px] font-black uppercase outline-none cursor-pointer max-w-[180px] py-1"
+                >
+                  <option value="ALL">ALL SITES</option>
+                  {locations.map((l) => (
+                    <option key={l} value={l}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col px-4 border-r border-border">
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
+                  Search
+                </span>
+                <input
+                  type="text"
+                  placeholder="Type name..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="bg-transparent border-none p-0 text-[14px] font-black uppercase outline-none w-36 py-1"
+                />
+              </div>
+              {(tradeFilter !== "ALL" || locationFilter !== "ALL" || search) && (
+                <button
+                  type="button"
+                  onClick={() => { setTradeFilter("ALL"); setLocationFilter("ALL"); setSearch(""); }}
+                  className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 font-black text-[10px] uppercase tracking-wider transition-all border border-red-200"
+                >
+                  Reset All
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* SPLIT PANEL: Section A (data table) + Section B (gantt) */}
-        <div className="flex flex-grow overflow-hidden border border-border rounded-xl mt-1">
-          {/* SECTION A: Compact Data Table */}
-          <div className="flex-[1] border-r border-border flex flex-col min-w-0">
-            <div
-              ref={sectionARef}
-              onScroll={handleSectionAScroll}
-              className="overflow-auto flex-grow"
-              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-            >
-              <table className="w-full border-collapse text-[11px]">
-                <thead className="sticky top-0 z-20">
-                  <tr className="bg-slate-800 text-white">
-                    <th className="px-2 py-1 text-left text-[9px] font-black uppercase tracking-wider whitespace-nowrap">Crew</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedData.map((row, idx) => {
-                    const prev = sortedData[idx - 1];
-                    const showSeparator =
-                      !prev ||
-                      prev.client !== row.client ||
-                      getTradeRank(prev.post) !== getTradeRank(row.post) ||
-                      prev.location !== row.location;
+        {/* TIMELINE NAVIGATION */}
+        <div className="bg-blue-600 backdrop-blur-md px-4 py-1.5 border-b border-blue-700 flex items-center gap-3 flex-shrink-0 shadow-md rounded-lg mx-2 mt-1">
+          <span className="text-[8px] font-black text-white/80 uppercase tracking-wider shrink-0">
+            Scroll
+          </span>
+          <input
+            type="range"
+            min="0"
+            max={maxScroll}
+            value={scrollPos}
+            onChange={handleSliderChange}
+            className="flex-grow h-2 bg-blue-500/50 rounded-full appearance-none cursor-pointer"
+            style={{ WebkitAppearance: 'none' }}
+          />
+          <style jsx>{`
+            input[type="range"]::-webkit-slider-thumb {
+              -webkit-appearance: none;
+              appearance: none;
+              width: 18px;
+              height: 18px;
+              background: linear-gradient(145deg, #ffffff, #e0e0e0);
+              border-radius: 50%;
+              cursor: grab;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+              border: 2px solid #d1d5db;
+              transition: all 0.15s ease;
+            }
+            input[type="range"]::-webkit-slider-thumb:hover {
+              transform: scale(1.15);
+            }
+            input[type="range"]::-webkit-slider-thumb:active {
+              cursor: grabbing;
+            }
+            input[type="range"]::-moz-range-thumb {
+              width: 18px;
+              height: 18px;
+              background: linear-gradient(145deg, #ffffff, #e0e0e0);
+              border-radius: 50%;
+              cursor: grab;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+              border: 2px solid #d1d5db;
+            }
+          `}</style>
+          <span className="text-[8px] font-bold text-white/70 tabular-nums w-8 text-right shrink-0">
+            {Math.round((scrollPos / (maxScroll || 1)) * 100)}%
+          </span>
+        </div>
 
-                    return (
-                      <Fragment key={`a-${row.crew_id}::${row.crew_name}`}>
-                        {showSeparator && (
-                          <tr className="bg-gray-200 border-y border-gray-300" style={{ height: "22px" }}>
-                            <td className="px-2 py-px">
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="text-[12px] font-black text-gray-900 uppercase leading-none truncate">
+        {/* LAST SYNCED STATUS */}
+        {lastSynced && (
+          <div className="flex items-center justify-end px-4 py-2 bg-muted/30 border-b border-border flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="text-[10px] font-medium text-muted-foreground">
+                Last Synced: {lastSynced.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* TABLE CONTAINER */}
+        <div className="bg-card rounded-b-[2rem] shadow-2xl border border-border border-t-0 overflow-hidden flex flex-col flex-grow">
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleTableScroll}
+            className="overflow-auto flex-grow relative"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          >
+            <table className="w-full border-collapse table-fixed min-w-full">
+              <tbody className="divide-y divide-border">
+                <tr className="h-0 opacity-0 pointer-events-none">
+                  <td className="w-[200px]" />
+                  <td className="w-[5000px]" />
+                </tr>
+                {sortedData.map((row, idx) => {
+                  const prev = sortedData[idx - 1];
+                  const showSeparator =
+                    !prev ||
+                    prev.client !== row.client ||
+                    getTradeRank(prev.post) !== getTradeRank(row.post) ||
+                    prev.location !== row.location;
+
+                  return (
+                    <Fragment key={`${row.crew_id}::${row.crew_name}`}>
+                      {showSeparator && (
+                        <tr className="sticky top-0 z-[90] bg-slate-900 border-y border-slate-950 shadow-xl w-full">
+                          <td className="px-6 py-2 sticky left-0 z-[95] bg-slate-900 border-r border-slate-800">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex flex-col">
+                                <span className="text-[15px] font-black text-white uppercase tracking-wider leading-tight">
                                   {shortenPost(row.post)}
-                                  <span className="text-gray-800 ml-1.5 text-[12px] font-black">{row.location} / {row.client}</span>
                                 </span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setAddModal({ client: row.client, post: row.post, location: row.location });
-                                    setNewStaffClient(row.client);
-                                    setNewStaffPost(row.post);
-                                    setNewStaffLocation(row.location);
-                                    setSelectedStaff(null);
-                                    setStaffSearchQuery("");
-                                  }}
-                                  className="flex items-center justify-center w-4 h-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-full text-[10px] font-black transition-all shrink-0"
-                                  title={`Add staff to ${shortenPost(row.post)} at ${row.location}`}
-                                >
-                                  +
-                                </button>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide leading-tight">
+                                  {row.location} / {row.client}
+                                </span>
                               </div>
-                            </td>
-                          </tr>
-                        )}
-                        <tr
-                          className="h-7 group hover:bg-blue-50/30 border-b border-border/50 cursor-pointer"
-                          onClick={() =>
-                            setActiveNote({
-                              crewId: row.crew_id,
-                              name: row.crew_name,
-                              post: row.post || "",
-                              rotationIdx: 1,
-                              cycleRowId: row.cycles[1]?.id || null,
-                              note: row.cycles[1]?.notes || "",
-                              relief_all: row.cycles[1]?.relief_all ?? null,
-                              standby_all: row.cycles[1]?.standby_all ?? null,
-                              day_relief: row.cycles[1]?.day_relief ?? null,
-                              day_standby: row.cycles[1]?.day_standby ?? null,
-                              is_offshore: row.cycles[1]?.is_offshore ?? true,
-                              medevac_dates: row.cycles[1]?.medevac_dates ?? [],
-                            })
-                          }
-                        >
-                          <td className="px-2 py-px">
-                            <div className="flex items-center gap-1 group/name">
-                              <span className="font-black text-foreground text-[10px] uppercase leading-tight truncate flex-1">
-                                {getDisplayName(row)}
-                              </span>
                               <button
                                 type="button"
-                                onClick={(e) => { e.stopPropagation(); setDeleteModal({ crewId: row.crew_id, name: row.crew_name }); }}
-                                className="flex items-center justify-center w-4 h-4 bg-red-500 hover:bg-red-400 text-white rounded-full text-[10px] font-black transition-all shrink-0 opacity-0 group-hover/name:opacity-100"
-                                title="Delete"
+                                onClick={() => {
+                                  setAddModal({ client: row.client, post: row.post, location: row.location });
+                                  setNewStaffClient(row.client);
+                                  setNewStaffPost(row.post);
+                                  setNewStaffLocation(row.location);
+                                  setSelectedStaff(null);
+                                  setStaffSearchQuery("");
+                                }}
+                                className="flex items-center justify-center w-7 h-7 bg-emerald-500 hover:bg-emerald-400 text-white rounded-full text-lg font-black transition-all shadow-md hover:shadow-emerald-500/40 hover:scale-110 shrink-0"
+                                title={`Add staff to ${shortenPost(row.post)} at ${row.location}`}
                               >
-                                -
+                                +
                               </button>
                             </div>
                           </td>
+                          <td className="bg-slate-900 py-2 h-12 w-full" />
                         </tr>
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* SECTION B: Gantt Chart */}
-          <div className="flex-[5] flex flex-col min-w-0">
-            <div
-              ref={sectionBRef}
-              onScroll={handleSectionBScroll}
-              className="overflow-auto flex-grow"
-              style={{ scrollbarWidth: "thin" }}
-            >
-              <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
-                <colgroup>
-                  {ganttDays.map((d) => (
-                    <col key={d.day} style={{ width: `${100 / ganttDays.length}%` }} />
-                  ))}
-                </colgroup>
-                <thead className="sticky top-0 z-20">
-                  {/* Day numbers row with title in first cell area */}
-                  <tr className="bg-slate-800 text-white">
-                    {ganttDays.map((d, i) => (
-                      <th
-                        key={d.day}
-                        className={`py-1 text-[8px] font-black text-center border-r border-slate-700/50 ${d.isWeekend ? "bg-slate-700" : ""}`}
-                      >
-                        {i === 0 && (
-                          <div className="absolute left-0 top-0 flex items-center gap-1.5 px-2 h-full z-10 pointer-events-auto">
-                            <span className="text-[10px] font-black uppercase tracking-wider text-white whitespace-nowrap">Movement Register</span>
-                            <select
-                              value={ganttMonth}
-                              onChange={(e) => setGanttMonth(e.target.value)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="bg-slate-700 text-white text-[9px] font-bold rounded px-1 py-0.5 outline-none border border-slate-600 cursor-pointer pointer-events-auto"
+                      )}
+                      <tr className="transition-colors group h-14 hover:bg-blue-50/20">
+                        <td className="px-6 py-2 sticky left-0 bg-card group-hover:bg-muted/50 z-50 border-r border-border shadow-sm">
+                          <div className="flex items-center gap-2 group/name">
+                            <span className="font-black text-foreground text-[11px] uppercase leading-tight block tracking-tight whitespace-normal break-words flex-1 cursor-default">
+                              {getDisplayName(row)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteModal({ crewId: row.crew_id, name: row.crew_name })}
+                              className="flex items-center justify-center w-5 h-5 bg-red-500 hover:bg-red-400 text-white rounded-full text-[14px] font-black transition-all shadow-md hover:shadow-red-500/40 hover:scale-110 flex-shrink-0 opacity-0 group-hover/name:opacity-100"
+                              title="Delete Row"
                             >
-                              {(() => {
-                                const options: { value: string; label: string }[] = [];
-                                for (let y = 2025; y <= 2026; y++) {
-                                  for (let m = 1; m <= 12; m++) {
-                                    const val = `${y}-${String(m).padStart(2, "0")}`;
-                                    options.push({ value: val, label: `${MONTH_NAMES[m - 1]} ${y}` });
-                                  }
-                                }
-                                return options.map((o) => (
-                                  <option key={o.value} value={o.value}>{o.label}</option>
-                                ));
-                              })()}
-                            </select>
+                              -
+                            </button>
                           </div>
-                        )}
-                        {d.day}
-                      </th>
-                    ))}
-                  </tr>
-                  {/* Day names row */}
-                  <tr className="bg-slate-700 text-slate-300">
-                    {ganttDays.map((d) => (
-                      <th
-                        key={d.day}
-                        className={`py-0.5 text-[7px] font-bold text-center border-r border-slate-600/50 ${d.isWeekend ? "bg-slate-600 text-amber-300" : ""}`}
-                      >
-                        {d.dayName}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedData.map((row, idx) => {
-                    const prev = sortedData[idx - 1];
-                    const showSeparator =
-                      !prev ||
-                      prev.client !== row.client ||
-                      getTradeRank(prev.post) !== getTradeRank(row.post) ||
-                      prev.location !== row.location;
+                        </td>
+                        <td className="px-6 py-1 whitespace-nowrap">
+                          <div className="flex items-center gap-4">
+                            {Array.from({ length: 24 }).map((_, i) => {
+                              const rotationIdx = i + 1;
+                              const cycle = row.cycles[rotationIdx];
+                              const mVal = cycle?.sign_on || '';
+                              const dVal = cycle?.sign_off || '';
+                              const days = calculateDays(mVal || null, dVal || null);
+                              const hasNote = !!(cycle?.notes);
+                              const alertKey = `${row.crew_id}-${rotationIdx}`;
+                              const conflicts = getOverlaps[alertKey];
+                              const isRelief = cycle?.relief_all && cycle.relief_all > 0;
 
-                    return (
-                      <Fragment key={`b-${row.crew_id}::${row.crew_name}`}>
-                        {showSeparator && (
-                          <tr className="bg-gray-200 border-y border-gray-300" style={{ height: "22px" }}>
-                            {ganttDays.map((d) => (
-                              <td key={d.day} className="border-r border-gray-300/50" />
-                            ))}
-                          </tr>
-                        )}
-                        <tr className="border-b border-border/30 hover:bg-blue-50/20" style={{ height: "22px" }}>
-                          {ganttDays.map((d) => {
-                            const bar = getGanttBar(row, d.day);
-                            return (
-                              <td
-                                key={d.day}
-                                className={`border-r border-border/20 p-0 ${d.isWeekend ? "bg-slate-50" : ""}`}
-                              >
-                                {bar.active && (
+                              const shouldShowSlot =
+                                rotationIdx <= 12 ||
+                                !!mVal ||
+                                !!dVal ||
+                                (rotationIdx > 1 && !!row.cycles[rotationIdx - 1]?.sign_on);
+                              if (!shouldShowSlot) return null;
+
+                              return (
+                                <Fragment key={rotationIdx}>
                                   <div
-                                    className={`w-full h-full min-h-[20px] ${
-                                      bar.isRelief
-                                        ? "bg-amber-400"
-                                        : "bg-emerald-500"
-                                    }`}
-                                    title={`${getDisplayName(row)} - Day ${d.day}`}
-                                  />
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                                    className={`flex items-center gap-3 p-1.5 rounded-2xl border transition-all ${
+                                      mVal
+                                        ? "bg-card border-border shadow-md"
+                                        : "bg-muted/30 border-border/50 opacity-40 hover:opacity-100 group-hover:shadow-lg"
+                                    } ${
+                                      conflicts
+                                        ? "ring-2 ring-red-500 bg-red-50"
+                                        : ""
+                                    } ${isRelief ? "ring-2 ring-amber-400" : ""}`}
+                                  >
+                                    <div className="flex flex-col">
+                                      <div className="flex justify-between items-center mb-0.5">
+                                        <span className="text-[7px] font-black text-muted-foreground uppercase tracking-tighter">
+                                          SIGN ON {rotationIdx}
+                                          {isRelief && <span className="ml-1 text-amber-600">(R{rotationIdx})</span>}
+                                        </span>
+                                        {conflicts && (
+                                          <span className="text-red-600 text-[8px] font-black animate-pulse">
+                                            DUPLICATE
+                                          </span>
+                                        )}
+                                      </div>
+                                      <input
+                                        type="date"
+                                        value={mVal || ""}
+                                        onChange={(e) =>
+                                          handleUpdate(row, rotationIdx, 'sign_on', e.target.value)
+                                        }
+                                        className="border border-border rounded-xl px-2.5 py-1.5 text-[11px] font-black w-36 outline-none focus:ring-2 focus:ring-slate-400 bg-muted text-foreground transition-all"
+                                      />
+                                    </div>
+                                    <div className="flex flex-col">
+                                      <span className="text-[7px] font-black text-red-500 mb-0.5 ml-1 uppercase tracking-tighter">
+                                        SIGN OFF {rotationIdx}
+                                      </span>
+                                      <input
+                                        type="date"
+                                        value={dVal || ""}
+                                        onChange={(e) =>
+                                          handleUpdate(row, rotationIdx, 'sign_off', e.target.value)
+                                        }
+                                        className="border border-border rounded-xl px-2.5 py-1.5 text-[11px] font-black w-36 outline-none focus:ring-2 focus:ring-red-400 bg-muted text-foreground transition-all"
+                                      />
+                                    </div>
+                                    <div className="flex flex-col gap-1.5 items-center justify-center h-full px-1">
+                                      {days !== null && (
+                                        <div
+                                          className={`px-2 py-1 rounded-lg flex flex-col items-center justify-center shadow-lg min-w-[32px] ${
+                                            days > 15
+                                              ? "bg-red-900 text-white"
+                                              : "bg-slate-900 text-white"
+                                          }`}
+                                        >
+                                          <span className="text-[11px] font-black leading-none tabular-nums">
+                                            {days}
+                                          </span>
+                                        </div>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onMouseEnter={(e) =>
+                                          hasNote &&
+                                          setHoveredNote({
+                                            text: cycle?.notes || '',
+                                            x: e.clientX,
+                                            y: e.clientY,
+                                          })
+                                        }
+                                        onMouseLeave={() =>
+                                          setHoveredNote(null)
+                                        }
+                                        onClick={() =>
+                                          setActiveNote({
+                                            crewId: row.crew_id,
+                                            name: row.crew_name,
+                                            post: row.post || "",
+                                            rotationIdx,
+                                            cycleRowId: cycle?.id || null,
+                                            note: cycle?.notes || "",
+                                            relief_all: cycle?.relief_all ?? null,
+                                            standby_all: cycle?.standby_all ?? null,
+                                            day_relief: cycle?.day_relief ?? null,
+                                            day_standby: cycle?.day_standby ?? null,
+                                            is_offshore: cycle?.is_offshore ?? true,
+                                            medevac_dates: cycle?.medevac_dates ?? [],
+                                          })
+                                        }
+                                        className={`text-[12px] hover:scale-125 transition-all p-1.5 rounded-lg border shadow-sm ${
+                                          hasNote
+                                            ? "bg-amber-100 border-amber-300"
+                                            : "bg-muted border-border hover:bg-card"
+                                        }`}
+                                      >
+                                        <svg
+                                          className="w-4 h-4"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                          />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {/* Arrow separator between filled rotations */}
+                                  {rotationIdx < 24 &&
+                                    !!row.cycles[rotationIdx + 1]?.sign_on && (
+                                      <div className="text-muted-foreground font-black text-lg select-none mx-1">
+                                        {" -> "}
+                                      </div>
+                                    )}
+                                </Fragment>
+                              );
+                            })}
+                          </div>
+                        </td>
+                      </tr>
+
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
 
