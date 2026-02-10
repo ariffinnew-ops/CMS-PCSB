@@ -423,7 +423,7 @@ export default function RosterPage() {
                     const row = item.row!;
                     return (
                       <tr
-                        key={row.crew_id}
+                        key={`${row.crew_id}::${row.crew_name}`}
                         className="hover:bg-blue-50/50 transition-colors group border-b border-gray-300"
                         style={{ height: '28px' }}
                       >
