@@ -89,6 +89,7 @@ function MovementGrid({ rosterRows }: { rosterRows: Record<string, unknown>[] })
     for (const row of rosterRows) {
       const signOn = row.sign_on ? new Date(String(row.sign_on)) : null;
       const signOff = row.sign_off ? new Date(String(row.sign_off)) : null;
+      // Sign-off date excluded from days count
       const oaDays = (signOn && signOff) ? Math.max(0, Math.ceil((signOff.getTime() - signOn.getTime()) / 86400000)) : 0;
       const reliefAll = Number(row.relief_all) || 0;
       const standbyAll = Number(row.standby_all) || 0;
@@ -130,7 +131,8 @@ function MovementGrid({ rosterRows }: { rosterRows: Record<string, unknown>[] })
                 const checkDate = new Date(year, month, day).getTime();
                 let status: "ON" | "RELIEF" | "OFF" = "OFF";
                 for (const c of cycles) {
-                  if (c.signOn && c.signOff && checkDate >= c.signOn.getTime() && checkDate <= c.signOff.getTime()) {
+                  // Sign-off date excluded from POB display
+                  if (c.signOn && c.signOff && checkDate >= c.signOn.getTime() && checkDate < c.signOff.getTime()) {
                     status = c.isRelief ? "RELIEF" : "ON";
                     break;
                   }

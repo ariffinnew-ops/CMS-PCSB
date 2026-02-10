@@ -66,6 +66,9 @@ export default function AdminPage() {
   // Track newly added crew IDs for showing delete button
   const [newlyAddedCrewIds, setNewlyAddedCrewIds] = useState<Set<string>>(new Set());
   
+  // Date warnings: warn when only one date is present in a cycle (key = "crewId::crewName::cycleNum")
+  const [dateWarnings, setDateWarnings] = useState<Set<string>>(new Set());
+  
   // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState<{ crewId: string; name: string } | null>(null);
 
@@ -200,6 +203,22 @@ export default function AdminPage() {
   const handleUpdate = async (crewRow: PivotedCrewRow, cycleNum: number, field: 'sign_on' | 'sign_off', value: string) => {
     const finalValue = value === "" ? null : value;
     const cycle = crewRow.cycles[cycleNum];
+    const warningKey = `${crewRow.crew_id}::${crewRow.crew_name}::${cycleNum}`;
+    
+    // Check date pairing: after this update, what will the sign_on and sign_off be?
+    const newSignOn = field === 'sign_on' ? finalValue : (cycle?.sign_on || null);
+    const newSignOff = field === 'sign_off' ? finalValue : (cycle?.sign_off || null);
+    
+    // Both cleared = OK, both filled = OK, only one filled = warn
+    if ((!newSignOn && newSignOff) || (newSignOn && !newSignOff)) {
+      // Only warn when the user is CLEARING a date (the other still has value)
+      setDateWarnings(prev => { const next = new Set(prev); next.add(warningKey); return next; });
+      const missing = !newSignOn ? "Sign On" : "Sign Off";
+      showNotification(`Warning: ${missing} date is missing for Cycle ${cycleNum}`, "error");
+    } else {
+      // Both dates filled or both cleared -- remove warning
+      setDateWarnings(prev => { const next = new Set(prev); next.delete(warningKey); return next; });
+    }
     
     setIsSyncing(true);
 
@@ -313,11 +332,13 @@ export default function AdminPage() {
     }
   };
 
+  // Days count: sign_off date is NOT counted (excluded from POB/days work/allowance)
   const calculateDays = (start: string | null, end: string | null) => {
     if (!start || !end) return null;
     const s = safeParseDate(start);
     const e = safeParseDate(end);
     if (!s || !e) return null;
+    // sign_off date excluded: count from sign_on up to (but not including) sign_off
     const diff = Math.ceil((e.getTime() - s.getTime()) / (1000 * 3600 * 24));
     return diff > 0 ? diff : 0;
   };
@@ -345,31 +366,23 @@ export default function AdminPage() {
     return suffixMatch ? `${masterName} ${suffixMatch[1]}` : masterName;
   };
 
-  // Handle selecting a staff from the modal list
+  // Handle selecting a staff from the modal list -- always show suffix modal
   const handleStaffSelect = (staff: CrewListItem) => {
-    const baseName = staff.clean_name || staff.crew_name;
     const existingCount = data.filter((row) => row.crew_id === staff.id).length;
-    if (existingCount > 0) {
-      // Name exists in roster -- ask user to confirm and enter manual suffix
-      setSelectedStaff(staff);
-      setDupeConfirm({ staff, existingCount });
-      setCustomSuffix("");
-      return;
-    }
-    // Name is new -- insert directly
-    doInsertStaff(staff, baseName);
+    setSelectedStaff(staff);
+    setDupeConfirm({ staff, existingCount });
+    setCustomSuffix("");
   };
 
-  // Insert after user confirms duplicate with custom suffix
+  // Duplicate suffix warning state
+  const [suffixWarning, setSuffixWarning] = useState("");
+
+  // Insert after user confirms with optional suffix
   const handleDupeConfirmAdd = () => {
     if (!dupeConfirm) return;
     const baseName = dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name;
     const suffix = customSuffix.trim();
-    if (!suffix) {
-      showNotification("Please enter a suffix (e.g. R1, S, P)", "error");
-      return;
-    }
-    const finalName = `${baseName} (${suffix})`;
+    const finalName = suffix ? `${baseName} (${suffix})` : baseName;
     // Check for duplicate name in roster
     const isDupe = data.some((row) => row.crew_name?.trim().toUpperCase() === finalName.trim().toUpperCase());
     if (isDupe) {
@@ -379,6 +392,25 @@ export default function AdminPage() {
     doInsertStaff(dupeConfirm.staff, finalName);
     setDupeConfirm(null);
     setCustomSuffix("");
+    setSuffixWarning("");
+  };
+
+  // Live check for duplicate suffix as user types
+  const handleSuffixChange = (val: string) => {
+    const upper = val.toUpperCase();
+    setCustomSuffix(upper);
+    if (!dupeConfirm) return;
+    const baseName = dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name;
+    const suffix = upper.trim();
+    if (suffix) {
+      const testName = `${baseName} (${suffix})`;
+      const exists = data.some((row) => row.crew_name?.trim().toUpperCase() === testName.trim().toUpperCase());
+      setSuffixWarning(exists ? `"${testName}" already exists in roster` : "");
+    } else {
+      // No suffix: check if base name already exists
+      const exists = data.some((row) => row.crew_name?.trim().toUpperCase() === baseName.trim().toUpperCase());
+      setSuffixWarning(exists ? `"${baseName}" already exists in roster. Add a suffix to differentiate.` : "");
+    }
   };
 
   // Core insert function
@@ -425,6 +457,7 @@ export default function AdminPage() {
     setStaffSearchQuery("");
     setDupeConfirm(null);
     setCustomSuffix("");
+    setSuffixWarning("");
     setNewStaffClient("");
     setNewStaffPost("");
     setNewStaffLocation("");
@@ -715,6 +748,8 @@ export default function AdminPage() {
                               const alertKey = `${row.crew_id}-${rotationIdx}`;
                               const conflicts = getOverlaps[alertKey];
                               const isRelief = cycle?.relief_all && cycle.relief_all > 0;
+                              const dateWarnKey = `${row.crew_id}::${row.crew_name}::${rotationIdx}`;
+                              const hasDateWarning = dateWarnings.has(dateWarnKey) || ((!mVal && !!dVal) || (!!mVal && !dVal));
 
                               const shouldShowSlot =
                                 rotationIdx <= 12 ||
@@ -734,7 +769,7 @@ export default function AdminPage() {
                                       conflicts
                                         ? "ring-2 ring-red-500 bg-red-50"
                                         : ""
-                                    } ${isRelief ? "ring-2 ring-amber-400" : ""}`}
+                                    } ${isRelief ? "ring-2 ring-amber-400" : ""} ${hasDateWarning ? "ring-2 ring-orange-500 bg-orange-50" : ""}`}
                                   >
                                     <div className="flex flex-col">
                                       <div className="flex justify-between items-center mb-0.5">
@@ -745,6 +780,11 @@ export default function AdminPage() {
                                         {conflicts && (
                                           <span className="text-red-600 text-[8px] font-black animate-pulse">
                                             DUPLICATE
+                                          </span>
+                                        )}
+                                        {hasDateWarning && !conflicts && (
+                                          <span className="text-orange-600 text-[7px] font-black animate-pulse">
+                                            MISSING DATE
                                           </span>
                                         )}
                                       </div>
@@ -867,6 +907,7 @@ export default function AdminPage() {
             return { dayNum: i + 1, dayName: ["S","M","T","W","T","F","S"][d.getDay()], isWeekend: d.getDay() === 0 || d.getDay() === 6 };
           });
 
+          // Sign-off date excluded from Gantt bar (not counted as POB)
           const getDayStatus = (row: typeof sortedData[0], day: number) => {
             const checkDate = new Date(eYear, eMonth, day, 0, 0, 0, 0);
             const checkTime = checkDate.getTime();
@@ -877,7 +918,7 @@ export default function AdminPage() {
             for (const cycle of Object.values(row.cycles)) {
               const m = safeParseDate(cycle.sign_on);
               const d = safeParseDate(cycle.sign_off);
-              if (m && d && checkTime >= m.getTime() && checkTime <= d.getTime()) {
+              if (m && d && checkTime >= m.getTime() && checkTime < d.getTime()) {
                 if (cycle.relief_all && cycle.relief_all > 0) return "RELIEF";
                 return "PRIMARY";
               }
@@ -1277,34 +1318,40 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* DUPLICATE NAME CONFIRMATION MODAL */}
+        {/* ADD STAFF CONFIRMATION MODAL -- always shown, suffix optional */}
         {dupeConfirm && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1100] flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-card rounded-2xl w-full max-w-sm shadow-2xl border border-border flex flex-col">
               {/* Header */}
-              <div className="flex items-center justify-between px-5 py-2.5 border-b border-border bg-amber-500 rounded-t-2xl shrink-0">
+              <div className={`flex items-center justify-between px-5 py-2.5 border-b border-border rounded-t-2xl shrink-0 ${dupeConfirm.existingCount > 0 ? "bg-amber-500" : "bg-emerald-600"}`}>
                 <div>
-                  <h3 className="text-xs font-black uppercase tracking-wider text-white">Name Already in Roster</h3>
-                  <p className="text-[9px] font-bold text-amber-100 uppercase tracking-wide">
-                    {dupeConfirm.existingCount} existing {dupeConfirm.existingCount === 1 ? "entry" : "entries"}
-                  </p>
+                  <h3 className="text-xs font-black uppercase tracking-wider text-white">
+                    {dupeConfirm.existingCount > 0 ? "Name Already in Roster" : "Add Staff to Roster"}
+                  </h3>
+                  {dupeConfirm.existingCount > 0 && (
+                    <p className="text-[9px] font-bold text-amber-100 uppercase tracking-wide">
+                      {dupeConfirm.existingCount} existing {dupeConfirm.existingCount === 1 ? "entry" : "entries"}
+                    </p>
+                  )}
                 </div>
-                <button type="button" onClick={() => { setDupeConfirm(null); setCustomSuffix(""); }} className="text-white/80 hover:text-white text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors">&times;</button>
+                <button type="button" onClick={() => { setDupeConfirm(null); setCustomSuffix(""); setSuffixWarning(""); }} className="text-white/80 hover:text-white text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors">&times;</button>
               </div>
 
               <div className="px-5 py-4 space-y-4">
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  <p className="text-[10px] font-bold text-amber-900">
-                    <strong>{dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name}</strong> already exists in the roster.
-                  </p>
-                  <p className="text-[9px] text-amber-700 mt-1">
-                    Enter a suffix to differentiate (e.g. R1, R2, S, P).
-                  </p>
-                </div>
+                {dupeConfirm.existingCount > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <p className="text-[10px] font-bold text-amber-900">
+                      <strong>{dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name}</strong> already exists in the roster.
+                    </p>
+                    <p className="text-[9px] text-amber-700 mt-1">
+                      Enter a suffix to differentiate (e.g. R1, R2, S, P).
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">
-                    Name with suffix
+                    {dupeConfirm.existingCount > 0 ? "Name with suffix" : "Name (optional suffix)"}
                   </label>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-black text-foreground uppercase truncate max-w-[180px]">
@@ -1314,31 +1361,47 @@ export default function AdminPage() {
                     <input
                       type="text"
                       value={customSuffix}
-                      onChange={(e) => setCustomSuffix(e.target.value.toUpperCase())}
+                      onChange={(e) => handleSuffixChange(e.target.value)}
                       placeholder="R1"
                       autoFocus
-                      className="w-20 bg-muted border-2 border-amber-400 rounded-lg px-2 py-1.5 text-[11px] font-black outline-none focus:ring-2 focus:ring-amber-400 uppercase text-center"
+                      className={`w-20 bg-muted border-2 rounded-lg px-2 py-1.5 text-[11px] font-black outline-none focus:ring-2 uppercase text-center ${
+                        suffixWarning ? "border-red-400 focus:ring-red-400" : dupeConfirm.existingCount > 0 ? "border-amber-400 focus:ring-amber-400" : "border-emerald-400 focus:ring-emerald-400"
+                      }`}
                     />
                     <span className="text-muted-foreground font-bold text-sm">)</span>
                   </div>
-                  {customSuffix.trim() && (
+                  {/* Live warning for duplicate suffix */}
+                  {suffixWarning && (
+                    <div className="flex items-center gap-1.5 mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                      <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                      <span className="text-[9px] font-bold text-red-700">{suffixWarning}</span>
+                    </div>
+                  )}
+                  {customSuffix.trim() && !suffixWarning && (
                     <p className="text-[9px] font-bold text-emerald-700 mt-2">
                       Will be saved as: <strong>{dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name} ({customSuffix.trim()})</strong>
+                    </p>
+                  )}
+                  {!customSuffix.trim() && !suffixWarning && (
+                    <p className="text-[9px] font-bold text-muted-foreground mt-2">
+                      Will be saved as: <strong>{dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name}</strong>
                     </p>
                   )}
                 </div>
               </div>
 
               <div className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-muted/30 rounded-b-2xl shrink-0">
-                <button type="button" onClick={() => { setDupeConfirm(null); setCustomSuffix(""); }} className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border">
+                <button type="button" onClick={() => { setDupeConfirm(null); setCustomSuffix(""); setSuffixWarning(""); }} className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border">
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleDupeConfirmAdd}
-                  disabled={!customSuffix.trim()}
+                  disabled={!!suffixWarning || (dupeConfirm.existingCount > 0 && !customSuffix.trim())}
                   className={`px-5 py-2 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all ${
-                    customSuffix.trim()
+                    !suffixWarning && (customSuffix.trim() || dupeConfirm.existingCount === 0)
                       ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg hover:shadow-emerald-500/30"
                       : "bg-muted text-muted-foreground cursor-not-allowed"
                   }`}

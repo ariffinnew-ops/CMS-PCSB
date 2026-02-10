@@ -106,7 +106,8 @@ export default function RosterPage() {
       const d = safeParseDate(cycle.sign_off);
       if (m && d) {
         const rotationStart = m.getTime();
-        const rotationEnd = d.getTime();
+        // Sign-off date excluded from POB
+        const rotationEnd = d.getTime() - 86400000;
         if (rotationStart <= monthEnd && rotationEnd >= monthStart) {
           return true;
         }
@@ -199,6 +200,7 @@ export default function RosterPage() {
     return result;
   }, [sortedData]);
 
+  // Sign-off date excluded from POB/days count (not shown as active on Gantt)
   const getDayStatus = (row: PivotedCrewRow, day: number) => {
     const checkDate = new Date(
       viewDate.getFullYear(),
@@ -217,7 +219,8 @@ export default function RosterPage() {
     for (const cycle of Object.values(row.cycles)) {
       const m = safeParseDate(cycle.sign_on);
       const d = safeParseDate(cycle.sign_off);
-      if (m && d && checkTime >= m.getTime() && checkTime <= d.getTime()) {
+      // Sign-off date excluded: use < instead of <=
+      if (m && d && checkTime >= m.getTime() && checkTime < d.getTime()) {
         // Check if relief
         if (cycle.relief_all && cycle.relief_all > 0) return "RELIEF";
         return row.roles_em === "SECONDARY" ? "SECONDARY" : "PRIMARY";
