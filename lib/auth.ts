@@ -150,28 +150,9 @@ export function setSelectedProject(project: ProjectKey): void {
   }
 }
 
-// Page access by role (legacy compat -- maps old role names)
-export const PAGE_ACCESS: Record<string, UserRole[]> = {
-  "/dashboard": ["L1","L2A","L2B","L4","L5","L6","L7"],
-  "/roster":    ["L1","L2A","L2B","L4","L5"],
-  "/training":  ["L1","L2A","L2B","L4","L5"],
-  "/staff":     ["L1","L2A","L2B","L4","L5"],
-  "/statement": ["L1","L2A","L2B","L4","L5","L6","L7"],
-  "/financial": ["L1","L2A","L2B","L4","L5","L6","L7"],
-  "/admin":     ["L1","L2A","L2B","L4","L5"],
-  "/users":     ["L1"],
-  "/logs":      ["L1"],
-};
-
 // Session timeout in milliseconds (5 minutes)
 const SESSION_TIMEOUT = 5 * 60 * 1000;
 const LAST_ACTIVITY_KEY = "cms_last_activity";
-
-export function canAccessPage(role: UserRole, pathname: string): boolean {
-  const allowedRoles = PAGE_ACCESS[pathname];
-  if (!allowedRoles) return true; // Default allow if not defined
-  return allowedRoles.includes(role);
-}
 
 export function login(username: string, password: string): AuthUser | null {
   const users = getAllUsers();
@@ -220,7 +201,14 @@ export function getUser(): AuthUser | null {
   const stored = sessionStorage.getItem("cms_auth_user");
   if (stored) {
     try {
-      return JSON.parse(stored) as AuthUser;
+      const parsed = JSON.parse(stored) as AuthUser;
+      // Force re-login if stored session has old role format
+      const validRoles: UserRole[] = ["L1","L2A","L2B","L4","L5","L6","L7"];
+      if (!validRoles.includes(parsed.role)) {
+        logout();
+        return null;
+      }
+      return parsed;
     } catch {
       return null;
     }
