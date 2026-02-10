@@ -1014,9 +1014,7 @@ export default function AdminPage() {
                             const isSignOn = status === "SIGN_ON";
                             const isSignOff = status === "SIGN_OFF";
                             let barClass = "";
-                            if (isSignOn) barClass = "bg-emerald-500";
-                            else if (isSignOff) barClass = "bg-rose-500";
-                            else if (status === "PRIMARY" || status === "OHN_WEEKDAY") barClass = "bg-blue-500";
+                            if (isSignOn || isSignOff || status === "PRIMARY" || status === "OHN_WEEKDAY") barClass = "bg-blue-500";
                             else if (status === "OHN_WEEKEND") barClass = "bg-slate-400";
                             else if (status === "RELIEF") barClass = "bg-amber-500";
                             const rL = !fromPrev ? "rounded-l-sm" : "";
@@ -1030,7 +1028,7 @@ export default function AdminPage() {
                                       <span
                                         className="flex items-center justify-center rounded-full text-[7px] font-black text-white leading-none select-none"
                                         style={{
-                                          width: 16, height: 16,
+                                          width: 14, height: 14,
                                           background: 'radial-gradient(circle at 35% 30%, #6ee7b7, #059669 60%, #064e3b)',
                                           boxShadow: '0 2px 3px rgba(0,0,0,0.35), inset 0 -2px 2px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.3)',
                                         }}
@@ -1040,7 +1038,7 @@ export default function AdminPage() {
                                       <span
                                         className="flex items-center justify-center rounded-full text-[7px] font-black text-white leading-none select-none"
                                         style={{
-                                          width: 16, height: 16,
+                                          width: 14, height: 14,
                                           background: 'radial-gradient(circle at 35% 30%, #fda4af, #e11d48 60%, #881337)',
                                           boxShadow: '0 2px 3px rgba(0,0,0,0.35), inset 0 -2px 2px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.3)',
                                         }}
