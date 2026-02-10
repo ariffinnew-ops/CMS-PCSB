@@ -1,10 +1,20 @@
 "use client";
 
-export type UserRole = "admin" | "datalogger" | "guest";
+// ---------------------------------------------------------------------------
+// Role system: L1 (Super Admin) through L7
+// ---------------------------------------------------------------------------
+export type UserRole = "L1" | "L2A" | "L2B" | "L4" | "L5" | "L6" | "L7";
+
+// Keep legacy aliases so existing code that checks "admin" / "datalogger" still compiles
+export type LegacyRole = "admin" | "datalogger" | "guest";
+
+export type ProjectKey = "PCSB" | "OTHERS";
 
 export interface AuthUser {
   username: string;
+  fullName: string;
   role: UserRole;
+  defaultProject?: ProjectKey;
 }
 
 export interface LoginLog {
@@ -15,29 +25,142 @@ export interface LoginLog {
   success: boolean;
 }
 
-// Role hierarchy: admin (1) > datalogger (2) > guest (3)
+// Role hierarchy level (lower = higher privilege)
 export const ROLE_LEVELS: Record<UserRole, number> = {
-  admin: 1,
-  datalogger: 2,
-  guest: 3,
+  L1: 1,
+  L2A: 2,
+  L2B: 2,
+  L4: 4,
+  L5: 5,
+  L6: 6,
+  L7: 7,
 };
 
-const USERS: Record<string, { password: string; role: UserRole }> = {
-  admin: { password: "admin999", role: "admin" },
-  datalogger: { password: "data999", role: "datalogger" },
-  guest: { password: "guest999", role: "guest" },
+export const ROLE_LABELS: Record<UserRole, string> = {
+  L1: "Super Admin",
+  L2A: "Data Lodger (PCSB)",
+  L2B: "Data Lodger (Others)",
+  L4: "PMT",
+  L5: "Project Manager",
+  L6: "HR Payroll",
+  L7: "Account",
 };
 
-// Page access by role
+// ---------------------------------------------------------------------------
+// Permission matrix: per page, per project => "EDIT" | "VIEW" | "NONE"
+// Pages: P1=Dashboard, P2=Roster, P3=Training, P4=Staff, P5=Statement,
+//        P6=Financial, P7=Data Manager, P8=User Mgmt
+// ---------------------------------------------------------------------------
+export type PermissionLevel = "EDIT" | "VIEW" | "NONE";
+
+interface PagePermission {
+  PCSB: Record<UserRole, PermissionLevel>;
+  OTHERS: Record<UserRole, PermissionLevel>;
+}
+
+const perm = (l1: PermissionLevel, l2a: PermissionLevel, l2b: PermissionLevel, l4: PermissionLevel, l5: PermissionLevel, l6: PermissionLevel, l7: PermissionLevel): Record<UserRole, PermissionLevel> => ({
+  L1: l1, L2A: l2a, L2B: l2b, L4: l4, L5: l5, L6: l6, L7: l7,
+});
+
+export const PERMISSION_MATRIX: Record<string, PagePermission> = {
+  "/dashboard":  { PCSB: perm("EDIT","VIEW","VIEW","VIEW","VIEW","VIEW","VIEW"), OTHERS: perm("EDIT","VIEW","VIEW","VIEW","VIEW","VIEW","VIEW") },
+  "/roster":     { PCSB: perm("EDIT","VIEW","VIEW","VIEW","VIEW","NONE","NONE"), OTHERS: perm("EDIT","VIEW","VIEW","VIEW","VIEW","NONE","NONE") },
+  "/training":   { PCSB: perm("EDIT","EDIT","VIEW","EDIT","VIEW","NONE","NONE"), OTHERS: perm("EDIT","VIEW","EDIT","EDIT","VIEW","NONE","NONE") },
+  "/staff":      { PCSB: perm("EDIT","EDIT","VIEW","EDIT","VIEW","NONE","NONE"), OTHERS: perm("EDIT","VIEW","EDIT","EDIT","VIEW","NONE","NONE") },
+  "/statement":  { PCSB: perm("EDIT","VIEW","NONE","VIEW","VIEW","VIEW","VIEW"), OTHERS: perm("EDIT","NONE","VIEW","VIEW","VIEW","VIEW","VIEW") },
+  "/financial":  { PCSB: perm("EDIT","VIEW","NONE","VIEW","VIEW","VIEW","VIEW"), OTHERS: perm("EDIT","NONE","VIEW","VIEW","VIEW","VIEW","VIEW") },
+  "/admin":      { PCSB: perm("EDIT","EDIT","VIEW","VIEW","VIEW","NONE","NONE"), OTHERS: perm("EDIT","VIEW","EDIT","VIEW","VIEW","NONE","NONE") },
+  "/users":      { PCSB: perm("EDIT","NONE","NONE","NONE","NONE","NONE","NONE"), OTHERS: perm("EDIT","NONE","NONE","NONE","NONE","NONE","NONE") },
+  "/logs":       { PCSB: perm("EDIT","NONE","NONE","NONE","NONE","NONE","NONE"), OTHERS: perm("EDIT","NONE","NONE","NONE","NONE","NONE","NONE") },
+};
+
+// Get permission for a specific page + project + role
+export function getPermission(pathname: string, project: ProjectKey, role: UserRole): PermissionLevel {
+  const pagePerm = PERMISSION_MATRIX[pathname];
+  if (!pagePerm) return "VIEW"; // default allow view for undefined pages
+  return pagePerm[project]?.[role] ?? "NONE";
+}
+
+// Check if user can access a page at all (VIEW or EDIT)
+export function canAccessPage(role: UserRole, pathname: string): boolean {
+  // Check across both projects -- if accessible in either, allow navigation
+  const pcsbPerm = getPermission(pathname, "PCSB", role);
+  const othersPerm = getPermission(pathname, "OTHERS", role);
+  return pcsbPerm !== "NONE" || othersPerm !== "NONE";
+}
+
+// Check if user can edit on a page for a specific project
+export function canEdit(pathname: string, project: ProjectKey, role: UserRole): boolean {
+  return getPermission(pathname, project, role) === "EDIT";
+}
+
+// ---------------------------------------------------------------------------
+// User store (client-side, will be replaced by DB later)
+// ---------------------------------------------------------------------------
+const STORAGE_KEY = "cms_users_store";
+
+export interface StoredUser {
+  username: string;
+  password: string;
+  fullName: string;
+  role: UserRole;
+  defaultProject?: ProjectKey;
+}
+
+// Default seed users
+const DEFAULT_USERS: StoredUser[] = [
+  { username: "admin", password: "admin999", fullName: "System Administrator", role: "L1", defaultProject: "PCSB" },
+  { username: "datalogger", password: "data999", fullName: "Data Logger PCSB", role: "L2A", defaultProject: "PCSB" },
+  { username: "guest", password: "guest999", fullName: "Guest User", role: "L4", defaultProject: "PCSB" },
+];
+
+function getAllUsers(): StoredUser[] {
+  if (typeof window === "undefined") return DEFAULT_USERS;
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (!stored) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_USERS));
+    return DEFAULT_USERS;
+  }
+  try { return JSON.parse(stored) as StoredUser[]; } catch { return DEFAULT_USERS; }
+}
+
+export function getStoredUsers(): StoredUser[] {
+  return getAllUsers();
+}
+
+export function saveUsers(users: StoredUser[]): void {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Selected project (stored in sessionStorage)
+// ---------------------------------------------------------------------------
+const PROJECT_KEY = "cms_selected_project";
+
+export function getSelectedProject(): ProjectKey {
+  if (typeof window === "undefined") return "PCSB";
+  return (sessionStorage.getItem(PROJECT_KEY) as ProjectKey) || "PCSB";
+}
+
+export function setSelectedProject(project: ProjectKey): void {
+  if (typeof window !== "undefined") {
+    sessionStorage.setItem(PROJECT_KEY, project);
+  }
+}
+
+// Page access by role (legacy compat -- maps old role names)
 export const PAGE_ACCESS: Record<string, UserRole[]> = {
-  "/dashboard": ["admin", "datalogger", "guest"],
-  "/roster": ["admin", "datalogger", "guest"],
-  "/training": ["admin", "datalogger", "guest"],
-  "/staff": ["admin", "datalogger", "guest"],
-  "/statement": ["admin", "datalogger"],
-  "/financial": ["admin", "datalogger"],
-  "/admin": ["admin", "datalogger"],
-  "/logs": ["admin"],
+  "/dashboard": ["L1","L2A","L2B","L4","L5","L6","L7"],
+  "/roster":    ["L1","L2A","L2B","L4","L5"],
+  "/training":  ["L1","L2A","L2B","L4","L5"],
+  "/staff":     ["L1","L2A","L2B","L4","L5"],
+  "/statement": ["L1","L2A","L2B","L4","L5","L6","L7"],
+  "/financial": ["L1","L2A","L2B","L4","L5","L6","L7"],
+  "/admin":     ["L1","L2A","L2B","L4","L5"],
+  "/users":     ["L1"],
+  "/logs":      ["L1"],
 };
 
 // Session timeout in milliseconds (5 minutes)
@@ -51,13 +174,22 @@ export function canAccessPage(role: UserRole, pathname: string): boolean {
 }
 
 export function login(username: string, password: string): AuthUser | null {
-  const user = USERS[username.toLowerCase()];
-  if (user && user.password === password) {
-    const authUser: AuthUser = { username: username.toLowerCase(), role: user.role };
+  const users = getAllUsers();
+  const found = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
+  if (found) {
+    const authUser: AuthUser = {
+      username: found.username.toLowerCase(),
+      fullName: found.fullName,
+      role: found.role,
+      defaultProject: found.defaultProject,
+    };
     if (typeof window !== "undefined") {
-      // Use sessionStorage so it clears when browser closes
       sessionStorage.setItem("cms_auth_user", JSON.stringify(authUser));
       sessionStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+      // Set default project on login
+      if (found.defaultProject) {
+        setSelectedProject(found.defaultProject);
+      }
     }
     return authUser;
   }
