@@ -1,16 +1,14 @@
 "use client";
 
-import { Fragment, useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow } from "@/lib/types";
 import { getPivotedRosterData, getCrewMasterData, getCrewList, type CrewMasterRecord } from "@/lib/actions";
-import { safeParseDate, shortenPost, getTradeRank, formatDate } from "@/lib/logic";
-import { getUser } from "@/lib/auth";
+import { safeParseDate, shortenPost } from "@/lib/logic";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, CartesianGrid, Area, AreaChart, Legend,
 } from "recharts";
-import { upsertApproval, getApproval, type ApprovalRecord } from "@/lib/actions";
 
 // ─── Month Range ───
 function generateMonthRange() {
@@ -52,15 +50,6 @@ const MONTH_NAMES = [
   "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
   "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER",
 ];
-
-interface StatementRow {
-  crew_id: string; crew_name: string; post: string; client: string; location: string; displayLocation: string;
-  offshoreDays: number; offshoreTotal: number;
-  reliefDays: number; reliefRate: number; reliefTotal: number;
-  standbyDays: number; standbyRate: number; standbyTotal: number;
-  medevacDays: number; medevacTotal: number; grandTotal: number;
-  cycles: { cycleNum: number; sign_on: string | null; sign_off: string | null; days: number; is_offshore: boolean; day_relief: number; relief_rate: number; day_standby: number; standby_rate: number; medevac_dates: string[]; notes: string | null; }[];
-}
 
 // ─── Cost Calc ───
 interface CrewMonthCost {
@@ -122,7 +111,6 @@ function calcMonthCosts(rosterData: PivotedCrewRow[], masterData: CrewMasterReco
 
 const fmtRM = (v: number) => v === 0 ? "-" : `RM ${v.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtK = (v: number) => v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(0)}K` : `${v.toFixed(0)}`;
-const fmtNum = (val: number) => (val === 0 ? "-" : String(val));
 const fmtAmt = (val: number) => val === 0 ? "-" : val.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // ─── Animated Counter ───
@@ -204,31 +192,12 @@ export default function FinancialDashboardPage() {
   const [crewList, setCrewList] = useState<{ id: string; crew_name: string; clean_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Tabs: Dashboard | Statement | Budgeting
-  type TabType = "dashboard" | "statement" | "budgeting";
+  // Tabs: Dashboard | Budgeting
+  type TabType = "dashboard" | "budgeting";
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
-
-  // Statement filters
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  });
-  const [stmtTradeFilter, setStmtTradeFilter] = useState<"ALL" | "OM" | "EM" | "IMP/OHN">("ALL");
-  const [stmtClientFilter, setStmtClientFilter] = useState<"ALL" | "SBA" | "SKA">("ALL");
-  const [stmtSearch, setStmtSearch] = useState("");
-  const [expandedRow, setExpandedRow] = useState<string | null>(null);
-
-  // Approval system
-  const [approvalModal, setApprovalModal] = useState(false);
-  const [approverName, setApproverName] = useState("");
-  const [approval, setApproval] = useState<{ name: string; date: string; role: string } | null>(null);
 
   // Budgeting
   const [budgetBuffer, setBudgetBuffer] = useState(10);
-
-  // Check user role for statement visibility
-  const user = typeof window !== "undefined" ? getUser() : null;
-  const canSeeStatement = user?.role === "admin" || user?.role === "datalogger";
 
   useEffect(() => {
     Promise.all([getPivotedRosterData(), getCrewMasterData(), getCrewList()]).then(([p, m, crewResult]) => {
@@ -320,94 +289,6 @@ export default function FinancialDashboardPage() {
   const aOff = useCounter(totalOffshore);
   const aRel = useCounter(totalRelief);
 
-  // ─── Statement Data ───
-  const [selectedYear, selectedMonthNum] = useMemo(() => {
-    const [y, m] = selectedMonth.split("-").map(Number);
-    return [y, m];
-  }, [selectedMonth]);
-
-  const statementRows = useMemo(() => {
-    const monthStart = new Date(selectedYear, selectedMonthNum - 1, 1, 0, 0, 0, 0);
-    const monthEnd = new Date(selectedYear, selectedMonthNum, 0, 23, 59, 59, 999);
-    const monthStartTime = monthStart.getTime();
-    const monthEndTime = monthEnd.getTime();
-    const OA_RATE = 200, MEDEVAC_RATE = 500;
-    const rows: StatementRow[] = [];
-
-    for (const crew of data) {
-      const isOM = (crew.post || "").toUpperCase().includes("OFFSHORE MEDIC");
-      const isEM = (crew.post || "").toUpperCase().includes("ESCORT MEDIC");
-      const hasR = (crew.crew_name || "").includes("(R)");
-      const master = masterMap.get((crew.crew_name || "").toUpperCase().trim());
-      const displayLocation = hasR ? (master?.location || crew.location || "") : (crew.location || "");
-
-      const cycleDetails: StatementRow["cycles"] = [];
-      let totalOffshoreDays = 0, totalReliefDays = 0, totalReliefAmount = 0, totalStandbyDays = 0, totalStandbyAmount = 0, totalMedevacDays = 0;
-
-      for (const [cycleNumStr, cycle] of Object.entries(crew.cycles)) {
-        const signOn = safeParseDate(cycle.sign_on);
-        const signOff = safeParseDate(cycle.sign_off);
-        if (!signOn || !signOff) continue;
-        const rotStart = signOn.getTime();
-        const rotEnd = signOff.getTime() - 86400000;
-        if (rotStart > monthEndTime || rotEnd < monthStartTime) continue;
-        const effectiveStart = Math.max(rotStart, monthStartTime);
-        const effectiveEnd = Math.min(rotEnd, monthEndTime);
-        const daysInMonth = Math.ceil((effectiveEnd - effectiveStart) / (1000 * 60 * 60 * 24)) + 1;
-        if (daysInMonth <= 0) continue;
-        const isOffshore = cycle.is_offshore !== false;
-        if (isOM && isOffshore) totalOffshoreDays += daysInMonth;
-        const cycleReliefDays = cycle.day_relief ?? 0;
-        const cycleReliefRate = cycle.relief_all ?? 0;
-        totalReliefDays += cycleReliefDays;
-        totalReliefAmount += cycleReliefDays * cycleReliefRate;
-        const cycleStandbyDays = cycle.day_standby ?? 0;
-        const cycleStandbyRate = cycle.standby_all ?? 0;
-        totalStandbyDays += cycleStandbyDays;
-        totalStandbyAmount += cycleStandbyDays * cycleStandbyRate;
-        const cycleMedevacDates = (cycle.medevac_dates || []).filter((d) => {
-          const md = safeParseDate(d);
-          return md && md.getTime() >= monthStartTime && md.getTime() <= monthEndTime;
-        });
-        totalMedevacDays += cycleMedevacDates.length;
-        cycleDetails.push({ cycleNum: parseInt(cycleNumStr), sign_on: cycle.sign_on, sign_off: cycle.sign_off, days: daysInMonth, is_offshore: isOffshore, day_relief: cycleReliefDays, relief_rate: cycleReliefRate, day_standby: cycleStandbyDays, standby_rate: cycleStandbyRate, medevac_dates: cycleMedevacDates, notes: cycle.notes });
-      }
-      if (cycleDetails.length === 0) continue;
-      const offshoreTotal = isOM ? totalOffshoreDays * OA_RATE : 0;
-      const medevacTotal = isEM ? totalMedevacDays * MEDEVAC_RATE : 0;
-      const grandTotal = offshoreTotal + totalReliefAmount + totalStandbyAmount + medevacTotal;
-      rows.push({
-        crew_id: crew.crew_id, crew_name: crew.crew_name, post: crew.post, client: crew.client, location: crew.location, displayLocation,
-        offshoreDays: isOM ? totalOffshoreDays : 0, offshoreTotal,
-        reliefDays: totalReliefDays, reliefRate: totalReliefAmount > 0 && totalReliefDays > 0 ? totalReliefAmount / totalReliefDays : 0, reliefTotal: totalReliefAmount,
-        standbyDays: totalStandbyDays, standbyRate: totalStandbyAmount > 0 && totalStandbyDays > 0 ? totalStandbyAmount / totalStandbyDays : 0, standbyTotal: totalStandbyAmount,
-        medevacDays: isEM ? totalMedevacDays : 0, medevacTotal, grandTotal,
-        cycles: cycleDetails.sort((a, b) => a.cycleNum - b.cycleNum),
-      });
-    }
-    const clientRank = (c: string) => { const u = (c || "").toUpperCase().trim(); if (u.includes("SKA")) return 1; if (u.includes("SBA")) return 2; return 3; };
-    return rows.sort((a, b) => {
-      const tradeA = getTradeRank(a.post), tradeB = getTradeRank(b.post);
-      if (tradeA !== tradeB) return tradeA - tradeB;
-      const locCmp = (a.displayLocation || "").localeCompare(b.displayLocation || "");
-      if (locCmp !== 0) return locCmp;
-      return clientRank(a.client) - clientRank(b.client) || a.crew_name.localeCompare(b.crew_name);
-    });
-  }, [data, masterMap, selectedYear, selectedMonthNum]);
-
-  const filteredStmtRows = useMemo(() => {
-    return statementRows.filter((row) => {
-      if (row.grandTotal === 0) return false;
-      const displayName = getDisplayName(row.crew_id, row.crew_name);
-      const matchesSearch = !stmtSearch.trim() || displayName.toLowerCase().includes(stmtSearch.toLowerCase());
-      const matchesTrade = stmtTradeFilter === "ALL" || (stmtTradeFilter === "OM" && row.post?.includes("OFFSHORE MEDIC")) || (stmtTradeFilter === "EM" && row.post?.includes("ESCORT MEDIC")) || (stmtTradeFilter === "IMP/OHN" && (row.post?.includes("IM") || row.post?.includes("OHN")));
-      const matchesClient = stmtClientFilter === "ALL" || row.client === stmtClientFilter;
-      return matchesSearch && matchesTrade && matchesClient;
-    });
-  }, [statementRows, stmtSearch, stmtTradeFilter, stmtClientFilter]);
-
-  const stmtTotals = useMemo(() => filteredStmtRows.reduce((acc, row) => ({ offshore: acc.offshore + row.offshoreTotal, relief: acc.relief + row.reliefTotal, standby: acc.standby + row.standbyTotal, medevac: acc.medevac + row.medevacTotal, grand: acc.grand + row.grandTotal }), { offshore: 0, relief: 0, standby: 0, medevac: 0, grand: 0 }), [filteredStmtRows]);
-
   // ─── Budgeting period state ───
   const [budgetPeriod, setBudgetPeriod] = useState(() => {
     const now = new Date();
@@ -493,37 +374,6 @@ export default function FinancialDashboardPage() {
     return { barData, clientTotals, grandTotal, ska, sba };
   }, [data, masterData, masterMap, budgetBuffer, budgetPeriod]);
 
-  // ─── Load persisted approval from Supabase ───
-  useEffect(() => {
-    if (!selectedMonth || !stmtClientFilter) return;
-    const key = stmtClientFilter === "ALL" ? "ALL" : stmtClientFilter;
-    getApproval(selectedMonth, key).then((rec) => {
-      if (rec) {
-        setApproval({ name: rec.approved_by, date: rec.approved_at, role: rec.approved_role });
-      } else {
-        setApproval(null);
-      }
-    });
-  }, [selectedMonth, stmtClientFilter]);
-
-  // ─── Approval handler (persists to Supabase) ───
-  const handleApprove = async () => {
-    if (!approverName.trim()) return;
-    const now = new Date().toLocaleDateString("en-MY", { day: "2-digit", month: "short", year: "numeric" });
-    const key = stmtClientFilter === "ALL" ? "ALL" : stmtClientFilter;
-    const record: ApprovalRecord = {
-      month_year: selectedMonth,
-      client: key,
-      approved_by: approverName.trim(),
-      approved_role: "Project Manager",
-      approved_at: now,
-    };
-    await upsertApproval(record);
-    setApproval({ name: record.approved_by, date: now, role: record.approved_role });
-    setApprovalModal(false);
-    setApproverName("");
-  };
-
   if (loading) return (
     <AppShell>
       <div className="flex items-center justify-center h-48">
@@ -535,7 +385,6 @@ export default function FinancialDashboardPage() {
   // ─── Tab definitions ───
   const tabs: { id: TabType; label: string; hidden?: boolean }[] = [
     { id: "dashboard", label: "Dashboard" },
-    { id: "statement", label: "Statement", hidden: !canSeeStatement },
     { id: "budgeting", label: "Budgeting" },
   ];
 
@@ -565,7 +414,7 @@ export default function FinancialDashboardPage() {
             </div>
             {activeTab !== "dashboard" && (
               <button onClick={() => {
-                const titles: Record<TabType, string> = { dashboard: "Financial_Report", statement: "Statement", budgeting: "Budget_Projection" };
+                const titles: Record<TabType, string> = { dashboard: "Financial_Report", budgeting: "Budget_Projection" };
                 document.title = `${titles[activeTab]}_${new Date().toISOString().slice(0,10)}`;
                 window.print();
               }} className="print-btn p-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm" title="Print">
@@ -712,177 +561,6 @@ export default function FinancialDashboardPage() {
               </div>
             </div>
           </>
-        )}
-
-        {/* ═══════════════ STATEMENT TAB ═══════════════ */}
-        {activeTab === "statement" && canSeeStatement && (
-          <div className="flex flex-col flex-1 min-h-0 gap-3">
-            {/* Print header */}
-            <div className="print-header hidden items-center justify-between px-2 py-2 border-b border-slate-300 mb-2">
-              <div>
-                <span className="text-sm font-black uppercase tracking-wider">Monthly Allowance Statement</span>
-                <span className="text-xs font-bold text-slate-600 ml-3">{MONTH_NAMES[selectedMonthNum - 1]} {selectedYear}</span>
-              </div>
-              <div className="flex items-center gap-3 text-[9px] font-bold text-slate-500 uppercase">
-                <span>{filteredStmtRows.length} staff</span>
-              </div>
-            </div>
-
-            {/* Filters */}
-            <div className="no-print-header flex flex-wrap items-end gap-2" data-no-print>
-              <div className="flex flex-col">
-                <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Period</label>
-                <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40">
-                  {(() => {
-                    const now = new Date();
-                    const curYear = now.getFullYear();
-                    const curMonth = now.getMonth() + 1;
-                    const options: { value: string; label: string }[] = [];
-                    for (let y = curYear; y <= 2026; y++) { const startM = y === curYear ? curMonth : 1; for (let m = startM; m <= 12; m++) { const val = `${y}-${String(m).padStart(2, "0")}`; options.push({ value: val, label: `${MONTH_NAMES[m - 1]} ${y}` }); } }
-                    return options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>);
-                  })()}
-                </select>
-              </div>
-              <div className="flex flex-col">
-                <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Client</label>
-                <select value={stmtClientFilter} onChange={(e) => setStmtClientFilter(e.target.value as "ALL" | "SBA" | "SKA")} className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40">
-                  <option value="ALL">All</option><option value="SBA">SBA</option><option value="SKA">SKA</option>
-                </select>
-              </div>
-              <div className="flex flex-col">
-                <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Grade</label>
-                <select value={stmtTradeFilter} onChange={(e) => setStmtTradeFilter(e.target.value as "ALL" | "OM" | "EM" | "IMP/OHN")} className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40">
-                  <option value="ALL">All</option><option value="OM">OM</option><option value="EM">EM</option><option value="IMP/OHN">OHN</option>
-                </select>
-              </div>
-              <div className="flex flex-col">
-                <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Search</label>
-                <input type="text" placeholder="Name..." value={stmtSearch} onChange={(e) => setStmtSearch(e.target.value)} className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40 w-32" />
-              </div>
-            </div>
-
-            {/* Statement Table */}
-            {filteredStmtRows.length === 0 ? (
-              <div className="bg-card rounded-xl border border-border p-12 text-center">
-                <p className="text-muted-foreground text-sm font-medium">No active rotations found for {MONTH_NAMES[selectedMonthNum - 1]} {selectedYear}.</p>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-border overflow-hidden flex-1 min-h-0 flex flex-col">
-                <div className="overflow-auto flex-1 min-h-0">
-                  <table className="w-full text-[12px] font-sans border-collapse" style={{ minWidth: "1000px" }}>
-                    <thead className="sticky top-0 z-10">
-                      <tr className="text-white" style={{ backgroundColor: "#1e3a8a" }}>
-                        <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50" style={{ minWidth: "240px" }}>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="whitespace-nowrap">Name / Client / Trade / Location</span>
-                            {approval ? (
-                              <div className="approval-stamp flex items-center gap-2 px-3 py-2.5 bg-red-600 rounded-lg border-2 border-red-400 shadow-lg shadow-red-900/30 shrink-0">
-                                <svg className="w-6 h-6 text-white shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                                <div className="flex flex-col leading-none gap-0.5">
-                                  <span className="text-[12px] font-black text-white uppercase tracking-widest">APPROVED</span>
-                                  <span className="text-[9px] font-bold text-red-100 whitespace-nowrap">{approval.name} | {approval.date}</span>
-                                </div>
-                              </div>
-                            ) : (
-                              <button type="button" onClick={() => setApprovalModal(true)} className="flex items-center gap-2 px-3 py-2.5 bg-white/10 hover:bg-white/20 rounded-lg border border-white/20 transition-all shrink-0">
-                                <svg className="w-5 h-5 text-white/70 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                                <span className="text-[10px] font-black text-white/70 uppercase tracking-wider">Approve</span>
-                              </button>
-                            )}
-                          </div>
-                        </th>
-                        <th colSpan={2} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">Offshore</th>
-                        <th colSpan={3} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">Relief</th>
-                        <th colSpan={3} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">Standby</th>
-                        <th colSpan={2} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">Medevac</th>
-                        <th rowSpan={2} className="px-3 py-1.5 text-center whitespace-nowrap" style={{ minWidth: "100px" }}>
-                          <div className="text-[10px] font-black uppercase tracking-wide">Grand Total</div>
-                          <div className="text-[11px] font-black tabular-nums mt-0.5">{fmtAmt(stmtTotals.grand)}</div>
-                        </th>
-                      </tr>
-                      <tr className="text-blue-100" style={{ backgroundColor: "#1e3a8a" }}>
-                        <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "50px" }}>Days</th>
-                        <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "80px" }}>Total</th>
-                        <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "50px" }}>Days</th>
-                        <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "60px" }}>Rate</th>
-                        <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "80px" }}>Total</th>
-                        <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "50px" }}>Days</th>
-                        <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "60px" }}>Rate</th>
-                        <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "80px" }}>Total</th>
-                        <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "60px" }}>No of Days</th>
-                        <th className="px-2 py-1 text-[9px] font-semibold text-center border-r border-blue-700/50" style={{ width: "80px" }}>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredStmtRows.map((row, idx) => {
-                        const isExpanded = expandedRow === `${row.crew_id}::${row.crew_name}`;
-                        return (
-                          <Fragment key={`${row.crew_id}::${row.crew_name}::${idx}`}>
-                            <tr onClick={() => setExpandedRow(isExpanded ? null : `${row.crew_id}::${row.crew_name}`)} className={`cursor-pointer transition-colors border-b border-border ${idx % 2 === 0 ? "bg-card" : "bg-muted/30"} hover:bg-blue-500/5`}>
-                              <td className="px-3 py-1 border-r border-border">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] text-muted-foreground font-bold tabular-nums w-4">{idx + 1}</span>
-                                  <div>
-                                    <div className="text-[11px] font-bold text-foreground uppercase leading-tight whitespace-nowrap">{getDisplayName(row.crew_id, row.crew_name)}</div>
-                                    <div className="text-[9px] text-muted-foreground">{row.client} / {shortenPost(row.post)} / {row.displayLocation}</div>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-2 py-1 text-center border-r border-border tabular-nums"><span className={row.offshoreDays > 0 ? "text-emerald-600 font-bold" : "text-muted-foreground"}>{fmtNum(row.offshoreDays)}</span></td>
-                              <td className="px-2 py-1 text-center border-r border-border tabular-nums"><span className={row.offshoreTotal > 0 ? "text-emerald-600 font-bold" : "text-muted-foreground"}>{fmtAmt(row.offshoreTotal)}</span></td>
-                              <td className="px-2 py-1 text-center border-r border-border tabular-nums"><span className={row.reliefDays > 0 ? "text-blue-600 font-bold" : "text-muted-foreground"}>{fmtNum(row.reliefDays)}</span></td>
-                              <td className="px-2 py-1 text-center border-r border-border tabular-nums text-muted-foreground text-[11px]">{row.reliefRate > 0 ? fmtAmt(row.reliefRate) : "-"}</td>
-                              <td className="px-2 py-1 text-center border-r border-border tabular-nums"><span className={row.reliefTotal > 0 ? "text-blue-600 font-bold" : "text-muted-foreground"}>{fmtAmt(row.reliefTotal)}</span></td>
-                              <td className="px-2 py-1 text-center border-r border-border tabular-nums"><span className={row.standbyDays > 0 ? "text-violet-600 font-bold" : "text-muted-foreground"}>{fmtNum(row.standbyDays)}</span></td>
-                              <td className="px-2 py-1 text-center border-r border-border tabular-nums text-muted-foreground text-[11px]">{row.standbyRate > 0 ? fmtAmt(row.standbyRate) : "-"}</td>
-                              <td className="px-2 py-1 text-center border-r border-border tabular-nums"><span className={row.standbyTotal > 0 ? "text-violet-600 font-bold" : "text-muted-foreground"}>{fmtAmt(row.standbyTotal)}</span></td>
-                              <td className="px-2 py-1 text-center border-r border-border tabular-nums"><span className={row.medevacDays > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}>{fmtNum(row.medevacDays)}</span></td>
-                              <td className="px-2 py-1 text-center border-r border-border tabular-nums"><span className={row.medevacTotal > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"}>{fmtAmt(row.medevacTotal)}</span></td>
-                              <td className="px-3 py-1 text-center tabular-nums"><span className="text-[12px] font-black text-foreground">{fmtAmt(row.grandTotal)}</span></td>
-                            </tr>
-                            {isExpanded && (
-                              <tr className="bg-muted/20">
-                                <td colSpan={12} className="px-5 py-2 border-b border-border">
-                                  <div className="text-[10px] space-y-1">
-                                    {row.cycles.map((c) => (
-                                      <div key={c.cycleNum} className="flex flex-wrap items-center gap-4 py-0.5 border-b border-border/30 last:border-0">
-                                        <span className="font-bold text-foreground w-14">Cycle {c.cycleNum}</span>
-                                        <span className="text-muted-foreground">{formatDate(c.sign_on)} - {formatDate(c.sign_off)}</span>
-                                        <span className="text-muted-foreground">{c.days}d</span>
-                                        {c.is_offshore && <span className="text-emerald-600 font-semibold">Offshore</span>}
-                                        {c.day_relief > 0 && <span className="text-blue-600 font-semibold">Relief: {c.day_relief}d x {fmtAmt(c.relief_rate)}</span>}
-                                        {c.day_standby > 0 && <span className="text-violet-600 font-semibold">Standby: {c.day_standby}d x {fmtAmt(c.standby_rate)}</span>}
-                                        {c.medevac_dates.length > 0 && <span className="text-amber-600 font-semibold">Medevac: {c.medevac_dates.map(d => formatDate(d)).join(", ")}</span>}
-                                        {c.notes && <span className="text-muted-foreground italic">{c.notes}</span>}
-                                      </div>
-                                    ))}
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </Fragment>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot>
-                      <tr className="text-white font-bold" style={{ backgroundColor: "#1e3a8a" }}>
-                        <td className="px-3 py-2 text-left border-r border-blue-700/50"><span className="text-[10px] font-bold uppercase tracking-wider">Total ({filteredStmtRows.length} crew)</span></td>
-                        <td className="px-2 py-2 border-r border-blue-700/50" />
-                        <td className="px-2 py-2 text-center border-r border-blue-700/50 tabular-nums text-[11px]">{fmtAmt(stmtTotals.offshore)}</td>
-                        <td className="px-2 py-2 border-r border-blue-700/50" /><td className="px-2 py-2 border-r border-blue-700/50" />
-                        <td className="px-2 py-2 text-center border-r border-blue-700/50 tabular-nums text-[11px]">{fmtAmt(stmtTotals.relief)}</td>
-                        <td className="px-2 py-2 border-r border-blue-700/50" /><td className="px-2 py-2 border-r border-blue-700/50" />
-                        <td className="px-2 py-2 text-center border-r border-blue-700/50 tabular-nums text-[11px]">{fmtAmt(stmtTotals.standby)}</td>
-                        <td className="px-2 py-2 border-r border-blue-700/50" />
-                        <td className="px-2 py-2 text-center border-r border-blue-700/50 tabular-nums text-[11px]">{fmtAmt(stmtTotals.medevac)}</td>
-                        <td className="px-3 py-2 text-center tabular-nums text-[12px] font-black">{fmtAmt(stmtTotals.grand)}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
         )}
 
         {/* ═══════════════ BUDGETING TAB ═══════════════ */}
@@ -1095,36 +773,6 @@ export default function FinancialDashboardPage() {
           </div>
         )}
 
-        {/* Approval Modal */}
-        {approvalModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-card rounded-2xl w-full max-w-sm shadow-2xl border border-border">
-              <div className="px-5 py-3 border-b border-border bg-emerald-600 rounded-t-2xl">
-                <h3 className="text-xs font-black uppercase tracking-wider text-white">Project Manager Approval</h3>
-                <p className="text-[9px] font-bold text-emerald-100">Enter your name to certify this statement for payment</p>
-              </div>
-              <div className="px-5 py-4 space-y-3">
-                <div>
-                  <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">Full Name</label>
-                  <input
-                    type="text"
-                    value={approverName}
-                    onChange={(e) => setApproverName(e.target.value)}
-                    placeholder="Enter your full name..."
-                    autoFocus
-                    className="w-full bg-muted border border-border rounded-lg px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-400"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-muted/30 rounded-b-2xl">
-                <button type="button" onClick={() => { setApprovalModal(false); setApproverName(""); }} className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border">Cancel</button>
-                <button type="button" onClick={handleApprove} disabled={!approverName.trim()} className={`px-5 py-2 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all ${approverName.trim() ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg" : "bg-muted text-muted-foreground cursor-not-allowed"}`}>
-                  Certify & Approve
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </AppShell>
   );
