@@ -656,14 +656,14 @@ export default function AdminPage() {
                   return (
                     <Fragment key={`${row.crew_id}::${row.crew_name}`}>
                       {showSeparator && (
-                        <tr className="sticky top-0 z-[90] bg-slate-900 border-y border-slate-950 shadow-xl w-full">
-                          <td className="px-6 py-2 sticky left-0 z-[95] bg-slate-900 border-r border-slate-800">
+                        <tr className="sticky top-0 z-[90] bg-gray-200 dark:bg-gray-700 border-y border-gray-300 dark:border-gray-600 w-full">
+                          <td className="px-4 py-1 sticky left-0 z-[95] bg-gray-200 dark:bg-gray-700 border-r border-gray-300 dark:border-gray-600">
                             <div className="flex items-center justify-between gap-2">
-                              <div className="flex flex-col">
-                                <span className="text-[15px] font-black text-white uppercase tracking-wider leading-tight">
+                              <div className="flex items-center gap-3">
+                                <span className="text-[13px] font-black text-gray-800 dark:text-gray-100 uppercase tracking-wider leading-tight">
                                   {shortenPost(row.post)}
                                 </span>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide leading-tight">
+                                <span className="text-[12px] font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wide leading-tight">
                                   {row.location} / {row.client}
                                 </span>
                               </div>
@@ -684,7 +684,7 @@ export default function AdminPage() {
                               </button>
                             </div>
                           </td>
-                          <td className="bg-slate-900 py-2 h-12 w-full" />
+                          <td className="bg-gray-200 dark:bg-gray-700 py-1 w-full" />
                         </tr>
                       )}
                       <tr className="transition-colors group h-12 hover:bg-blue-50/20">
@@ -857,8 +857,8 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* SECTION B: GANTT MOVEMENT REGISTER */}
-        {sortedData.length > 0 && (() => {
+        {/* SECTION B: GANTT MOVEMENT REGISTER - hidden when main filter is ALL */}
+        {(locationFilter !== "ALL" || search.trim()) && sortedData.length > 0 && (() => {
           const EXTRACT_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
           const [eYear, eMonth] = extractMonth.split("-").map(Number);
           const daysCount = new Date(eYear, eMonth + 1, 0).getDate();
@@ -910,7 +910,7 @@ export default function AdminPage() {
           }
 
           return (
-            <div className="overflow-hidden flex flex-col flex-[5] min-h-0">
+            <div className="overflow-hidden flex flex-col flex-[1] min-h-0">
               <style jsx>{`
                 @keyframes barSlideIn { from { transform: scaleX(0); transform-origin: left center; } to { transform: scaleX(1); transform-origin: left center; } }
                 .gantt-bar-admin { animation: barSlideIn 0.8s ease-out forwards; }
@@ -933,7 +933,7 @@ export default function AdminPage() {
                           <select
                             value={extractMonth}
                             onChange={(e) => setExtractMonth(e.target.value)}
-                            className="text-[9px] font-bold text-white bg-blue-800 border border-blue-600 px-1.5 py-0.5 rounded outline-none cursor-pointer uppercase shrink-0"
+                            className="text-[9px] font-bold text-gray-800 bg-white border border-blue-300 px-1.5 py-0.5 rounded outline-none cursor-pointer uppercase shrink-0"
                           >
                             {monthOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                           </select>
@@ -953,9 +953,9 @@ export default function AdminPage() {
                     {grouped.map((item, idx) => {
                       if (item.type === "sep") {
                         return (
-                          <tr key={`gsep-${idx}`} className="bg-slate-300">
-                            <td colSpan={daysCount + 1} className="px-2 sticky left-0 z-10 bg-slate-300" style={{ height: "18px" }}>
-                              <span className="text-[8px] font-black text-slate-800 uppercase tracking-widest">{item.label}</span>
+                          <tr key={`gsep-${idx}`} className="bg-gray-200 dark:bg-gray-700">
+                            <td colSpan={daysCount + 1} className="px-2 sticky left-0 z-10 bg-gray-200 dark:bg-gray-700" style={{ height: "16px" }}>
+                              <span className="text-[7px] font-black text-gray-700 dark:text-gray-200 uppercase tracking-widest">{item.label}</span>
                             </td>
                           </tr>
                         );
@@ -991,12 +991,7 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
-              {/* Compact Legend */}
-              <div className="flex items-center gap-3 px-3 py-0.5 bg-muted/30 border-t border-border shrink-0">
-                <div className="flex items-center gap-1"><div className="w-3 h-2 bg-blue-500 rounded-sm" /><span className="text-[7px] font-bold text-muted-foreground uppercase tracking-wider">Rotation</span></div>
-                <div className="flex items-center gap-1"><div className="w-3 h-2 bg-amber-500 rounded-sm" /><span className="text-[7px] font-bold text-muted-foreground uppercase tracking-wider">Relief</span></div>
-                <div className="flex items-center gap-1"><div className="w-3 h-2 bg-slate-400 rounded-sm" /><span className="text-[7px] font-bold text-muted-foreground uppercase tracking-wider">OHN Weekend</span></div>
-              </div>
+
             </div>
           );
         })()}

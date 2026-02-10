@@ -735,8 +735,11 @@ export default function FinancialDashboardPage() {
                 <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Period</label>
                 <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40">
                   {(() => {
+                    const now = new Date();
+                    const curYear = now.getFullYear();
+                    const curMonth = now.getMonth() + 1;
                     const options: { value: string; label: string }[] = [];
-                    for (let y = 2025; y <= 2026; y++) { const startM = y === 2025 ? 9 : 1; for (let m = startM; m <= 12; m++) { const val = `${y}-${String(m).padStart(2, "0")}`; options.push({ value: val, label: `${MONTH_NAMES[m - 1]} ${y}` }); } }
+                    for (let y = curYear; y <= 2026; y++) { const startM = y === curYear ? curMonth : 1; for (let m = startM; m <= 12; m++) { const val = `${y}-${String(m).padStart(2, "0")}`; options.push({ value: val, label: `${MONTH_NAMES[m - 1]} ${y}` }); } }
                     return options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>);
                   })()}
                 </select>
@@ -774,17 +777,17 @@ export default function FinancialDashboardPage() {
                           <div className="flex items-center justify-between gap-2">
                             <span className="whitespace-nowrap">Name / Client / Trade / Location</span>
                             {approval ? (
-                              <div className="approval-stamp flex items-center gap-1.5 px-2.5 py-1 bg-red-600 rounded-lg border-2 border-red-400 shadow-lg shadow-red-900/30 shrink-0">
-                                <svg className="w-4 h-4 text-white shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                                <div className="flex flex-col leading-none">
-                                  <span className="text-[10px] font-black text-white uppercase tracking-widest">APPROVED</span>
-                                  <span className="text-[7px] font-bold text-red-100 whitespace-nowrap">{approval.name} | {approval.date}</span>
+                              <div className="approval-stamp flex items-center gap-2 px-3 py-2.5 bg-red-600 rounded-lg border-2 border-red-400 shadow-lg shadow-red-900/30 shrink-0">
+                                <svg className="w-6 h-6 text-white shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                <div className="flex flex-col leading-none gap-0.5">
+                                  <span className="text-[12px] font-black text-white uppercase tracking-widest">APPROVED</span>
+                                  <span className="text-[9px] font-bold text-red-100 whitespace-nowrap">{approval.name} | {approval.date}</span>
                                 </div>
                               </div>
                             ) : (
-                              <button type="button" onClick={() => setApprovalModal(true)} className="flex items-center gap-1.5 px-2.5 py-1 bg-white/10 hover:bg-white/20 rounded-lg border border-white/20 transition-all shrink-0">
-                                <svg className="w-3.5 h-3.5 text-white/70 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                                <span className="text-[9px] font-black text-white/70 uppercase tracking-wider">Approve</span>
+                              <button type="button" onClick={() => setApprovalModal(true)} className="flex items-center gap-2 px-3 py-2.5 bg-white/10 hover:bg-white/20 rounded-lg border border-white/20 transition-all shrink-0">
+                                <svg className="w-5 h-5 text-white/70 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                <span className="text-[10px] font-black text-white/70 uppercase tracking-wider">Approve</span>
                               </button>
                             )}
                           </div>
@@ -896,8 +899,11 @@ export default function FinancialDashboardPage() {
                   <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Period</label>
                   <select value={budgetPeriod} onChange={(e) => setBudgetPeriod(e.target.value)} className="bg-transparent text-[11px] font-black uppercase outline-none cursor-pointer">
                     {(() => {
+                      const now = new Date();
+                      const curYear = now.getFullYear();
+                      const curMonth = now.getMonth() + 1;
                       const opts: { value: string; label: string }[] = [];
-                      for (let y = 2025; y <= 2027; y++) { const startM = y === 2025 ? 9 : 1; for (let m = startM; m <= 12; m++) { const val = `${y}-${String(m).padStart(2, "0")}`; opts.push({ value: val, label: `${MONTH_NAMES[m - 1]} ${y}` }); } }
+                      for (let y = curYear; y <= 2027; y++) { const startM = y === curYear ? curMonth : 1; for (let m = startM; m <= 12; m++) { const val = `${y}-${String(m).padStart(2, "0")}`; opts.push({ value: val, label: `${MONTH_NAMES[m - 1]} ${y}` }); } }
                       return opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>);
                     })()}
                   </select>
@@ -977,66 +983,68 @@ export default function FinancialDashboardPage() {
 
             {/* Split by Client */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              <div className="rounded-xl border border-border overflow-hidden">
-                <div className="px-3 py-2" style={{ backgroundColor: "#1e3a8a" }}>
+              <div className="rounded-xl border border-border overflow-hidden flex flex-col">
+                <div className="px-4 py-2.5 flex items-center gap-2" style={{ backgroundColor: "#1e3a8a" }}>
+                  <svg className="w-4 h-4 text-white/80 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
                   <h4 className="text-[10px] font-black text-white uppercase tracking-wider">By Client - {budgetData.periodLabel}</h4>
                 </div>
-                <table className="w-full border-collapse text-[10px]">
+                <table className="w-full border-collapse text-[11px] flex-1">
                   <thead>
-                    <tr className="bg-muted/50">
-                      <th className="px-3 py-1.5 text-left font-black uppercase tracking-widest border-r border-border">Client</th>
-                      <th className="px-3 py-1.5 text-right font-bold uppercase tracking-widest border-r border-border">Fixed</th>
-                      <th className="px-3 py-1.5 text-right font-bold uppercase tracking-widest border-r border-border">Variable</th>
-                      <th className="px-3 py-1.5 text-right font-black uppercase tracking-widest">Total</th>
+                    <tr className="bg-slate-50 dark:bg-muted/50">
+                      <th className="px-4 py-2 text-left font-black uppercase tracking-widest border-r border-border text-slate-600 dark:text-foreground">Client</th>
+                      <th className="px-4 py-2 text-right font-bold uppercase tracking-widest border-r border-border text-slate-600 dark:text-foreground">Fixed</th>
+                      <th className="px-4 py-2 text-right font-bold uppercase tracking-widest border-r border-border text-slate-600 dark:text-foreground">Variable</th>
+                      <th className="px-4 py-2 text-right font-black uppercase tracking-widest text-slate-600 dark:text-foreground">Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {budgetData.byClient.map((r) => (
-                      <tr key={r.client} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-3 py-1.5 font-black text-foreground uppercase">{r.client}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums font-bold text-foreground">{fmtAmt(r.fixed)}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums font-bold text-foreground">{fmtAmt(r.variable)}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums font-black text-foreground">{fmtAmt(r.total)}</td>
+                    {budgetData.byClient.map((r, i) => (
+                      <tr key={r.client} className={`hover:bg-blue-50/50 dark:hover:bg-muted/30 transition-colors ${i % 2 === 1 ? "bg-slate-50/50 dark:bg-muted/20" : ""}`}>
+                        <td className="px-4 py-2.5 font-black text-foreground uppercase">{r.client}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums font-bold text-foreground">{fmtAmt(r.fixed)}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums font-bold text-foreground">{fmtAmt(r.variable)}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums font-black text-foreground">{fmtAmt(r.total)}</td>
                       </tr>
                     ))}
                     <tr className="text-white font-black" style={{ backgroundColor: "#1e3a8a" }}>
-                      <td className="px-3 py-2 uppercase tracking-widest">Total</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{fmtAmt(budgetData.grandFixed)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{fmtAmt(budgetData.grandVariable)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{fmtAmt(budgetData.grandTotal)}</td>
+                      <td className="px-4 py-2.5 uppercase tracking-widest">Total</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtAmt(budgetData.grandFixed)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtAmt(budgetData.grandVariable)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtAmt(budgetData.grandTotal)}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
               {/* Split by Trade */}
-              <div className="rounded-xl border border-border overflow-hidden">
-                <div className="px-3 py-2" style={{ backgroundColor: "#1e3a8a" }}>
+              <div className="rounded-xl border border-border overflow-hidden flex flex-col">
+                <div className="px-4 py-2.5 flex items-center gap-2" style={{ backgroundColor: "#1e3a8a" }}>
+                  <svg className="w-4 h-4 text-white/80 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
                   <h4 className="text-[10px] font-black text-white uppercase tracking-wider">By Trade - {budgetData.periodLabel}</h4>
                 </div>
-                <table className="w-full border-collapse text-[10px]">
+                <table className="w-full border-collapse text-[11px] flex-1">
                   <thead>
-                    <tr className="bg-muted/50">
-                      <th className="px-3 py-1.5 text-left font-black uppercase tracking-widest border-r border-border">Trade</th>
-                      <th className="px-3 py-1.5 text-right font-bold uppercase tracking-widest border-r border-border">Fixed</th>
-                      <th className="px-3 py-1.5 text-right font-bold uppercase tracking-widest border-r border-border">Variable</th>
-                      <th className="px-3 py-1.5 text-right font-black uppercase tracking-widest">Total</th>
+                    <tr className="bg-slate-50 dark:bg-muted/50">
+                      <th className="px-4 py-2 text-left font-black uppercase tracking-widest border-r border-border text-slate-600 dark:text-foreground">Trade</th>
+                      <th className="px-4 py-2 text-right font-bold uppercase tracking-widest border-r border-border text-slate-600 dark:text-foreground">Fixed</th>
+                      <th className="px-4 py-2 text-right font-bold uppercase tracking-widest border-r border-border text-slate-600 dark:text-foreground">Variable</th>
+                      <th className="px-4 py-2 text-right font-black uppercase tracking-widest text-slate-600 dark:text-foreground">Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {budgetData.byTrade.map((r) => (
-                      <tr key={r.trade} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-3 py-1.5 font-black text-foreground uppercase">{r.trade}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums font-bold text-foreground">{fmtAmt(r.fixed)}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums font-bold text-foreground">{fmtAmt(r.variable)}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums font-black text-foreground">{fmtAmt(r.total)}</td>
+                    {budgetData.byTrade.map((r, i) => (
+                      <tr key={r.trade} className={`hover:bg-blue-50/50 dark:hover:bg-muted/30 transition-colors ${i % 2 === 1 ? "bg-slate-50/50 dark:bg-muted/20" : ""}`}>
+                        <td className="px-4 py-2.5 font-black text-foreground uppercase">{r.trade}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums font-bold text-foreground">{fmtAmt(r.fixed)}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums font-bold text-foreground">{fmtAmt(r.variable)}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums font-black text-foreground">{fmtAmt(r.total)}</td>
                       </tr>
                     ))}
                     <tr className="text-white font-black" style={{ backgroundColor: "#1e3a8a" }}>
-                      <td className="px-3 py-2 uppercase tracking-widest">Total</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{fmtAmt(budgetData.grandFixed)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{fmtAmt(budgetData.grandVariable)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{fmtAmt(budgetData.grandTotal)}</td>
+                      <td className="px-4 py-2.5 uppercase tracking-widest">Total</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtAmt(budgetData.grandFixed)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtAmt(budgetData.grandVariable)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtAmt(budgetData.grandTotal)}</td>
                     </tr>
                   </tbody>
                 </table>

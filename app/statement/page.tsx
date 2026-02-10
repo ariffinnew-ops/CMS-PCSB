@@ -349,9 +349,12 @@ export default function StatementPage() {
                   className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40"
                 >
                   {(() => {
+                    const now = new Date();
+                    const curYear = now.getFullYear();
+                    const curMonth = now.getMonth() + 1;
                     const options: { value: string; label: string }[] = [];
-                    for (let y = 2025; y <= 2026; y++) {
-                      const startM = y === 2025 ? 9 : 1;
+                    for (let y = curYear; y <= 2026; y++) {
+                      const startM = y === curYear ? curMonth : 1;
                       const endM = 12;
                       for (let m = startM; m <= endM; m++) {
                         const val = `${y}-${String(m).padStart(2, "0")}`;
@@ -443,17 +446,17 @@ export default function StatementPage() {
                       <div className="flex items-center justify-between gap-2">
                         <span className="whitespace-nowrap">Name / Client / Trade / Location</span>
                         {approval ? (
-                          <div className="approval-stamp flex items-center gap-1.5 px-2.5 py-1 bg-red-600 rounded-lg border-2 border-red-400 shadow-lg shadow-red-900/30 shrink-0">
-                            <svg className="w-4 h-4 text-white shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                            <div className="flex flex-col leading-none">
-                              <span className="text-[10px] font-black text-white uppercase tracking-widest">APPROVED</span>
-                              <span className="text-[7px] font-bold text-red-100 whitespace-nowrap">{approval.name} | {approval.date}</span>
+                          <div className="approval-stamp flex items-center gap-2 px-3 py-2.5 bg-red-600 rounded-lg border-2 border-red-400 shadow-lg shadow-red-900/30 shrink-0">
+                            <svg className="w-6 h-6 text-white shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                            <div className="flex flex-col leading-none gap-0.5">
+                              <span className="text-[12px] font-black text-white uppercase tracking-widest">APPROVED</span>
+                              <span className="text-[9px] font-bold text-red-100 whitespace-nowrap">{approval.name} | {approval.date}</span>
                             </div>
                           </div>
                         ) : (
-                          <button type="button" onClick={() => setApprovalModal(true)} className="flex items-center gap-1.5 px-2.5 py-1 bg-white/10 hover:bg-white/20 rounded-lg border border-white/20 transition-all shrink-0">
-                            <svg className="w-3.5 h-3.5 text-white/70 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                            <span className="text-[9px] font-black text-white/70 uppercase tracking-wider">Approve</span>
+                          <button type="button" onClick={() => setApprovalModal(true)} className="flex items-center gap-2 px-3 py-2.5 bg-white/10 hover:bg-white/20 rounded-lg border border-white/20 transition-all shrink-0">
+                            <svg className="w-5 h-5 text-white/70 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                            <span className="text-[10px] font-black text-white/70 uppercase tracking-wider">Approve</span>
                           </button>
                         )}
                       </div>
