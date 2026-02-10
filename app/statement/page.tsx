@@ -116,12 +116,16 @@ export default function StatementPage() {
   }, [selectedMonth]);
 
   const statementRows = useMemo(() => {
-    const monthStart = new Date(selectedYear, selectedMonthNum - 1, 1, 0, 0, 0, 0);
-    const monthEnd = new Date(selectedYear, selectedMonthNum, 0, 23, 59, 59, 999);
-    const monthStartTime = monthStart.getTime();
-    const monthEndTime = monthEnd.getTime();
+    // Use day-number arithmetic to avoid floating-point issues
+    const monthStartDate = new Date(selectedYear, selectedMonthNum - 1, 1);
+    const monthEndDate = new Date(selectedYear, selectedMonthNum, 0); // last day of month
+    const monthStartDay = Math.round(monthStartDate.getTime() / 86400000);
+    const monthEndDay = Math.round(monthEndDate.getTime() / 86400000);
     const OA_RATE = 200;
     const MEDEVAC_RATE = 500;
+    // Keep ms values for medevac date filtering
+    const monthStartTime = monthStartDate.getTime();
+    const monthEndTime = monthEndDate.getTime();
 
     const rows: StatementRow[] = [];
 
@@ -147,13 +151,15 @@ export default function StatementPage() {
         const signOff = safeParseDate(cycle.sign_off);
         if (!signOn || !signOff) continue;
 
-        const rotStart = signOn.getTime();
-        const rotEnd = signOff.getTime() - 86400000;
-        if (rotStart > monthEndTime || rotEnd < monthStartTime) continue;
+        // sign_off date not counted: last working day = signOff - 1
+        const rotStartDay = Math.round(signOn.getTime() / 86400000);
+        const rotEndDay = Math.round(signOff.getTime() / 86400000) - 1;
+        if (rotStartDay > monthEndDay || rotEndDay < monthStartDay) continue;
 
-        const effectiveStart = Math.max(rotStart, monthStartTime);
-        const effectiveEnd = Math.min(rotEnd, monthEndTime);
-        const daysInMonth = Math.ceil((effectiveEnd - effectiveStart) / (1000 * 60 * 60 * 24)) + 1;
+        // Clamp to month boundaries: endOfMonth - startDate + 1
+        const effectiveStartDay = Math.max(rotStartDay, monthStartDay);
+        const effectiveEndDay = Math.min(rotEndDay, monthEndDay);
+        const daysInMonth = effectiveEndDay - effectiveStartDay + 1;
         if (daysInMonth <= 0) continue;
 
         const isOffshore = cycle.is_offshore !== false;
@@ -291,13 +297,10 @@ export default function StatementPage() {
     setSubmitting(true);
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
     const submitterName = user?.username || "Unknown";
-    console.log("[v0] Submitting for approval:", { selectedMonth, key, submitterName });
     const result = await submitForApproval(selectedMonth, key, submitterName);
-    console.log("[v0] Submit result:", result);
     if (result.success) {
       // Reload record from DB
       const rec = await getApproval(selectedMonth, key);
-      console.log("[v0] Reloaded approval record:", rec);
       if (rec) {
         setApprovalRecord(rec);
         setSubmissionStatus((rec.submission_status as "Draft" | "Submitted" | "Approved") || "Draft");

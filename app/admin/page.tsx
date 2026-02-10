@@ -907,8 +907,13 @@ export default function AdminPage() {
             return { dayNum: i + 1, dayName: ["S","M","T","W","T","F","S"][d.getDay()], isWeekend: d.getDay() === 0 || d.getDay() === 6 };
           });
 
+          // Check if a crew is secondary: has (S) or (R) suffix in name, or roles_em is SECONDARY
+          const isSecondaryRow = (row: typeof sortedData[0]) => {
+            const name = (row.crew_name || "").toUpperCase();
+            return row.roles_em === "SECONDARY" || /\(S\d*\)/.test(name) || /\(R\d*\)/.test(name);
+          };
+
           // Sign-off date excluded from Gantt bar (not counted as POB)
-          // Returns: "SIGN_ON" | "SIGN_OFF" | "PRIMARY" | "RELIEF" | "OHN_WEEKDAY" | "OHN_WEEKEND" | "OFF"
           const getDayStatus = (row: typeof sortedData[0], day: number) => {
             const checkDate = new Date(eYear, eMonth, day, 0, 0, 0, 0);
             const checkTime = checkDate.getTime();
@@ -920,13 +925,9 @@ export default function AdminPage() {
               const m = safeParseDate(cycle.sign_on);
               const d = safeParseDate(cycle.sign_off);
               if (!m || !d) continue;
-              const mTime = m.getTime();
-              const dTime = d.getTime();
-              if (checkTime === mTime) return "SIGN_ON";
-              if (checkTime === dTime) return "SIGN_OFF";
-              if (checkTime > mTime && checkTime < dTime) {
-                if (cycle.relief_all && cycle.relief_all > 0) return "RELIEF";
-                return "PRIMARY";
+              // Sign-off date excluded: use < instead of <=
+              if (checkTime >= m.getTime() && checkTime < d.getTime()) {
+                return isSecondaryRow(row) ? "SECONDARY" : "PRIMARY";
               }
             }
             return "OFF";
@@ -934,7 +935,6 @@ export default function AdminPage() {
           const getConnect = (row: typeof sortedData[0], day: number) => {
             const s = getDayStatus(row, day);
             if (s === "OHN_WEEKDAY" || s === "OHN_WEEKEND") return "OHN";
-            if (s === "SIGN_ON" || s === "SIGN_OFF") return "ACTIVE";
             return s;
           };
           const connectsToNext = (row: typeof sortedData[0], day: number) => day < daysCount && getConnect(row, day) !== "OFF" && getConnect(row, day + 1) !== "OFF";
@@ -1011,40 +1011,17 @@ export default function AdminPage() {
                             const status = getDayStatus(row, d.dayNum);
                             const toNext = connectsToNext(row, d.dayNum);
                             const fromPrev = connectsFromPrev(row, d.dayNum);
-                            const isSignOn = status === "SIGN_ON";
-                            const isSignOff = status === "SIGN_OFF";
                             let barClass = "";
-                            if (isSignOn || isSignOff || status === "PRIMARY" || status === "OHN_WEEKDAY") barClass = "bg-blue-500";
+                            if (status === "PRIMARY" || status === "OHN_WEEKDAY") barClass = "bg-blue-500";
+                            else if (status === "SECONDARY") barClass = "bg-sky-300";
                             else if (status === "OHN_WEEKEND") barClass = "bg-slate-400";
-                            else if (status === "RELIEF") barClass = "bg-amber-500";
                             const rL = !fromPrev ? "rounded-l-sm" : "";
                             const rR = !toNext ? "rounded-r-sm" : "";
                             return (
                               <td key={d.dayNum} className={`p-0 relative ${d.isWeekend ? "bg-gray-50" : "bg-white"}`} style={{ height: "22px" }}>
                                 <div className="absolute inset-y-0 right-0 w-px bg-gray-200 z-0" />
                                 {status !== "OFF" && (
-                                  <div className={`absolute z-10 gantt-bar-admin ${rL} ${rR} ${barClass} flex items-center justify-center`} style={{ top: "3px", bottom: "3px", left: 0, right: 0 }}>
-                                    {isSignOn && (
-                                      <span
-                                        className="flex items-center justify-center rounded-full text-[7px] font-black text-white leading-none select-none"
-                                        style={{
-                                          width: 14, height: 14,
-                                          background: 'radial-gradient(circle at 35% 30%, #6ee7b7, #059669 60%, #064e3b)',
-                                          boxShadow: '0 2px 3px rgba(0,0,0,0.35), inset 0 -2px 2px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.3)',
-                                        }}
-                                      >m</span>
-                                    )}
-                                    {isSignOff && (
-                                      <span
-                                        className="flex items-center justify-center rounded-full text-[7px] font-black text-white leading-none select-none"
-                                        style={{
-                                          width: 14, height: 14,
-                                          background: 'radial-gradient(circle at 35% 30%, #fda4af, #e11d48 60%, #881337)',
-                                          boxShadow: '0 2px 3px rgba(0,0,0,0.35), inset 0 -2px 2px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.3)',
-                                        }}
-                                      >d</span>
-                                    )}
-                                  </div>
+                                  <div className={`absolute z-10 gantt-bar-admin ${rL} ${rR} ${barClass}`} style={{ top: "3px", bottom: "3px", left: 0, right: 0 }} />
                                 )}
                               </td>
                             );
