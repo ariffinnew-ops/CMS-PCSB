@@ -3,7 +3,8 @@
 import { Fragment, useEffect, useState, useMemo } from "react";
 import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow, TradeType } from "@/lib/types";
-import { getPivotedRosterData, getCrewMasterData, getCrewList, type CrewMasterRecord, upsertApproval, getApproval, type ApprovalRecord } from "@/lib/actions";
+import { getPivotedRosterData, getCrewMasterData, getCrewList, type CrewMasterRecord, getApproval, submitForApproval, approveStatement, rejectApproval, type ApprovalRecord } from "@/lib/actions";
+import { getUser } from "@/lib/auth";
 import { safeParseDate, shortenPost, getTradeRank, formatDate } from "@/lib/logic";
 
 const MONTH_NAMES = [
@@ -58,10 +59,13 @@ export default function StatementPage() {
   const [clientFilter, setClientFilter] = useState<"ALL" | "SBA" | "SKA">("ALL");
   const [search, setSearch] = useState("");
 
-  // Approval system
+  // Two-stage approval system
   const [approvalModal, setApprovalModal] = useState(false);
   const [approverName, setApproverName] = useState("");
-  const [approval, setApproval] = useState<{ name: string; date: string; role: string } | null>(null);
+  const [submissionStatus, setSubmissionStatus] = useState<"Draft" | "Submitted" | "Approved">("Draft");
+  const [approvalRecord, setApprovalRecord] = useState<ApprovalRecord | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const user = typeof window !== "undefined" ? getUser() : null;
 
   useEffect(() => {
     Promise.all([getPivotedRosterData(), getCrewMasterData(), getCrewList()]).then(([pivotedData, master, crewResult]) => {
@@ -266,35 +270,72 @@ export default function StatementPage() {
 
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
-  // Load approval from Supabase
+  // Load approval record from Supabase
   useEffect(() => {
     if (!selectedMonth || !clientFilter) return;
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
     getApproval(selectedMonth, key).then((rec) => {
       if (rec) {
-        setApproval({ name: rec.approved_by, date: rec.approved_at, role: rec.approved_role });
+        setApprovalRecord(rec);
+        setSubmissionStatus((rec.submission_status as "Draft" | "Submitted" | "Approved") || "Draft");
       } else {
-        setApproval(null);
+        setApprovalRecord(null);
+        setSubmissionStatus("Draft");
       }
     });
   }, [selectedMonth, clientFilter]);
 
-  // Approval handler
-  const handleApprove = async () => {
-    if (!approverName.trim()) return;
-    const now = new Date().toLocaleDateString("en-MY", { day: "2-digit", month: "short", year: "numeric" });
+  // Stage 1: Submit for Approval
+  const handleSubmitForApproval = async () => {
+    if (submitting) return;
+    setSubmitting(true);
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
-    const record: ApprovalRecord = {
-      month_year: selectedMonth,
-      client: key,
-      approved_by: approverName.trim(),
-      approved_role: "Project Manager",
-      approved_at: now,
-    };
-    await upsertApproval(record);
-    setApproval({ name: record.approved_by, date: now, role: record.approved_role });
+    const submitterName = user?.username || "Unknown";
+    console.log("[v0] Submitting for approval:", { selectedMonth, key, submitterName });
+    const result = await submitForApproval(selectedMonth, key, submitterName);
+    console.log("[v0] Submit result:", result);
+    if (result.success) {
+      // Reload record from DB
+      const rec = await getApproval(selectedMonth, key);
+      console.log("[v0] Reloaded approval record:", rec);
+      if (rec) {
+        setApprovalRecord(rec);
+        setSubmissionStatus((rec.submission_status as "Draft" | "Submitted" | "Approved") || "Draft");
+      } else {
+        // If no record returned, set directly
+        setSubmissionStatus("Submitted");
+      }
+    }
+    setSubmitting(false);
+  };
+
+  // Stage 2: PM Approval
+  const handleApprove = async () => {
+    if (!approverName.trim() || submitting) return;
+    setSubmitting(true);
+    const key = clientFilter === "ALL" ? "ALL" : clientFilter;
+    const result = await approveStatement(selectedMonth, key, approverName.trim());
+    if (result.success) {
+      setSubmissionStatus("Approved");
+      const rec = await getApproval(selectedMonth, key);
+      if (rec) setApprovalRecord(rec);
+    }
     setApprovalModal(false);
     setApproverName("");
+    setSubmitting(false);
+  };
+
+  // Reject / Unlock: reset to Draft
+  const handleReject = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    const key = clientFilter === "ALL" ? "ALL" : clientFilter;
+    const result = await rejectApproval(selectedMonth, key);
+    if (result.success) {
+      setSubmissionStatus("Draft");
+      setApprovalRecord(null);
+    }
+    setSubmitting(false);
   };
 
   const fmtNum = (val: number) => (val === 0 ? "-" : String(val));
@@ -349,12 +390,9 @@ export default function StatementPage() {
                   className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40"
                 >
                   {(() => {
-                    const now = new Date();
-                    const curYear = now.getFullYear();
-                    const curMonth = now.getMonth() + 1;
                     const options: { value: string; label: string }[] = [];
-                    for (let y = curYear; y <= 2026; y++) {
-                      const startM = y === curYear ? curMonth : 1;
+                    for (let y = 2025; y <= 2026; y++) {
+                      const startM = y === 2025 ? 9 : 1;
                       const endM = 12;
                       for (let m = startM; m <= endM; m++) {
                         const val = `${y}-${String(m).padStart(2, "0")}`;
@@ -445,20 +483,64 @@ export default function StatementPage() {
                     <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50" style={{ minWidth: "240px" }}>
                       <div className="flex items-center justify-between gap-2">
                         <span className="whitespace-nowrap">Name / Client / Trade / Location</span>
-                        {approval ? (
-                          <div className="approval-stamp flex items-center gap-2 px-3 py-2.5 bg-red-600 rounded-lg border-2 border-red-400 shadow-lg shadow-red-900/30 shrink-0">
-                            <svg className="w-6 h-6 text-white shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                            <div className="flex flex-col leading-none gap-0.5">
-                              <span className="text-[12px] font-black text-white uppercase tracking-widest">APPROVED</span>
-                              <span className="text-[9px] font-bold text-red-100 whitespace-nowrap">{approval.name} | {approval.date}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {/* Reject/Unlock button - visible to L1 roles when Submitted or Approved */}
+                          {(submissionStatus === "Submitted" || submissionStatus === "Approved") && (
+                            <button
+                              type="button"
+                              onClick={handleReject}
+                              disabled={submitting}
+                              className="flex items-center gap-1 px-2 py-1.5 bg-white/10 hover:bg-amber-500/30 rounded-md border border-white/20 transition-all"
+                              title="Reject / Unlock - Reset to Draft"
+                            >
+                              <svg className="w-3.5 h-3.5 text-amber-300 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
+                              <span className="text-[8px] font-bold text-amber-200 uppercase tracking-wider">Unlock</span>
+                            </button>
+                          )}
+
+                          {/* Stage: APPROVED - Big Red Stamp */}
+                          {submissionStatus === "Approved" && approvalRecord ? (
+                            <div className="approval-stamp flex items-center gap-2.5 px-4 py-3 bg-red-600 rounded-lg border-2 border-red-400 shadow-lg shadow-red-900/30">
+                              <svg className="w-7 h-7 text-white shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                              <div className="flex flex-col leading-none gap-1">
+                                <span className="text-[11px] font-black text-white uppercase tracking-widest leading-none">Certified & Approved</span>
+                                <span className="text-[9px] font-black text-red-100 uppercase tracking-wider leading-none">For Payment</span>
+                                <span className="text-[8px] font-bold text-red-200 whitespace-nowrap leading-none">{approvalRecord.approved_by} | Project Manager | {approvalRecord.approved_at}</span>
+                              </div>
                             </div>
-                          </div>
-                        ) : (
-                          <button type="button" onClick={() => setApprovalModal(true)} className="flex items-center gap-2 px-3 py-2.5 bg-white/10 hover:bg-white/20 rounded-lg border border-white/20 transition-all shrink-0">
-                            <svg className="w-5 h-5 text-white/70 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                            <span className="text-[10px] font-black text-white/70 uppercase tracking-wider">Approve</span>
-                          </button>
-                        )}
+                          ) : submissionStatus === "Submitted" ? (
+                            <>
+                              {/* Submitted badge */}
+                              <div className="flex items-center gap-1.5 px-2.5 py-2 bg-amber-500/20 rounded-lg border border-amber-400/40 shrink-0">
+                                <svg className="w-4 h-4 text-amber-300 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                <div className="flex flex-col leading-none gap-0.5">
+                                  <span className="text-[9px] font-black text-amber-200 uppercase tracking-widest">Submitted</span>
+                                  <span className="text-[7px] font-bold text-amber-300/70 whitespace-nowrap">By {approvalRecord?.submitted_by} | {approvalRecord?.submitted_at}</span>
+                                </div>
+                              </div>
+                              {/* PM Approve button */}
+                              <button
+                                type="button"
+                                onClick={() => setApprovalModal(true)}
+                                className="flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-500 rounded-lg border border-red-400 transition-all shadow-lg shrink-0"
+                              >
+                                <svg className="w-4 h-4 text-white shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                <span className="text-[9px] font-black text-white uppercase tracking-wider">Approve Statement</span>
+                              </button>
+                            </>
+                          ) : (
+                            /* Draft - Submit for Approval button */
+                            <button
+                              type="button"
+                              onClick={handleSubmitForApproval}
+                              disabled={submitting}
+                              className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg border border-orange-400 transition-all shadow-lg shrink-0"
+                            >
+                              <svg className="w-4 h-4 text-white shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                              <span className="text-[9px] font-black text-white uppercase tracking-wider">{submitting ? "Submitting..." : "Submit for Approval"}</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </th>
                     <th colSpan={2} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">
@@ -602,31 +684,34 @@ export default function StatementPage() {
         )}
       </div>
 
-      {/* Approval Modal */}
+      {/* PM Approval Modal (Stage 2) */}
       {approvalModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-card rounded-2xl w-full max-w-sm shadow-2xl border border-border">
-            <div className="px-5 py-3 border-b border-border bg-emerald-600 rounded-t-2xl">
+            <div className="px-5 py-3 border-b border-border bg-red-600 rounded-t-2xl">
               <h3 className="text-xs font-black uppercase tracking-wider text-white">Project Manager Approval</h3>
-              <p className="text-[9px] font-bold text-emerald-100">Enter your name to certify this statement for payment</p>
+              <p className="text-[9px] font-bold text-red-100">Enter your name to certify this statement for payment</p>
             </div>
             <div className="px-5 py-4 space-y-3">
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+                <p className="text-[9px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider">Statement submitted by {approvalRecord?.submitted_by} on {approvalRecord?.submitted_at}</p>
+              </div>
               <div>
-                <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">Full Name</label>
+                <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">PM Full Name</label>
                 <input
                   type="text"
                   value={approverName}
                   onChange={(e) => setApproverName(e.target.value)}
                   placeholder="Enter your full name..."
                   autoFocus
-                  className="w-full bg-muted border border-border rounded-lg px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-400"
+                  className="w-full bg-muted border border-border rounded-lg px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-red-400"
                 />
               </div>
             </div>
             <div className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-muted/30 rounded-b-2xl">
               <button type="button" onClick={() => { setApprovalModal(false); setApproverName(""); }} className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border">Cancel</button>
-              <button type="button" onClick={handleApprove} disabled={!approverName.trim()} className={`px-5 py-2 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all ${approverName.trim() ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg" : "bg-muted text-muted-foreground cursor-not-allowed"}`}>
-                Certify & Approve
+              <button type="button" onClick={handleApprove} disabled={!approverName.trim() || submitting} className={`px-5 py-2 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all ${approverName.trim() && !submitting ? "bg-red-600 hover:bg-red-500 text-white shadow-lg" : "bg-muted text-muted-foreground cursor-not-allowed"}`}>
+                {submitting ? "Approving..." : "Certify & Approve"}
               </button>
             </div>
           </div>
