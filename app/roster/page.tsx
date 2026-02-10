@@ -487,8 +487,26 @@ export default function RosterPage() {
                                     right: 0,
                                   }}
                                 >
-                                  {isSignOn && <span className="text-[8px] font-black text-white leading-none">m</span>}
-                                  {isSignOff && <span className="text-[8px] font-black text-white leading-none">d</span>}
+                                  {isSignOn && (
+                                    <span
+                                      className="flex items-center justify-center rounded-full text-[8px] font-black text-white leading-none select-none"
+                                      style={{
+                                        width: 20, height: 20,
+                                        background: 'radial-gradient(circle at 35% 30%, #6ee7b7, #059669 60%, #064e3b)',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.35), inset 0 -2px 3px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.3)',
+                                      }}
+                                    >m</span>
+                                  )}
+                                  {isSignOff && (
+                                    <span
+                                      className="flex items-center justify-center rounded-full text-[8px] font-black text-white leading-none select-none"
+                                      style={{
+                                        width: 20, height: 20,
+                                        background: 'radial-gradient(circle at 35% 30%, #fda4af, #e11d48 60%, #881337)',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.35), inset 0 -2px 3px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.3)',
+                                      }}
+                                    >d</span>
+                                  )}
                                 </div>
                               )}
                             </td>

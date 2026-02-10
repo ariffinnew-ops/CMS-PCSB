@@ -1026,8 +1026,26 @@ export default function AdminPage() {
                                 <div className="absolute inset-y-0 right-0 w-px bg-gray-200 z-0" />
                                 {status !== "OFF" && (
                                   <div className={`absolute z-10 gantt-bar-admin ${rL} ${rR} ${barClass} flex items-center justify-center`} style={{ top: "3px", bottom: "3px", left: 0, right: 0 }}>
-                                    {isSignOn && <span className="text-[7px] font-black text-white leading-none">m</span>}
-                                    {isSignOff && <span className="text-[7px] font-black text-white leading-none">d</span>}
+                                    {isSignOn && (
+                                      <span
+                                        className="flex items-center justify-center rounded-full text-[7px] font-black text-white leading-none select-none"
+                                        style={{
+                                          width: 16, height: 16,
+                                          background: 'radial-gradient(circle at 35% 30%, #6ee7b7, #059669 60%, #064e3b)',
+                                          boxShadow: '0 2px 3px rgba(0,0,0,0.35), inset 0 -2px 2px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.3)',
+                                        }}
+                                      >m</span>
+                                    )}
+                                    {isSignOff && (
+                                      <span
+                                        className="flex items-center justify-center rounded-full text-[7px] font-black text-white leading-none select-none"
+                                        style={{
+                                          width: 16, height: 16,
+                                          background: 'radial-gradient(circle at 35% 30%, #fda4af, #e11d48 60%, #881337)',
+                                          boxShadow: '0 2px 3px rgba(0,0,0,0.35), inset 0 -2px 2px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.3)',
+                                        }}
+                                      >d</span>
+                                    )}
                                   </div>
                                 )}
                               </td>
