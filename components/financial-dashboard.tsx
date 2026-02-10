@@ -411,8 +411,7 @@ export default function FinancialDashboardPage() {
   // ─── Budgeting period state ───
   const [budgetPeriod, setBudgetPeriod] = useState(() => {
     const now = new Date();
-    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
 
   // ─── Budgeting Data (1-month estimate) ───
@@ -981,73 +980,116 @@ export default function FinancialDashboardPage() {
               </div>
             </div>
 
-            {/* Split by Client */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              <div className="rounded-xl border border-border overflow-hidden flex flex-col">
-                <div className="px-4 py-2.5 flex items-center gap-2" style={{ backgroundColor: "#1e3a8a" }}>
-                  <svg className="w-4 h-4 text-white/80 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                  <h4 className="text-[10px] font-black text-white uppercase tracking-wider">By Client - {budgetData.periodLabel}</h4>
+            {/* Split by Client & Trade - equal height grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3" style={{ gridAutoRows: "1fr" }}>
+              <div className="rounded-xl overflow-hidden flex flex-col shadow-lg border border-slate-200 dark:border-border">
+                <div className="px-4 py-3 flex items-center justify-between" style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)" }}>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                    </div>
+                    <div>
+                      <h4 className="text-[11px] font-black text-white uppercase tracking-wider">By Client</h4>
+                      <p className="text-[8px] font-bold text-blue-200 uppercase">{budgetData.periodLabel}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[8px] font-bold text-blue-200 uppercase">Grand Total</p>
+                    <p className="text-[13px] font-black text-white tabular-nums">{fmtAmt(budgetData.grandTotal)}</p>
+                  </div>
                 </div>
-                <table className="w-full border-collapse text-[11px] flex-1">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-muted/50">
-                      <th className="px-4 py-2 text-left font-black uppercase tracking-widest border-r border-border text-slate-600 dark:text-foreground">Client</th>
-                      <th className="px-4 py-2 text-right font-bold uppercase tracking-widest border-r border-border text-slate-600 dark:text-foreground">Fixed</th>
-                      <th className="px-4 py-2 text-right font-bold uppercase tracking-widest border-r border-border text-slate-600 dark:text-foreground">Variable</th>
-                      <th className="px-4 py-2 text-right font-black uppercase tracking-widest text-slate-600 dark:text-foreground">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {budgetData.byClient.map((r, i) => (
-                      <tr key={r.client} className={`hover:bg-blue-50/50 dark:hover:bg-muted/30 transition-colors ${i % 2 === 1 ? "bg-slate-50/50 dark:bg-muted/20" : ""}`}>
-                        <td className="px-4 py-2.5 font-black text-foreground uppercase">{r.client}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums font-bold text-foreground">{fmtAmt(r.fixed)}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums font-bold text-foreground">{fmtAmt(r.variable)}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums font-black text-foreground">{fmtAmt(r.total)}</td>
+                <div className="flex-1 flex flex-col bg-card">
+                  <table className="w-full border-collapse text-[11px] flex-1">
+                    <thead>
+                      <tr className="bg-slate-100 dark:bg-muted/50 border-b-2 border-slate-200 dark:border-border">
+                        <th className="px-4 py-2.5 text-left font-black uppercase tracking-widest text-slate-500 dark:text-muted-foreground text-[9px]">Client</th>
+                        <th className="px-4 py-2.5 text-right font-bold uppercase tracking-widest text-slate-500 dark:text-muted-foreground text-[9px]">Fixed</th>
+                        <th className="px-4 py-2.5 text-right font-bold uppercase tracking-widest text-slate-500 dark:text-muted-foreground text-[9px]">Variable</th>
+                        <th className="px-4 py-2.5 text-right font-black uppercase tracking-widest text-slate-500 dark:text-muted-foreground text-[9px]">Total</th>
                       </tr>
-                    ))}
-                    <tr className="text-white font-black" style={{ backgroundColor: "#1e3a8a" }}>
-                      <td className="px-4 py-2.5 uppercase tracking-widest">Total</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtAmt(budgetData.grandFixed)}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtAmt(budgetData.grandVariable)}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtAmt(budgetData.grandTotal)}</td>
-                    </tr>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {budgetData.byClient.map((r, i) => (
+                        <tr key={r.client} className={`transition-colors hover:bg-blue-50 dark:hover:bg-blue-950/20 border-b border-slate-100 dark:border-border/40 ${i % 2 === 1 ? "bg-slate-50/70 dark:bg-muted/10" : ""}`}>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: i === 0 ? P.ska : P.sba }} />
+                              <span className="font-black text-foreground uppercase text-[11px]">{r.client}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums font-semibold text-slate-600 dark:text-foreground">{fmtAmt(r.fixed)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums font-semibold text-slate-600 dark:text-foreground">{fmtAmt(r.variable)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums font-black text-foreground">{fmtAmt(r.total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="text-white font-black" style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)" }}>
+                        <td className="px-4 py-3 uppercase tracking-widest text-[10px]">Total</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-[11px]">{fmtAmt(budgetData.grandFixed)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-[11px]">{fmtAmt(budgetData.grandVariable)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-[12px]">{fmtAmt(budgetData.grandTotal)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
 
               {/* Split by Trade */}
-              <div className="rounded-xl border border-border overflow-hidden flex flex-col">
-                <div className="px-4 py-2.5 flex items-center gap-2" style={{ backgroundColor: "#1e3a8a" }}>
-                  <svg className="w-4 h-4 text-white/80 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                  <h4 className="text-[10px] font-black text-white uppercase tracking-wider">By Trade - {budgetData.periodLabel}</h4>
+              <div className="rounded-xl overflow-hidden flex flex-col shadow-lg border border-slate-200 dark:border-border">
+                <div className="px-4 py-3 flex items-center justify-between" style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)" }}>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                    </div>
+                    <div>
+                      <h4 className="text-[11px] font-black text-white uppercase tracking-wider">By Trade</h4>
+                      <p className="text-[8px] font-bold text-blue-200 uppercase">{budgetData.periodLabel}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[8px] font-bold text-blue-200 uppercase">Grand Total</p>
+                    <p className="text-[13px] font-black text-white tabular-nums">{fmtAmt(budgetData.grandTotal)}</p>
+                  </div>
                 </div>
-                <table className="w-full border-collapse text-[11px] flex-1">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-muted/50">
-                      <th className="px-4 py-2 text-left font-black uppercase tracking-widest border-r border-border text-slate-600 dark:text-foreground">Trade</th>
-                      <th className="px-4 py-2 text-right font-bold uppercase tracking-widest border-r border-border text-slate-600 dark:text-foreground">Fixed</th>
-                      <th className="px-4 py-2 text-right font-bold uppercase tracking-widest border-r border-border text-slate-600 dark:text-foreground">Variable</th>
-                      <th className="px-4 py-2 text-right font-black uppercase tracking-widest text-slate-600 dark:text-foreground">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {budgetData.byTrade.map((r, i) => (
-                      <tr key={r.trade} className={`hover:bg-blue-50/50 dark:hover:bg-muted/30 transition-colors ${i % 2 === 1 ? "bg-slate-50/50 dark:bg-muted/20" : ""}`}>
-                        <td className="px-4 py-2.5 font-black text-foreground uppercase">{r.trade}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums font-bold text-foreground">{fmtAmt(r.fixed)}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums font-bold text-foreground">{fmtAmt(r.variable)}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums font-black text-foreground">{fmtAmt(r.total)}</td>
+                <div className="flex-1 flex flex-col bg-card">
+                  <table className="w-full border-collapse text-[11px] flex-1">
+                    <thead>
+                      <tr className="bg-slate-100 dark:bg-muted/50 border-b-2 border-slate-200 dark:border-border">
+                        <th className="px-4 py-2.5 text-left font-black uppercase tracking-widest text-slate-500 dark:text-muted-foreground text-[9px]">Trade</th>
+                        <th className="px-4 py-2.5 text-right font-bold uppercase tracking-widest text-slate-500 dark:text-muted-foreground text-[9px]">Fixed</th>
+                        <th className="px-4 py-2.5 text-right font-bold uppercase tracking-widest text-slate-500 dark:text-muted-foreground text-[9px]">Variable</th>
+                        <th className="px-4 py-2.5 text-right font-black uppercase tracking-widest text-slate-500 dark:text-muted-foreground text-[9px]">Total</th>
                       </tr>
-                    ))}
-                    <tr className="text-white font-black" style={{ backgroundColor: "#1e3a8a" }}>
-                      <td className="px-4 py-2.5 uppercase tracking-widest">Total</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtAmt(budgetData.grandFixed)}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtAmt(budgetData.grandVariable)}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtAmt(budgetData.grandTotal)}</td>
-                    </tr>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {budgetData.byTrade.map((r, i) => {
+                        const tradeColors = ["#10b981", "#6366f1", "#f59e0b", "#ef4444", "#8b5cf6", "#0ea5e9"];
+                        return (
+                          <tr key={r.trade} className={`transition-colors hover:bg-blue-50 dark:hover:bg-blue-950/20 border-b border-slate-100 dark:border-border/40 ${i % 2 === 1 ? "bg-slate-50/70 dark:bg-muted/10" : ""}`}>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: tradeColors[i % tradeColors.length] }} />
+                                <span className="font-black text-foreground uppercase text-[11px]">{r.trade}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-right tabular-nums font-semibold text-slate-600 dark:text-foreground">{fmtAmt(r.fixed)}</td>
+                            <td className="px-4 py-3 text-right tabular-nums font-semibold text-slate-600 dark:text-foreground">{fmtAmt(r.variable)}</td>
+                            <td className="px-4 py-3 text-right tabular-nums font-black text-foreground">{fmtAmt(r.total)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="text-white font-black" style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)" }}>
+                        <td className="px-4 py-3 uppercase tracking-widest text-[10px]">Total</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-[11px]">{fmtAmt(budgetData.grandFixed)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-[11px]">{fmtAmt(budgetData.grandVariable)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-[12px]">{fmtAmt(budgetData.grandTotal)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
