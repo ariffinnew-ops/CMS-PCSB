@@ -58,10 +58,13 @@ interface CrewMonthCost {
 }
 
 function calcMonthCosts(rosterData: PivotedCrewRow[], masterData: CrewMasterRecord[], masterMap: Map<string, CrewMasterRecord>, year: number, month: number): CrewMonthCost[] {
-  const monthStart = new Date(year, month - 1, 1, 0, 0, 0, 0);
-  const monthEnd = new Date(year, month, 0, 0, 0, 0, 0);
-  const monthStartTime = monthStart.getTime();
-  const monthEndTime = monthEnd.getTime();
+  // Use day-number arithmetic to avoid floating-point issues
+  const monthStartDate = new Date(year, month - 1, 1);
+  const monthEndDate = new Date(year, month, 0); // last day of month
+  const monthStartDay = Math.round(monthStartDate.getTime() / 86400000);
+  const monthEndDay = Math.round(monthEndDate.getTime() / 86400000);
+  const monthStartTime = monthStartDate.getTime();
+  const monthEndTime = monthEndDate.getTime();
   const oaRate = 200, medevacRate = 500;
   const basicCounted = new Set<string>();
   const results: CrewMonthCost[] = [];
@@ -74,9 +77,12 @@ function calcMonthCosts(rosterData: PivotedCrewRow[], masterData: CrewMasterReco
       const signOn = safeParseDate(cycle.sign_on);
       const signOff = safeParseDate(cycle.sign_off);
       if (!signOn || !signOff) continue;
-      const rotEnd = signOff.getTime() - 86400000;
-      if (signOn.getTime() > monthEndTime || rotEnd < monthStartTime) continue;
-      const days = Math.round((Math.min(rotEnd, monthEndTime) - Math.max(signOn.getTime(), monthStartTime)) / 864e5) + 1;
+      // sign_off date not counted: last working day = signOff - 1
+      const rotStartDay = Math.round(signOn.getTime() / 86400000);
+      const rotEndDay = Math.round(signOff.getTime() / 86400000) - 1;
+      if (rotStartDay > monthEndDay || rotEndDay < monthStartDay) continue;
+      // Clamp to month: endOfMonth - startDate + 1
+      const days = Math.min(rotEndDay, monthEndDay) - Math.max(rotStartDay, monthStartDay) + 1;
       if (days <= 0) continue;
       if (isOM && cycle.is_offshore !== false) offDays += days;
       relief += (cycle.day_relief ?? 0) * (cycle.relief_all ?? 0);
