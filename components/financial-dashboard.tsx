@@ -453,6 +453,47 @@ export default function FinancialDashboardPage() {
     };
   }, [data, masterData, masterMap, budgetBuffer, budgetPeriod]);
 
+  // ─── SKA vs SBA category breakdown for Budgeting charts ───
+  const budgetClientCategoryData = useMemo(() => {
+    const [by, bm] = budgetPeriod.split("-").map(Number);
+    const bufferMultiplier = 1 + budgetBuffer / 100;
+    const costs = calcMonthCosts(data, masterData, masterMap, by, bm);
+
+    const clientCats = new Map<string, { basic: number; fixedAll: number; offshore: number; relief: number; standby: number; medevac: number; total: number }>();
+    for (const c of costs) {
+      const key = c.client || "Unknown";
+      if (!clientCats.has(key)) clientCats.set(key, { basic: 0, fixedAll: 0, offshore: 0, relief: 0, standby: 0, medevac: 0, total: 0 });
+      const e = clientCats.get(key)!;
+      e.basic += c.basic;
+      e.fixedAll += c.fixedAll;
+      e.offshore += c.offshore * bufferMultiplier;
+      e.relief += c.relief * bufferMultiplier;
+      e.standby += c.standby * bufferMultiplier;
+      e.medevac += c.medevac * bufferMultiplier;
+      e.total += c.basic + c.fixedAll + (c.offshore + c.relief + c.standby + c.medevac) * bufferMultiplier;
+    }
+
+    // Chart data: each category as a row with SKA / SBA values
+    const ska = clientCats.get("SKA") || { basic: 0, fixedAll: 0, offshore: 0, relief: 0, standby: 0, medevac: 0, total: 0 };
+    const sba = clientCats.get("SBA") || { basic: 0, fixedAll: 0, offshore: 0, relief: 0, standby: 0, medevac: 0, total: 0 };
+
+    const barData = [
+      { category: "Basic", SKA: ska.basic, SBA: sba.basic },
+      { category: "Fixed All.", SKA: ska.fixedAll, SBA: sba.fixedAll },
+      { category: "Offshore", SKA: ska.offshore, SBA: sba.offshore },
+      { category: "Relief", SKA: ska.relief, SBA: sba.relief },
+      { category: "Standby", SKA: ska.standby, SBA: sba.standby },
+      { category: "Medevac", SKA: ska.medevac, SBA: sba.medevac },
+    ].filter(d => d.SKA > 0 || d.SBA > 0);
+
+    const grandTotal = ska.total + sba.total;
+    const clientTotals = Array.from(clientCats.entries())
+      .map(([name, vals]) => ({ name, total: vals.total, pct: grandTotal > 0 ? (vals.total / grandTotal) * 100 : 0 }))
+      .sort((a, b) => b.total - a.total);
+
+    return { barData, clientTotals, grandTotal, ska, sba };
+  }, [data, masterData, masterMap, budgetBuffer, budgetPeriod]);
+
   // ─── Load persisted approval from Supabase ───
   useEffect(() => {
     if (!selectedMonth || !stmtClientFilter) return;
@@ -716,20 +757,11 @@ export default function FinancialDashboardPage() {
                 <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Search</label>
                 <input type="text" placeholder="Name..." value={stmtSearch} onChange={(e) => setStmtSearch(e.target.value)} className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40 w-32" />
               </div>
-              {/* PM Approval Button - always visible */}
-              <button type="button" onClick={() => setApprovalModal(true)} className="self-end px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-sm">
-                {approval ? "Re-Approve" : "Approve"}
-              </button>
-
-              {/* Inline Approval Stamp */}
-              {approval && (
-                <div className="approval-stamp self-end flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-400 rounded-lg">
-                  <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                  <div className="leading-tight">
-                    <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wide">Approved</span>
-                    <span className="text-[9px] text-emerald-700 font-semibold ml-1.5">{approval.name} - {approval.role} - {approval.date}</span>
-                  </div>
-                </div>
+              {/* Approve button - only when not yet approved */}
+              {!approval && (
+                <button type="button" onClick={() => setApprovalModal(true)} className="self-end px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-sm">
+                  Approve
+                </button>
               )}
             </div>
 
@@ -744,7 +776,17 @@ export default function FinancialDashboardPage() {
                   <table className="w-full text-[12px] font-sans border-collapse" style={{ minWidth: "1000px" }}>
                     <thead className="sticky top-0 z-10">
                       <tr className="text-white" style={{ backgroundColor: "#1e3a8a" }}>
-                        <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50 whitespace-nowrap" style={{ minWidth: "240px" }}>Name / Client / Trade / Location</th>
+                        <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50" style={{ minWidth: "240px" }}>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="whitespace-nowrap">Name / Client / Trade / Location</span>
+                            {approval && (
+                              <div className="approval-stamp flex items-center gap-1 px-1.5 py-0.5 bg-emerald-600/80 rounded shrink-0">
+                                <svg className="w-3 h-3 text-emerald-100 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                <span className="text-[8px] font-bold text-emerald-50 whitespace-nowrap">{approval.name} - {approval.date}</span>
+                              </div>
+                            )}
+                          </div>
+                        </th>
                         <th colSpan={2} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">Offshore</th>
                         <th colSpan={3} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">Relief</th>
                         <th colSpan={3} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">Standby</th>
@@ -862,6 +904,71 @@ export default function FinancialDashboardPage() {
                   <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Buffer</label>
                   <input type="range" min={0} max={50} value={budgetBuffer} onChange={(e) => setBudgetBuffer(parseInt(e.target.value))} className="w-24 h-1.5 bg-blue-200 rounded-full appearance-none cursor-pointer" />
                   <span className="text-[11px] font-black text-foreground tabular-nums w-8 text-right">{budgetBuffer}%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ─── SKA vs SBA Comparison Section ─── */}
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+              {/* Stacked 3D Bar Chart: cost breakdown by category */}
+              <div className="lg:col-span-3 rounded-xl border border-border bg-card overflow-hidden">
+                <div className="px-3 pt-3 pb-1 flex items-center justify-between">
+                  <h3 className="text-[9px] font-black text-foreground uppercase tracking-wider">SKA vs SBA - Cost by Category</h3>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: P.ska }} /><span className="text-[8px] font-bold text-muted-foreground uppercase">SKA</span></div>
+                    <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: P.sba }} /><span className="text-[8px] font-bold text-muted-foreground uppercase">SBA</span></div>
+                  </div>
+                </div>
+                <div className="h-52 px-1 pb-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={budgetClientCategoryData.barData} margin={{ top: 12, right: 12, left: 5, bottom: 3 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" strokeOpacity={0.2} />
+                      <XAxis dataKey="category" tick={{ fill: "#94a3b8", fontSize: 8, fontWeight: 700 }} />
+                      <YAxis tick={{ fill: "#94a3b8", fontSize: 7, fontWeight: 700 }} tickFormatter={fmtK} width={45} />
+                      <Tooltip content={<TT />} />
+                      <Bar dataKey="SKA" stackId="comp" name="SKA" fill={P.ska} shape={<Bar3D />} animationDuration={1000} />
+                      <Bar dataKey="SBA" stackId="comp" name="SBA" fill={P.sba} shape={<Bar3D />} animationDuration={1000} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Proportional Bar: each client's total + percentage */}
+              <div className="lg:col-span-2 rounded-xl border border-border bg-card overflow-hidden">
+                <div className="px-3 pt-3 pb-1">
+                  <h3 className="text-[9px] font-black text-foreground uppercase tracking-wider">Client Share - {budgetData.periodLabel}</h3>
+                </div>
+                <div className="px-3 py-3 space-y-3">
+                  {/* Grand total card */}
+                  <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+                    <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">Grand Total</p>
+                    <p className="text-lg font-black text-foreground tabular-nums mt-0.5">{fmtRM(budgetClientCategoryData.grandTotal)}</p>
+                  </div>
+                  {/* Proportional stacked bar */}
+                  <div className="rounded-lg overflow-hidden h-6 flex" style={{ minWidth: 0 }}>
+                    {budgetClientCategoryData.clientTotals.map((ct, i) => (
+                      <div
+                        key={ct.name}
+                        className="h-full flex items-center justify-center transition-all duration-700"
+                        style={{ width: `${ct.pct}%`, backgroundColor: i === 0 ? P.ska : P.sba, minWidth: ct.pct > 0 ? "30px" : 0 }}
+                      >
+                        {ct.pct > 10 && <span className="text-[9px] font-black text-white">{ct.pct.toFixed(0)}%</span>}
+                      </div>
+                    ))}
+                  </div>
+                  {/* Client breakdown list */}
+                  {budgetClientCategoryData.clientTotals.map((ct, i) => (
+                    <div key={ct.name} className="flex items-center justify-between py-1.5 border-b border-border/40 last:border-0">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: i === 0 ? P.ska : P.sba }} />
+                        <span className="text-[10px] font-black text-foreground uppercase">{ct.name}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-bold text-muted-foreground tabular-nums">{ct.pct.toFixed(1)}%</span>
+                        <span className="text-[10px] font-black text-foreground tabular-nums">{fmtRM(ct.total)}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

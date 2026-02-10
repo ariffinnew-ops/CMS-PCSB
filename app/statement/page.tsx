@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState, useMemo } from "react";
 import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow, TradeType } from "@/lib/types";
-import { getPivotedRosterData, getCrewMasterData, getCrewList, type CrewMasterRecord } from "@/lib/actions";
+import { getPivotedRosterData, getCrewMasterData, getCrewList, type CrewMasterRecord, upsertApproval, getApproval, type ApprovalRecord } from "@/lib/actions";
 import { safeParseDate, shortenPost, getTradeRank, formatDate } from "@/lib/logic";
 
 const MONTH_NAMES = [
@@ -57,6 +57,11 @@ export default function StatementPage() {
   const [tradeFilter, setTradeFilter] = useState<TradeType | "ALL">("ALL");
   const [clientFilter, setClientFilter] = useState<"ALL" | "SBA" | "SKA">("ALL");
   const [search, setSearch] = useState("");
+
+  // Approval system
+  const [approvalModal, setApprovalModal] = useState(false);
+  const [approverName, setApproverName] = useState("");
+  const [approval, setApproval] = useState<{ name: string; date: string; role: string } | null>(null);
 
   useEffect(() => {
     Promise.all([getPivotedRosterData(), getCrewMasterData(), getCrewList()]).then(([pivotedData, master, crewResult]) => {
@@ -261,6 +266,37 @@ export default function StatementPage() {
 
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
+  // Load approval from Supabase
+  useEffect(() => {
+    if (!selectedMonth || !clientFilter) return;
+    const key = clientFilter === "ALL" ? "ALL" : clientFilter;
+    getApproval(selectedMonth, key).then((rec) => {
+      if (rec) {
+        setApproval({ name: rec.approved_by, date: rec.approved_at, role: rec.approved_role });
+      } else {
+        setApproval(null);
+      }
+    });
+  }, [selectedMonth, clientFilter]);
+
+  // Approval handler
+  const handleApprove = async () => {
+    if (!approverName.trim()) return;
+    const now = new Date().toLocaleDateString("en-MY", { day: "2-digit", month: "short", year: "numeric" });
+    const key = clientFilter === "ALL" ? "ALL" : clientFilter;
+    const record: ApprovalRecord = {
+      month_year: selectedMonth,
+      client: key,
+      approved_by: approverName.trim(),
+      approved_role: "Project Manager",
+      approved_at: now,
+    };
+    await upsertApproval(record);
+    setApproval({ name: record.approved_by, date: now, role: record.approved_role });
+    setApprovalModal(false);
+    setApproverName("");
+  };
+
   const fmtNum = (val: number) => (val === 0 ? "-" : String(val));
   const fmtAmt = (val: number) =>
     val === 0
@@ -363,14 +399,6 @@ export default function StatementPage() {
                   className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40 w-32"
                 />
               </div>
-              <button
-                type="button"
-                onClick={() => { document.title = `Statement_${new Date().toISOString().slice(0,10)}`; window.print(); }}
-                className="print-btn self-end p-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm"
-                title="Print Statement"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-              </button>
               {hasActiveFilters && (
                 <button
                   type="button"
@@ -380,6 +408,21 @@ export default function StatementPage() {
                   Reset
                 </button>
               )}
+              {/* Approve button - only when not yet approved */}
+              {!approval && (
+                <button type="button" onClick={() => setApprovalModal(true)} className="self-end px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-sm">
+                  Approve
+                </button>
+              )}
+              {/* Print icon pushed to far right */}
+              <button
+                type="button"
+                onClick={() => { document.title = `Statement_${new Date().toISOString().slice(0,10)}`; window.print(); }}
+                className="print-btn self-end p-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm ml-auto"
+                title="Print Statement"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+              </button>
             </div>
           </div>
         </div>
@@ -402,8 +445,16 @@ export default function StatementPage() {
                 <thead className="sticky top-0 z-10">
                   {/* Group header */}
                   <tr className="text-white" style={{ backgroundColor: "#1e3a8a" }}>
-                    <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50 whitespace-nowrap" style={{ minWidth: "240px" }}>
-                      Name / Client / Trade / Location
+                    <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50" style={{ minWidth: "240px" }}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="whitespace-nowrap">Name / Client / Trade / Location</span>
+                        {approval && (
+                          <div className="approval-stamp flex items-center gap-1 px-1.5 py-0.5 bg-emerald-600/80 rounded shrink-0">
+                            <svg className="w-3 h-3 text-emerald-100 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                            <span className="text-[8px] font-bold text-emerald-50 whitespace-nowrap">{approval.name} - {approval.date}</span>
+                          </div>
+                        )}
+                      </div>
                     </th>
                     <th colSpan={2} className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wide text-center border-r border-b border-blue-700/50">
                       Offshore
@@ -545,6 +596,37 @@ export default function StatementPage() {
           </div>
         )}
       </div>
+
+      {/* Approval Modal */}
+      {approvalModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-card rounded-2xl w-full max-w-sm shadow-2xl border border-border">
+            <div className="px-5 py-3 border-b border-border bg-emerald-600 rounded-t-2xl">
+              <h3 className="text-xs font-black uppercase tracking-wider text-white">Project Manager Approval</h3>
+              <p className="text-[9px] font-bold text-emerald-100">Enter your name to certify this statement for payment</p>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div>
+                <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">Full Name</label>
+                <input
+                  type="text"
+                  value={approverName}
+                  onChange={(e) => setApproverName(e.target.value)}
+                  placeholder="Enter your full name..."
+                  autoFocus
+                  className="w-full bg-muted border border-border rounded-lg px-3 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-400"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-muted/30 rounded-b-2xl">
+              <button type="button" onClick={() => { setApprovalModal(false); setApproverName(""); }} className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border">Cancel</button>
+              <button type="button" onClick={handleApprove} disabled={!approverName.trim()} className={`px-5 py-2 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all ${approverName.trim() ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg" : "bg-muted text-muted-foreground cursor-not-allowed"}`}>
+                Certify & Approve
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
