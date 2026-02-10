@@ -544,6 +544,59 @@ export async function getOHNStaffFromMaster(): Promise<PivotedCrewRow[]> {
   }))
 }
 
+// ─── Approval Persistence (cms_pcsb_approvals) ───
+
+export interface ApprovalRecord {
+  month_year: string;
+  client: string;
+  approved_by: string;
+  approved_role: string;
+  approved_at: string;
+}
+
+export async function upsertApproval(record: ApprovalRecord): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+
+  // Try upsert – if the table doesn't exist yet, return a graceful error
+  const { error } = await supabase
+    .from('cms_pcsb_approvals')
+    .upsert(
+      {
+        month_year: record.month_year,
+        client: record.client,
+        approved_by: record.approved_by,
+        approved_role: record.approved_role,
+        approved_at: record.approved_at,
+      },
+      { onConflict: 'month_year,client' }
+    )
+
+  if (error) {
+    console.warn('Approval upsert error (table may not exist):', error.message)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true }
+}
+
+export async function getApproval(monthYear: string, client: string): Promise<ApprovalRecord | null> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('cms_pcsb_approvals')
+    .select('*')
+    .eq('month_year', monthYear)
+    .eq('client', client)
+    .maybeSingle()
+
+  if (error) {
+    console.warn('Approval fetch error:', error.message)
+    return null
+  }
+
+  return data as ApprovalRecord | null
+}
+
 // Bulk update for Save Changes
 export async function bulkUpdateRosterRows(updates: { id: number; updates: Partial<RosterRow> }[]): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()

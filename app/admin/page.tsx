@@ -6,7 +6,7 @@ import { useEffect, useState, useMemo, useRef, Fragment } from "react";
 import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow, TradeType } from "@/lib/types";
 import { getPivotedRosterData, updateRosterRow, createRosterRow, deleteRosterRow, deleteCrewFromRoster, deleteCrewByName, getCrewList } from "@/lib/actions";
-import { safeParseDate, getTradeRank, shortenPost } from "@/lib/logic";
+import { safeParseDate, getTradeRank, shortenPost, formatDate, getFullTradeName } from "@/lib/logic";
 import { getClients, getPostsForClient, getLocationsForClientPost } from "@/lib/client-location-map";
 
 interface CrewListItem { id: string; crew_name: string; clean_name: string; post: string; client: string; location: string; status?: string }
@@ -69,18 +69,22 @@ export default function AdminPage() {
   // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState<{ crewId: string; name: string } | null>(null);
 
+  // Gantt extract month state
+  const [extractMonth, setExtractMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${now.getMonth()}`;
+  });
+
   const fetchData = async () => {
-  setLoading(true);
-  console.log("[v0] fetchData starting...");
-  try {
-    const [pivotedData, crewResult] = await Promise.all([getPivotedRosterData(), getCrewList()]);
-    console.log("[v0] fetchData got", pivotedData.length, "roster rows,", crewResult.data?.length || 0, "crew list items");
-    setData(pivotedData);
-    if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
-  } catch (err) {
-    console.error("[v0] fetchData CRASHED:", err);
-  }
-  setLoading(false);
+    setLoading(true);
+    try {
+      const [pivotedData, crewResult] = await Promise.all([getPivotedRosterData(), getCrewList()]);
+      setData(pivotedData);
+      if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
+    } catch (err) {
+      console.error("fetchData error:", err);
+    }
+    setLoading(false);
   };
 
   const sortedData = useMemo(() => {
@@ -361,7 +365,6 @@ export default function AdminPage() {
     if (!dupeConfirm) return;
     const baseName = dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name;
     const suffix = customSuffix.trim();
-    console.log("[v0] handleDupeConfirmAdd baseName:", baseName, "suffix:", suffix);
     if (!suffix) {
       showNotification("Please enter a suffix (e.g. R1, S, P)", "error");
       return;
@@ -369,7 +372,6 @@ export default function AdminPage() {
     const finalName = `${baseName} (${suffix})`;
     // Check for duplicate name in roster
     const isDupe = data.some((row) => row.crew_name?.trim().toUpperCase() === finalName.trim().toUpperCase());
-    console.log("[v0] handleDupeConfirmAdd finalName:", finalName, "isDupe:", isDupe);
     if (isDupe) {
       showNotification(`"${finalName}" already exists in roster. Use a different suffix.`, "error");
       return;
@@ -392,11 +394,9 @@ export default function AdminPage() {
       cycle_number: 1,
     };
 
-    console.log("[v0] doInsertStaff payload:", JSON.stringify(payload));
-
     try {
       const result = await createRosterRow(payload);
-      console.log("[v0] createRosterRow result:", JSON.stringify(result));
+
       setIsSyncing(false);
 
       if (result.success) {
@@ -405,15 +405,14 @@ export default function AdminPage() {
         showNotification(`${finalName} added successfully`, "success");
         try {
           await fetchData();
-          console.log("[v0] fetchData after insert completed");
         } catch (fetchErr) {
-          console.error("[v0] fetchData after insert FAILED:", fetchErr);
+          console.error("fetchData after insert failed:", fetchErr);
         }
       } else {
         showNotification(result.error || "Failed to add staff", "error");
       }
     } catch (err) {
-      console.error("[v0] doInsertStaff CRASHED:", err);
+      console.error("doInsertStaff error:", err);
       setIsSyncing(false);
       showNotification("Server error during insert", "error");
     }
@@ -850,7 +849,7 @@ export default function AdminPage() {
                           </div>
                         </td>
                       </tr>
-                      
+
                     </Fragment>
                   );
                 })}
@@ -858,6 +857,151 @@ export default function AdminPage() {
             </table>
           </div>
         </div>
+
+        {/* ROSTER EXTRACT - Gantt Calendar View (visible when filtering by location or searching) */}
+        {(locationFilter !== "ALL" || search.trim()) && sortedData.length > 0 && (() => {
+          const EXTRACT_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+          const [eYear, eMonth] = extractMonth.split("-").map(Number);
+          const daysCount = new Date(eYear, eMonth + 1, 0).getDate();
+          const dayHeaders = Array.from({ length: daysCount }, (_, i) => {
+            const d = new Date(eYear, eMonth, i + 1);
+            return { dayNum: i + 1, dayName: ["S","M","T","W","T","F","S"][d.getDay()], isWeekend: d.getDay() === 0 || d.getDay() === 6 };
+          });
+
+          const getDayStatus = (row: typeof sortedData[0], day: number) => {
+            const checkDate = new Date(eYear, eMonth, day, 0, 0, 0, 0);
+            const checkTime = checkDate.getTime();
+            if (row.post?.includes("IM") || row.post?.includes("OHN")) {
+              const dow = checkDate.getDay();
+              return dow === 0 || dow === 6 ? "OHN_WEEKEND" : "OHN_WEEKDAY";
+            }
+            for (const cycle of Object.values(row.cycles)) {
+              const m = safeParseDate(cycle.sign_on);
+              const d = safeParseDate(cycle.sign_off);
+              if (m && d && checkTime >= m.getTime() && checkTime <= d.getTime()) {
+                if (cycle.relief_all && cycle.relief_all > 0) return "RELIEF";
+                return "PRIMARY";
+              }
+            }
+            return "OFF";
+          };
+          const getConnect = (row: typeof sortedData[0], day: number) => {
+            const s = getDayStatus(row, day);
+            return s === "OHN_WEEKDAY" || s === "OHN_WEEKEND" ? "OHN" : s;
+          };
+          const connectsToNext = (row: typeof sortedData[0], day: number) => day < daysCount && getConnect(row, day) !== "OFF" && getConnect(row, day + 1) !== "OFF";
+          const connectsFromPrev = (row: typeof sortedData[0], day: number) => day > 1 && getConnect(row, day) !== "OFF" && getConnect(row, day - 1) !== "OFF";
+
+          // Group sorted data
+          const grouped: { type: "sep" | "row"; label?: string; row?: typeof sortedData[0] }[] = [];
+          let lastKey = "";
+          for (const row of sortedData) {
+            const key = `${row.client}-${getFullTradeName(row.post)}-${row.location}`;
+            if (key !== lastKey) { grouped.push({ type: "sep", label: `${row.client} - ${getFullTradeName(row.post)} - ${row.location}` }); lastKey = key; }
+            grouped.push({ type: "row", row });
+          }
+
+          // Month range Sep 2025 to Dec 2026
+          const monthOpts: { value: string; label: string }[] = [];
+          for (let y = 2025; y <= 2026; y++) {
+            const startM = y === 2025 ? 8 : 0;
+            for (let m = startM; m <= 11; m++) {
+              monthOpts.push({ value: `${y}-${m}`, label: `${EXTRACT_MONTH_NAMES[m]} ${y}` });
+            }
+          }
+
+          return (
+            <div className="mt-3 rounded-xl border-2 border-blue-500/40 overflow-hidden">
+              <style jsx>{`
+                @keyframes barSlideIn { from { transform: scaleX(0); transform-origin: left center; } to { transform: scaleX(1); transform-origin: left center; } }
+                .gantt-bar-admin { animation: barSlideIn 0.8s ease-out forwards; }
+              `}</style>
+              <div className="px-4 py-2 flex items-center justify-between" style={{ backgroundColor: "#1e3a8a" }}>
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  <h3 className="text-[11px] font-black text-white uppercase tracking-wider">Roster Extract</h3>
+                </div>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={extractMonth}
+                    onChange={(e) => setExtractMonth(e.target.value)}
+                    className="text-[10px] font-bold text-white bg-blue-800 border border-blue-600 px-2 py-1 rounded-lg outline-none cursor-pointer uppercase"
+                  >
+                    {monthOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <span className="text-[9px] font-bold text-blue-200 uppercase">{sortedData.length} crew shown</span>
+                </div>
+              </div>
+              <div className="overflow-auto max-h-[400px] bg-card">
+                <table className="w-full border-collapse" style={{ minWidth: `${192 + daysCount * 26}px` }}>
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-slate-100">
+                      <th className="px-3 py-1.5 w-48 min-w-[192px] text-left sticky left-0 bg-slate-200 z-20 border-r border-gray-300">
+                        <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Crew / Trade</span>
+                      </th>
+                      {dayHeaders.map(d => (
+                        <th key={d.dayNum} className={`px-0 py-1 text-center w-[26px] min-w-[26px] max-w-[26px] border-r border-gray-200 ${d.isWeekend ? "bg-gray-100" : "bg-slate-50"}`}>
+                          <div className="flex flex-col items-center leading-none">
+                            <span className="text-[9px] font-bold text-slate-500">{d.dayName}</span>
+                            <span className="text-[11px] font-black text-slate-700 tabular-nums">{d.dayNum}</span>
+                          </div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {grouped.map((item, idx) => {
+                      if (item.type === "sep") {
+                        return (
+                          <tr key={`gsep-${idx}`} className="bg-slate-300">
+                            <td colSpan={daysCount + 1} className="px-3 sticky left-0 z-10 border-t-2 border-b-2 border-white bg-slate-300" style={{ height: "22px" }}>
+                              <div className="flex items-center h-full">
+                                <span className="text-[9px] font-black text-slate-800 uppercase tracking-widest">{item.label}</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+                      const row = item.row!;
+                      return (
+                        <tr key={`grow-${row.crew_id}-${row.crew_name}`} className="hover:bg-blue-50/50 transition-colors group border-b border-gray-300" style={{ height: "26px" }}>
+                          <td className="px-3 py-0 sticky left-0 bg-slate-100 group-hover:bg-blue-100/50 z-10 border-r border-gray-300 w-48 min-w-[192px]">
+                            <div className="text-[9px] font-semibold text-slate-700 leading-tight truncate" title={getDisplayName(row)}>{getDisplayName(row)}</div>
+                          </td>
+                          {dayHeaders.map(d => {
+                            const status = getDayStatus(row, d.dayNum);
+                            const toNext = connectsToNext(row, d.dayNum);
+                            const fromPrev = connectsFromPrev(row, d.dayNum);
+                            let barClass = "";
+                            if (status === "PRIMARY" || status === "OHN_WEEKDAY") barClass = "bg-blue-500";
+                            else if (status === "OHN_WEEKEND") barClass = "bg-slate-400";
+                            else if (status === "RELIEF") barClass = "bg-amber-500";
+                            const rL = !fromPrev ? "rounded-l-sm" : "";
+                            const rR = !toNext ? "rounded-r-sm" : "";
+                            return (
+                              <td key={d.dayNum} className={`p-0 relative w-[26px] min-w-[26px] max-w-[26px] ${d.isWeekend ? "bg-gray-50" : "bg-white"}`} style={{ height: "26px" }}>
+                                <div className="absolute inset-y-0 right-0 w-px bg-gray-300 z-0" />
+                                {status !== "OFF" && (
+                                  <div className={`absolute z-10 gantt-bar-admin ${rL} ${rR} ${barClass}`} style={{ top: "4px", bottom: "4px", left: 0, right: 0 }} />
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {/* Legend */}
+              <div className="flex flex-wrap items-center gap-4 px-4 py-1.5 bg-muted/30 border-t border-border">
+                <div className="flex items-center gap-1.5"><div className="w-4 h-2.5 bg-blue-500 rounded-sm" /><span className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider">Rotation</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-4 h-2.5 bg-amber-500 rounded-sm" /><span className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider">Relief</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-4 h-2.5 bg-slate-400 rounded-sm" /><span className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider">OHN Weekend</span></div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* HOVERED NOTE PREVIEW */}
         {hoveredNote && (
