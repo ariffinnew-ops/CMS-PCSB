@@ -7,7 +7,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { getUser, logout, canAccessPage, setupIdleTimeout, type AuthUser, type UserRole } from "@/lib/auth";
+import { getUser, logout, canAccessPage, setupIdleTimeout, getSelectedProject, setSelectedProject, ROLE_LABELS, type AuthUser, type UserRole, type ProjectKey } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,13 +27,14 @@ interface NavItem {
 }
 
 const allNavItems: NavItem[] = [
-  { id: "dashboard", label: "Dashboard", href: "/dashboard", roles: ["admin", "datalogger", "guest"] },
-  { id: "roster", label: "Roster", href: "/roster", roles: ["admin", "datalogger", "guest"] },
-  { id: "training", label: "Training Matrix", href: "/training", roles: ["admin", "datalogger", "guest"] },
-  { id: "staff", label: "Staff Detail", href: "/staff", roles: ["admin", "datalogger", "guest"] },
-  { id: "statement", label: "Statement", href: "/statement", roles: ["admin", "datalogger"] },
-  { id: "financial", label: "Financial", href: "/financial", roles: ["admin", "datalogger"] },
-  { id: "admin", label: "Data Manager", href: "/admin", roles: ["admin", "datalogger"] },
+  { id: "dashboard", label: "Dashboard", href: "/dashboard", roles: ["L1","L2A","L2B","L4","L5","L6","L7"] },
+  { id: "roster", label: "Roster", href: "/roster", roles: ["L1","L2A","L2B","L4","L5"] },
+  { id: "training", label: "Training Matrix", href: "/training", roles: ["L1","L2A","L2B","L4","L5"] },
+  { id: "staff", label: "Staff Detail", href: "/staff", roles: ["L1","L2A","L2B","L4","L5"] },
+  { id: "statement", label: "Statement", href: "/statement", roles: ["L1","L2A","L2B","L4","L5","L6","L7"] },
+  { id: "financial", label: "Financial", href: "/financial", roles: ["L1","L2A","L2B","L4","L5","L6","L7"] },
+  { id: "admin", label: "Data Manager", href: "/admin", roles: ["L1","L2A","L2B","L4","L5"] },
+  { id: "users", label: "User Mgmt", href: "/users", roles: ["L1"] },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -43,6 +44,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedProject, setProject] = useState<ProjectKey>("PCSB");
+
+  // Sync project from session on mount
+  useEffect(() => {
+    setProject(getSelectedProject());
+  }, []);
+
+  const handleProjectSwitch = (proj: ProjectKey) => {
+    setProject(proj);
+    setSelectedProject(proj);
+  };
 
   useEffect(() => {
     const currentUser = getUser();
@@ -92,18 +104,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const getRoleBadgeColor = (role: UserRole) => {
     switch (role) {
-      case "admin": return "text-amber-400";
-      case "datalogger": return "text-blue-400";
+      case "L1": return "text-amber-400";
+      case "L2A": case "L2B": return "text-blue-400";
+      case "L4": return "text-emerald-400";
+      case "L5": return "text-purple-400";
+      case "L6": case "L7": return "text-cyan-400";
       default: return "text-slate-500";
     }
   };
 
   const getRoleLabel = (role: UserRole) => {
-    switch (role) {
-      case "admin": return "Administrator";
-      case "datalogger": return "Data Logger";
-      default: return "Guest";
-    }
+    return ROLE_LABELS[role] || role;
   };
 
   if (isLoading) {
@@ -165,7 +176,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </svg>
           </button>
 
-          <div className="hidden lg:flex items-center gap-2">
+          <div className="hidden lg:flex items-center gap-3">
+            {/* Project Switcher */}
+            <div className="flex items-center bg-slate-800/60 rounded-lg border border-slate-700/50 p-0.5">
+              <button
+                type="button"
+                onClick={() => handleProjectSwitch("PCSB")}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all duration-200",
+                  selectedProject === "PCSB"
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
+                    : "text-slate-400 hover:text-white hover:bg-slate-700/50"
+                )}
+              >
+                PCSB
+              </button>
+              <button
+                type="button"
+                onClick={() => handleProjectSwitch("OTHERS")}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all duration-200",
+                  selectedProject === "OTHERS"
+                    ? "bg-orange-500 text-white shadow-lg shadow-orange-500/30"
+                    : "text-slate-400 hover:text-white hover:bg-slate-700/50"
+                )}
+              >
+                OTHERS
+              </button>
+            </div>
+
+            <div className="w-px h-6 bg-slate-700" />
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -177,8 +218,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </div>
                   <div className="flex flex-col items-start">
                     <span className="text-xs font-semibold capitalize">{user?.username}</span>
-                    <span className={cn("text-[9px] font-medium uppercase tracking-wide", getRoleBadgeColor(user?.role || "guest"))}>
-                      {getRoleLabel(user?.role || "guest")}
+                    <span className={cn("text-[9px] font-medium uppercase tracking-wide", getRoleBadgeColor(user?.role || "L4"))}>
+                      {getRoleLabel(user?.role || "L4")}
                     </span>
                   </div>
                   <svg className="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -190,7 +231,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium capitalize">{user?.username}</p>
-                    <p className="text-xs text-muted-foreground">{getRoleLabel(user?.role || "guest")}</p>
+                    <p className="text-xs text-muted-foreground">{getRoleLabel(user?.role || "L4")}</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -213,9 +254,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
               <div>
                 <p className="text-sm font-semibold text-white capitalize">{user?.username}</p>
-                <p className={cn("text-xs font-medium uppercase", getRoleBadgeColor(user?.role || "guest"))}>
-                  {getRoleLabel(user?.role || "guest")}
+                <p className={cn("text-xs font-medium uppercase", getRoleBadgeColor(user?.role || "L4"))}>
+                  {getRoleLabel(user?.role || "L4")}
                 </p>
+              </div>
+            </div>
+            {/* Mobile Project Switcher */}
+            <div className="flex items-center gap-2 pb-3 mb-3 border-b border-slate-800">
+              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Project:</span>
+              <div className="flex items-center bg-slate-800/60 rounded-lg border border-slate-700/50 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => handleProjectSwitch("PCSB")}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all",
+                    selectedProject === "PCSB"
+                      ? "bg-blue-600 text-white shadow-lg"
+                      : "text-slate-400 hover:text-white"
+                  )}
+                >PCSB</button>
+                <button
+                  type="button"
+                  onClick={() => handleProjectSwitch("OTHERS")}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all",
+                    selectedProject === "OTHERS"
+                      ? "bg-orange-500 text-white shadow-lg"
+                      : "text-slate-400 hover:text-white"
+                  )}
+                >OTHERS</button>
               </div>
             </div>
             <nav className="flex flex-col gap-1">
