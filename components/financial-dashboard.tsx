@@ -8,8 +8,9 @@ import { safeParseDate, shortenPost, getTradeRank, formatDate } from "@/lib/logi
 import { getUser } from "@/lib/auth";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, CartesianGrid, Area, AreaChart,
+  PieChart, Pie, Cell, CartesianGrid, Area, AreaChart, Legend,
 } from "recharts";
+import { upsertApproval, getApproval, type ApprovalRecord } from "@/lib/actions";
 
 // ─── Month Range ───
 function generateMonthRange() {
@@ -36,6 +37,15 @@ const P = {
 };
 const LOC_COLORS = ["#06b6d4", "#8b5cf6", "#f59e0b", "#ef4444", "#10b981"];
 const CAT_COLORS = [P.basic, P.fixedAll, P.offshore, P.relief, P.standby, P.medevac];
+const CLIENT_PIE_COLORS = ["#0ea5e9", "#f97316", "#10b981", "#ef4444", "#8b5cf6", "#f59e0b"];
+const CLIENT_PIE_GRADIENTS = [
+  { id: "cpg0", start: "#38bdf8", end: "#0284c7" },
+  { id: "cpg1", start: "#fb923c", end: "#ea580c" },
+  { id: "cpg2", start: "#34d399", end: "#059669" },
+  { id: "cpg3", start: "#f87171", end: "#dc2626" },
+  { id: "cpg4", start: "#a78bfa", end: "#7c3aed" },
+  { id: "cpg5", start: "#fbbf24", end: "#d97706" },
+];
 
 // ─── Statement types ───
 const MONTH_NAMES = [
@@ -398,37 +408,78 @@ export default function FinancialDashboardPage() {
 
   const stmtTotals = useMemo(() => filteredStmtRows.reduce((acc, row) => ({ offshore: acc.offshore + row.offshoreTotal, relief: acc.relief + row.reliefTotal, standby: acc.standby + row.standbyTotal, medevac: acc.medevac + row.medevacTotal, grand: acc.grand + row.grandTotal }), { offshore: 0, relief: 0, standby: 0, medevac: 0, grand: 0 }), [filteredStmtRows]);
 
-  // ─── Budgeting Data ───
-  const budgetData = useMemo(() => {
+  // ─── Budgeting period state ───
+  const [budgetPeriod, setBudgetPeriod] = useState(() => {
     const now = new Date();
-    const months: { label: string; year: number; month: number }[] = [];
-    for (let i = 1; i <= 3; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-      months.push({ label: `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`, year: d.getFullYear(), month: d.getMonth() + 1 });
-    }
+    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+  });
+
+  // ─── Budgeting Data (1-month estimate) ───
+  const budgetData = useMemo(() => {
+    const [by, bm] = budgetPeriod.split("-").map(Number);
+    const periodLabel = `${MONTH_NAMES[bm - 1]} ${by}`;
     const bufferMultiplier = 1 + budgetBuffer / 100;
-    const clientTradeMap = new Map<string, { client: string; trade: string; months: number[] }>();
 
-    for (const mo of months) {
-      const costs = calcMonthCosts(data, masterData, masterMap, mo.year, mo.month);
-      for (const c of costs) {
-        const key = `${c.client}::${shortenPost(c.post)}`;
-        if (!clientTradeMap.has(key)) clientTradeMap.set(key, { client: c.client, trade: shortenPost(c.post) as string, months: [0, 0, 0] });
-        const entry = clientTradeMap.get(key)!;
-        const idx = months.indexOf(mo);
-        // Fixed costs stay as-is, variable costs get buffer
-        const fixedCost = c.basic + c.fixedAll;
-        const variableCost = (c.offshore + c.relief + c.standby + c.medevac) * bufferMultiplier;
-        entry.months[idx] += fixedCost + variableCost;
-      }
+    const clientMap = new Map<string, { client: string; fixed: number; variable: number; total: number }>();
+    const tradeMap = new Map<string, { trade: string; fixed: number; variable: number; total: number }>();
+    const costs = calcMonthCosts(data, masterData, masterMap, by, bm);
+
+    for (const c of costs) {
+      const fixedCost = c.basic + c.fixedAll;
+      const variableCost = (c.offshore + c.relief + c.standby + c.medevac) * bufferMultiplier;
+      const rowTotal = fixedCost + variableCost;
+
+      // By Client
+      const clientKey = c.client || "Unknown";
+      if (!clientMap.has(clientKey)) clientMap.set(clientKey, { client: clientKey, fixed: 0, variable: 0, total: 0 });
+      const ce = clientMap.get(clientKey)!;
+      ce.fixed += fixedCost; ce.variable += variableCost; ce.total += rowTotal;
+
+      // By Trade
+      const tradeKey = shortenPost(c.post) as string;
+      if (!tradeMap.has(tradeKey)) tradeMap.set(tradeKey, { trade: tradeKey, fixed: 0, variable: 0, total: 0 });
+      const te = tradeMap.get(tradeKey)!;
+      te.fixed += fixedCost; te.variable += variableCost; te.total += rowTotal;
     }
-    return { months, rows: Array.from(clientTradeMap.values()).sort((a, b) => a.client.localeCompare(b.client) || a.trade.localeCompare(b.trade)) };
-  }, [data, masterData, masterMap, budgetBuffer]);
 
-  // ─── Approval handler ───
-  const handleApprove = () => {
+    return {
+      periodLabel,
+      byClient: Array.from(clientMap.values()).sort((a, b) => b.total - a.total),
+      byTrade: Array.from(tradeMap.values()).sort((a, b) => b.total - a.total),
+      grandFixed: Array.from(clientMap.values()).reduce((s, r) => s + r.fixed, 0),
+      grandVariable: Array.from(clientMap.values()).reduce((s, r) => s + r.variable, 0),
+      grandTotal: Array.from(clientMap.values()).reduce((s, r) => s + r.total, 0),
+    };
+  }, [data, masterData, masterMap, budgetBuffer, budgetPeriod]);
+
+  // ─── Load persisted approval from Supabase ───
+  useEffect(() => {
+    if (!selectedMonth || !stmtClientFilter) return;
+    const key = stmtClientFilter === "ALL" ? "ALL" : stmtClientFilter;
+    getApproval(selectedMonth, key).then((rec) => {
+      if (rec) {
+        setApproval({ name: rec.approved_by, date: rec.approved_at, role: rec.approved_role });
+      } else {
+        setApproval(null);
+      }
+    });
+  }, [selectedMonth, stmtClientFilter]);
+
+  // ─── Approval handler (persists to Supabase) ───
+  const handleApprove = async () => {
     if (!approverName.trim()) return;
-    setApproval({ name: approverName.trim(), date: new Date().toLocaleDateString("en-MY", { day: "2-digit", month: "short", year: "numeric" }), role: "Project Manager" });
+    const now = new Date().toLocaleDateString("en-MY", { day: "2-digit", month: "short", year: "numeric" });
+    const key = stmtClientFilter === "ALL" ? "ALL" : stmtClientFilter;
+    const record: ApprovalRecord = {
+      month_year: selectedMonth,
+      client: key,
+      approved_by: approverName.trim(),
+      approved_role: "Project Manager",
+      approved_at: now,
+    };
+    await upsertApproval(record);
+    setApproval({ name: record.approved_by, date: now, role: record.approved_role });
     setApprovalModal(false);
     setApproverName("");
   };
@@ -450,7 +501,7 @@ export default function FinancialDashboardPage() {
 
   return (
     <AppShell>
-      <div className="space-y-3 animate-in fade-in duration-500 mt-1">
+      <div className="flex flex-col flex-1 min-h-0 gap-3 animate-in fade-in duration-500 mt-1">
 
         {/* Header + Tabs */}
         <div className="flex items-center justify-between">
@@ -472,13 +523,15 @@ export default function FinancialDashboardPage() {
                 </button>
               ))}
             </div>
-            <button onClick={() => {
-              const titles: Record<TabType, string> = { dashboard: "Financial_Report", statement: "Statement", budgeting: "Budget_Projection" };
-              document.title = `${titles[activeTab]}_${new Date().toISOString().slice(0,10)}`;
-              window.print();
-            }} className="print-btn p-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm" title="Print">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-            </button>
+            {activeTab !== "dashboard" && (
+              <button onClick={() => {
+                const titles: Record<TabType, string> = { dashboard: "Financial_Report", statement: "Statement", budgeting: "Budget_Projection" };
+                document.title = `${titles[activeTab]}_${new Date().toISOString().slice(0,10)}`;
+                window.print();
+              }} className="print-btn p-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-all shadow-sm" title="Print">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+              </button>
+            )}
           </div>
         </div>
 
@@ -558,15 +611,28 @@ export default function FinancialDashboardPage() {
                 <div className="px-3 pt-3 pb-1"><h3 className="text-[9px] font-black text-foreground uppercase tracking-wider">Cost by Client</h3></div>
                 {clientData.length === 0 ? <p className="text-xs text-muted-foreground text-center py-10">No data</p> : (
                   <>
-                    <div className="h-40 flex items-center justify-center" style={{ perspective: "600px" }}>
-                      <div style={{ transform: "rotateX(12deg)" }} className="w-full h-full">
+                    <div className="h-40 flex items-center justify-center" style={{ perspective: "800px" }}>
+                      <div style={{ transform: "rotateX(15deg) rotateZ(-2deg)" }} className="w-full h-full">
                         <ResponsiveContainer width="100%" height="100%">
-                          <PieChart><Pie data={clientData} cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={4} dataKey="value" nameKey="name" animationDuration={1200} label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={{ stroke: "#64748b", strokeWidth: 1 }}>{clientData.map((e, i) => <Cell key={e.name} fill={i === 0 ? P.ska : P.sba} stroke="#0f172a" strokeWidth={2} />)}</Pie><Tooltip content={<PTT />} /></PieChart>
+                          <PieChart>
+                            <defs>
+                              {CLIENT_PIE_GRADIENTS.map(g => (
+                                <linearGradient key={g.id} id={g.id} x1="0" y1="0" x2="1" y2="1">
+                                  <stop offset="0%" stopColor={g.start} stopOpacity={1} />
+                                  <stop offset="100%" stopColor={g.end} stopOpacity={0.85} />
+                                </linearGradient>
+                              ))}
+                            </defs>
+                            <Pie data={clientData} cx="50%" cy="50%" outerRadius={65} paddingAngle={5} dataKey="value" nameKey="name" animationDuration={1200} label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={{ stroke: "#64748b", strokeWidth: 1 }}>
+                              {clientData.map((e, i) => <Cell key={e.name} fill={`url(#${CLIENT_PIE_GRADIENTS[i % CLIENT_PIE_GRADIENTS.length].id})`} stroke="#0f172a" strokeWidth={2} />)}
+                            </Pie>
+                            <Tooltip content={<PTT />} />
+                          </PieChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
                     <div className="px-3 pb-3 space-y-1">
-                      {clientData.map((c, i) => (<div key={c.name} className="flex items-center justify-between"><div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: i === 0 ? P.ska : P.sba }} /><span className="text-[9px] font-bold text-foreground">{c.name}</span></div><span className="text-[9px] font-black text-foreground tabular-nums">{fmtRM(c.value)}</span></div>))}
+                      {clientData.map((c, i) => (<div key={c.name} className="flex items-center justify-between"><div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CLIENT_PIE_COLORS[i % CLIENT_PIE_COLORS.length] }} /><span className="text-[9px] font-bold text-foreground">{c.name}</span></div><span className="text-[9px] font-black text-foreground tabular-nums">{fmtRM(c.value)}</span></div>))}
                     </div>
                   </>
                 )}
@@ -610,7 +676,7 @@ export default function FinancialDashboardPage() {
 
         {/* ═══════════════ STATEMENT TAB ═══════════════ */}
         {activeTab === "statement" && canSeeStatement && (
-          <div className="space-y-3">
+          <div className="flex flex-col flex-1 min-h-0 gap-3">
             {/* Print header */}
             <div className="print-header hidden items-center justify-between px-2 py-2 border-b border-slate-300 mb-2">
               <div>
@@ -650,30 +716,22 @@ export default function FinancialDashboardPage() {
                 <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Search</label>
                 <input type="text" placeholder="Name..." value={stmtSearch} onChange={(e) => setStmtSearch(e.target.value)} className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40 w-32" />
               </div>
-              {/* PM Approval Button */}
-              {!approval ? (
-                <button type="button" onClick={() => setApprovalModal(true)} className="self-end px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-sm">
-                  Approve
-                </button>
-              ) : (
-                <button type="button" onClick={() => setApproval(null)} className="self-end px-2 py-1 rounded-lg bg-red-500/10 text-red-500 text-[9px] font-bold uppercase tracking-wider transition-all border border-red-500/20 hover:bg-red-500/20" title="Revoke approval">
-                  Revoke
-                </button>
+              {/* PM Approval Button - always visible */}
+              <button type="button" onClick={() => setApprovalModal(true)} className="self-end px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-sm">
+                {approval ? "Re-Approve" : "Approve"}
+              </button>
+
+              {/* Inline Approval Stamp */}
+              {approval && (
+                <div className="approval-stamp self-end flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-400 rounded-lg">
+                  <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                  <div className="leading-tight">
+                    <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wide">Approved</span>
+                    <span className="text-[9px] text-emerald-700 font-semibold ml-1.5">{approval.name} - {approval.role} - {approval.date}</span>
+                  </div>
+                </div>
               )}
             </div>
-
-            {/* Approval Stamp */}
-            {approval && (
-              <div className="approval-stamp flex items-center gap-3 px-4 py-3 bg-emerald-50 border-2 border-emerald-500 rounded-xl">
-                <div className="flex items-center justify-center w-10 h-10 bg-emerald-600 rounded-full shrink-0">
-                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" /></svg>
-                </div>
-                <div>
-                  <p className="text-[12px] font-black text-emerald-800 uppercase tracking-wider">Certified & Approved for Payment</p>
-                  <p className="text-[10px] font-bold text-emerald-700">{approval.name} -- {approval.role} -- {approval.date}</p>
-                </div>
-              </div>
-            )}
 
             {/* Statement Table */}
             {filteredStmtRows.length === 0 ? (
@@ -681,8 +739,8 @@ export default function FinancialDashboardPage() {
                 <p className="text-muted-foreground text-sm font-medium">No active rotations found for {MONTH_NAMES[selectedMonthNum - 1]} {selectedYear}.</p>
               </div>
             ) : (
-              <div className="rounded-xl border border-border overflow-hidden">
-                <div className="overflow-auto max-h-[calc(100vh-320px)]">
+              <div className="rounded-xl border border-border overflow-hidden flex-1 min-h-0 flex flex-col">
+                <div className="overflow-auto flex-1 min-h-0">
                   <table className="w-full text-[12px] font-sans border-collapse" style={{ minWidth: "1000px" }}>
                     <thead className="sticky top-0 z-10">
                       <tr className="text-white" style={{ backgroundColor: "#1e3a8a" }}>
@@ -784,52 +842,92 @@ export default function FinancialDashboardPage() {
         {/* ═══════════════ BUDGETING TAB ═══════════════ */}
         {activeTab === "budgeting" && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h3 className="text-sm font-black text-foreground uppercase tracking-tight">3-Month Cost Projection</h3>
-                <p className="text-[9px] text-muted-foreground">Fixed costs (Basic + Fixed All.) from master data. Variable costs from roster cycles with adjustable buffer.</p>
+                <h3 className="text-sm font-black text-foreground uppercase tracking-tight">Monthly Cost Estimate</h3>
+                <p className="text-[9px] text-muted-foreground">Fixed costs from master data. Variable costs from roster cycles with buffer multiplier.</p>
               </div>
               <div className="flex items-center gap-3 bg-muted px-4 py-2 rounded-xl border border-border" data-no-print>
-                <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Buffer</label>
-                <input type="range" min={0} max={50} value={budgetBuffer} onChange={(e) => setBudgetBuffer(parseInt(e.target.value))} className="w-32 h-1.5 bg-blue-200 rounded-full appearance-none cursor-pointer" />
-                <span className="text-[11px] font-black text-foreground tabular-nums w-8 text-right">{budgetBuffer}%</span>
+                <div className="flex flex-col">
+                  <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Period</label>
+                  <select value={budgetPeriod} onChange={(e) => setBudgetPeriod(e.target.value)} className="bg-transparent text-[11px] font-black uppercase outline-none cursor-pointer">
+                    {(() => {
+                      const opts: { value: string; label: string }[] = [];
+                      for (let y = 2025; y <= 2027; y++) { const startM = y === 2025 ? 9 : 1; for (let m = startM; m <= 12; m++) { const val = `${y}-${String(m).padStart(2, "0")}`; opts.push({ value: val, label: `${MONTH_NAMES[m - 1]} ${y}` }); } }
+                      return opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>);
+                    })()}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2 border-l border-border pl-3">
+                  <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Buffer</label>
+                  <input type="range" min={0} max={50} value={budgetBuffer} onChange={(e) => setBudgetBuffer(parseInt(e.target.value))} className="w-24 h-1.5 bg-blue-200 rounded-full appearance-none cursor-pointer" />
+                  <span className="text-[11px] font-black text-foreground tabular-nums w-8 text-right">{budgetBuffer}%</span>
+                </div>
               </div>
             </div>
 
-            <div className="rounded-xl border border-border overflow-hidden">
-              <div className="overflow-auto">
+            {/* Split by Client */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <div className="rounded-xl border border-border overflow-hidden">
+                <div className="px-3 py-2" style={{ backgroundColor: "#1e3a8a" }}>
+                  <h4 className="text-[10px] font-black text-white uppercase tracking-wider">By Client - {budgetData.periodLabel}</h4>
+                </div>
                 <table className="w-full border-collapse text-[10px]">
                   <thead>
-                    <tr style={{ backgroundColor: "#1e3a8a" }} className="text-white">
-                      <th className="px-3 py-2 text-left font-black uppercase tracking-widest border-r border-blue-700/50">Client</th>
-                      <th className="px-2 py-2 text-left font-black uppercase tracking-widest border-r border-blue-700/50">Trade</th>
-                      {budgetData.months.map(m => (
-                        <th key={m.label} className="px-3 py-2 text-right font-black uppercase tracking-widest border-r border-blue-700/50">{m.label}</th>
-                      ))}
-                      <th className="px-3 py-2 text-right font-black uppercase tracking-widest">3-Month Total</th>
+                    <tr className="bg-muted/50">
+                      <th className="px-3 py-1.5 text-left font-black uppercase tracking-widest border-r border-border">Client</th>
+                      <th className="px-3 py-1.5 text-right font-bold uppercase tracking-widest border-r border-border">Fixed</th>
+                      <th className="px-3 py-1.5 text-right font-bold uppercase tracking-widest border-r border-border">Variable</th>
+                      <th className="px-3 py-1.5 text-right font-black uppercase tracking-widest">Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {budgetData.rows.map((r, i) => {
-                      const rowTotal = r.months.reduce((s, v) => s + v, 0);
-                      return (
-                        <tr key={i} className="hover:bg-muted/30 transition-colors">
-                          <td className="px-3 py-1.5 font-black text-foreground uppercase">{r.client}</td>
-                          <td className="px-2 py-1.5 font-bold text-foreground uppercase">{r.trade}</td>
-                          {r.months.map((v, mi) => (
-                            <td key={mi} className="px-3 py-1.5 text-right font-bold tabular-nums text-foreground">{fmtAmt(v)}</td>
-                          ))}
-                          <td className="px-3 py-1.5 text-right font-black tabular-nums text-foreground">{fmtAmt(rowTotal)}</td>
-                        </tr>
-                      );
-                    })}
+                    {budgetData.byClient.map((r) => (
+                      <tr key={r.client} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-3 py-1.5 font-black text-foreground uppercase">{r.client}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums font-bold text-foreground">{fmtAmt(r.fixed)}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums font-bold text-foreground">{fmtAmt(r.variable)}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums font-black text-foreground">{fmtAmt(r.total)}</td>
+                      </tr>
+                    ))}
                     <tr className="text-white font-black" style={{ backgroundColor: "#1e3a8a" }}>
-                      <td className="px-3 py-2 uppercase tracking-widest" colSpan={2}>Grand Total</td>
-                      {budgetData.months.map((m, mi) => {
-                        const colTotal = budgetData.rows.reduce((s, r) => s + r.months[mi], 0);
-                        return <td key={m.label} className="px-3 py-2 text-right tabular-nums">{fmtAmt(colTotal)}</td>;
-                      })}
-                      <td className="px-3 py-2 text-right tabular-nums">{fmtAmt(budgetData.rows.reduce((s, r) => s + r.months.reduce((a, b) => a + b, 0), 0))}</td>
+                      <td className="px-3 py-2 uppercase tracking-widest">Total</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmtAmt(budgetData.grandFixed)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmtAmt(budgetData.grandVariable)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmtAmt(budgetData.grandTotal)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Split by Trade */}
+              <div className="rounded-xl border border-border overflow-hidden">
+                <div className="px-3 py-2" style={{ backgroundColor: "#1e3a8a" }}>
+                  <h4 className="text-[10px] font-black text-white uppercase tracking-wider">By Trade - {budgetData.periodLabel}</h4>
+                </div>
+                <table className="w-full border-collapse text-[10px]">
+                  <thead>
+                    <tr className="bg-muted/50">
+                      <th className="px-3 py-1.5 text-left font-black uppercase tracking-widest border-r border-border">Trade</th>
+                      <th className="px-3 py-1.5 text-right font-bold uppercase tracking-widest border-r border-border">Fixed</th>
+                      <th className="px-3 py-1.5 text-right font-bold uppercase tracking-widest border-r border-border">Variable</th>
+                      <th className="px-3 py-1.5 text-right font-black uppercase tracking-widest">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {budgetData.byTrade.map((r) => (
+                      <tr key={r.trade} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-3 py-1.5 font-black text-foreground uppercase">{r.trade}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums font-bold text-foreground">{fmtAmt(r.fixed)}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums font-bold text-foreground">{fmtAmt(r.variable)}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums font-black text-foreground">{fmtAmt(r.total)}</td>
+                      </tr>
+                    ))}
+                    <tr className="text-white font-black" style={{ backgroundColor: "#1e3a8a" }}>
+                      <td className="px-3 py-2 uppercase tracking-widest">Total</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmtAmt(budgetData.grandFixed)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmtAmt(budgetData.grandVariable)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmtAmt(budgetData.grandTotal)}</td>
                     </tr>
                   </tbody>
                 </table>

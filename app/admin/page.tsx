@@ -6,7 +6,7 @@ import { useEffect, useState, useMemo, useRef, Fragment } from "react";
 import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow, TradeType } from "@/lib/types";
 import { getPivotedRosterData, updateRosterRow, createRosterRow, deleteRosterRow, deleteCrewFromRoster, deleteCrewByName, getCrewList } from "@/lib/actions";
-import { safeParseDate, getTradeRank, shortenPost } from "@/lib/logic";
+import { safeParseDate, getTradeRank, shortenPost, formatDate } from "@/lib/logic";
 import { getClients, getPostsForClient, getLocationsForClientPost } from "@/lib/client-location-map";
 
 interface CrewListItem { id: string; crew_name: string; clean_name: string; post: string; client: string; location: string; status?: string }
@@ -70,17 +70,15 @@ export default function AdminPage() {
   const [deleteModal, setDeleteModal] = useState<{ crewId: string; name: string } | null>(null);
 
   const fetchData = async () => {
-  setLoading(true);
-  console.log("[v0] fetchData starting...");
-  try {
-    const [pivotedData, crewResult] = await Promise.all([getPivotedRosterData(), getCrewList()]);
-    console.log("[v0] fetchData got", pivotedData.length, "roster rows,", crewResult.data?.length || 0, "crew list items");
-    setData(pivotedData);
-    if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
-  } catch (err) {
-    console.error("[v0] fetchData CRASHED:", err);
-  }
-  setLoading(false);
+    setLoading(true);
+    try {
+      const [pivotedData, crewResult] = await Promise.all([getPivotedRosterData(), getCrewList()]);
+      setData(pivotedData);
+      if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
+    } catch (err) {
+      console.error("fetchData error:", err);
+    }
+    setLoading(false);
   };
 
   const sortedData = useMemo(() => {
@@ -361,7 +359,6 @@ export default function AdminPage() {
     if (!dupeConfirm) return;
     const baseName = dupeConfirm.staff.clean_name || dupeConfirm.staff.crew_name;
     const suffix = customSuffix.trim();
-    console.log("[v0] handleDupeConfirmAdd baseName:", baseName, "suffix:", suffix);
     if (!suffix) {
       showNotification("Please enter a suffix (e.g. R1, S, P)", "error");
       return;
@@ -369,7 +366,6 @@ export default function AdminPage() {
     const finalName = `${baseName} (${suffix})`;
     // Check for duplicate name in roster
     const isDupe = data.some((row) => row.crew_name?.trim().toUpperCase() === finalName.trim().toUpperCase());
-    console.log("[v0] handleDupeConfirmAdd finalName:", finalName, "isDupe:", isDupe);
     if (isDupe) {
       showNotification(`"${finalName}" already exists in roster. Use a different suffix.`, "error");
       return;
@@ -392,11 +388,9 @@ export default function AdminPage() {
       cycle_number: 1,
     };
 
-    console.log("[v0] doInsertStaff payload:", JSON.stringify(payload));
-
     try {
       const result = await createRosterRow(payload);
-      console.log("[v0] createRosterRow result:", JSON.stringify(result));
+
       setIsSyncing(false);
 
       if (result.success) {
@@ -405,15 +399,14 @@ export default function AdminPage() {
         showNotification(`${finalName} added successfully`, "success");
         try {
           await fetchData();
-          console.log("[v0] fetchData after insert completed");
         } catch (fetchErr) {
-          console.error("[v0] fetchData after insert FAILED:", fetchErr);
+          console.error("fetchData after insert failed:", fetchErr);
         }
       } else {
         showNotification(result.error || "Failed to add staff", "error");
       }
     } catch (err) {
-      console.error("[v0] doInsertStaff CRASHED:", err);
+      console.error("doInsertStaff error:", err);
       setIsSyncing(false);
       showNotification("Server error during insert", "error");
     }
@@ -858,6 +851,81 @@ export default function AdminPage() {
             </table>
           </div>
         </div>
+
+        {/* ROSTER EXTRACT - visible when filtering by location or searching */}
+        {(locationFilter !== "ALL" || search.trim()) && sortedData.length > 0 && (
+          <div className="mt-3 rounded-xl border-2 border-blue-500/40 overflow-hidden">
+            <div className="bg-blue-700 px-4 py-2 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                <h3 className="text-[11px] font-black text-white uppercase tracking-wider">Roster Extract</h3>
+              </div>
+              <span className="text-[9px] font-bold text-blue-200 uppercase">{sortedData.length} crew shown</span>
+            </div>
+            <div className="overflow-auto max-h-[400px] bg-card">
+              <table className="w-full border-collapse text-[10px]">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-blue-600 text-white">
+                    <th className="px-3 py-1.5 text-left font-black uppercase tracking-wider border-r border-blue-500/50">#</th>
+                    <th className="px-3 py-1.5 text-left font-black uppercase tracking-wider border-r border-blue-500/50">Name</th>
+                    <th className="px-3 py-1.5 text-left font-black uppercase tracking-wider border-r border-blue-500/50">Trade</th>
+                    <th className="px-3 py-1.5 text-left font-black uppercase tracking-wider border-r border-blue-500/50">Client</th>
+                    <th className="px-3 py-1.5 text-left font-black uppercase tracking-wider border-r border-blue-500/50">Location</th>
+                    <th className="px-3 py-1.5 text-center font-black uppercase tracking-wider border-r border-blue-500/50">Cycle</th>
+                    <th className="px-3 py-1.5 text-center font-black uppercase tracking-wider border-r border-blue-500/50">Sign On</th>
+                    <th className="px-3 py-1.5 text-center font-black uppercase tracking-wider border-r border-blue-500/50">Sign Off</th>
+                    <th className="px-3 py-1.5 text-center font-black uppercase tracking-wider border-r border-blue-500/50">Days</th>
+                    <th className="px-3 py-1.5 text-left font-black uppercase tracking-wider">Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedData.flatMap((row, ri) => {
+                    const activeCycles = Object.entries(row.cycles)
+                      .filter(([, c]) => c.sign_on || c.sign_off)
+                      .sort(([a], [b]) => parseInt(a) - parseInt(b));
+                    if (activeCycles.length === 0) {
+                      return [(
+                        <tr key={`ext-${row.crew_id}-${ri}`} className={`border-b border-border/50 ${ri % 2 === 0 ? "bg-card" : "bg-muted/20"}`}>
+                          <td className="px-3 py-1 border-r border-border/30 text-muted-foreground tabular-nums">{ri + 1}</td>
+                          <td className="px-3 py-1 border-r border-border/30 font-bold text-foreground uppercase">{getDisplayName(row)}</td>
+                          <td className="px-3 py-1 border-r border-border/30 text-muted-foreground uppercase">{shortenPost(row.post)}</td>
+                          <td className="px-3 py-1 border-r border-border/30 text-muted-foreground">{row.client}</td>
+                          <td className="px-3 py-1 border-r border-border/30 text-muted-foreground">{row.location}</td>
+                          <td className="px-3 py-1 border-r border-border/30 text-center text-muted-foreground">-</td>
+                          <td className="px-3 py-1 border-r border-border/30 text-center text-muted-foreground">-</td>
+                          <td className="px-3 py-1 border-r border-border/30 text-center text-muted-foreground">-</td>
+                          <td className="px-3 py-1 border-r border-border/30 text-center text-muted-foreground">-</td>
+                          <td className="px-3 py-1 text-muted-foreground">-</td>
+                        </tr>
+                      )];
+                    }
+                    return activeCycles.map(([cycleNumStr, cycle], ci) => {
+                      const days = calculateDays(cycle.sign_on, cycle.sign_off);
+                      return (
+                        <tr key={`ext-${row.crew_id}-${ri}-${cycleNumStr}`} className={`border-b border-border/50 ${ri % 2 === 0 ? "bg-card" : "bg-muted/20"}`}>
+                          {ci === 0 && (
+                            <>
+                              <td rowSpan={activeCycles.length} className="px-3 py-1 border-r border-border/30 text-muted-foreground tabular-nums align-top">{ri + 1}</td>
+                              <td rowSpan={activeCycles.length} className="px-3 py-1 border-r border-border/30 font-bold text-foreground uppercase align-top">{getDisplayName(row)}</td>
+                              <td rowSpan={activeCycles.length} className="px-3 py-1 border-r border-border/30 text-muted-foreground uppercase align-top">{shortenPost(row.post)}</td>
+                              <td rowSpan={activeCycles.length} className="px-3 py-1 border-r border-border/30 text-muted-foreground align-top">{row.client}</td>
+                              <td rowSpan={activeCycles.length} className="px-3 py-1 border-r border-border/30 text-muted-foreground align-top">{row.location}</td>
+                            </>
+                          )}
+                          <td className="px-3 py-1 text-center border-r border-border/30 font-bold text-blue-600">{cycleNumStr}</td>
+                          <td className="px-3 py-1 text-center border-r border-border/30 tabular-nums text-foreground">{formatDate(cycle.sign_on)}</td>
+                          <td className="px-3 py-1 text-center border-r border-border/30 tabular-nums text-foreground">{formatDate(cycle.sign_off)}</td>
+                          <td className="px-3 py-1 text-center border-r border-border/30 tabular-nums font-bold">{days !== null ? <span className={days > 15 ? "text-red-600" : "text-foreground"}>{days}</span> : "-"}</td>
+                          <td className="px-3 py-1 text-muted-foreground italic truncate max-w-[200px]">{cycle.notes || "-"}</td>
+                        </tr>
+                      );
+                    });
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* HOVERED NOTE PREVIEW */}
         {hoveredNote && (
