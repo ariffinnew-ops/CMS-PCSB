@@ -291,12 +291,20 @@ export default function StatementPage() {
     setSubmitting(true);
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
     const submitterName = user?.username || "Unknown";
+    console.log("[v0] Submitting for approval:", { selectedMonth, key, submitterName });
     const result = await submitForApproval(selectedMonth, key, submitterName);
+    console.log("[v0] Submit result:", result);
     if (result.success) {
-      setSubmissionStatus("Submitted");
-      // Reload record
+      // Reload record from DB
       const rec = await getApproval(selectedMonth, key);
-      if (rec) setApprovalRecord(rec);
+      console.log("[v0] Reloaded approval record:", rec);
+      if (rec) {
+        setApprovalRecord(rec);
+        setSubmissionStatus((rec.submission_status as "Draft" | "Submitted" | "Approved") || "Draft");
+      } else {
+        // If no record returned, set directly
+        setSubmissionStatus("Submitted");
+      }
     }
     setSubmitting(false);
   };
@@ -382,12 +390,9 @@ export default function StatementPage() {
                   className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold uppercase outline-none focus:ring-2 focus:ring-blue-500/40"
                 >
                   {(() => {
-                    const now = new Date();
-                    const curYear = now.getFullYear();
-                    const curMonth = now.getMonth() + 1;
                     const options: { value: string; label: string }[] = [];
-                    for (let y = curYear; y <= 2026; y++) {
-                      const startM = y === curYear ? curMonth : 1;
+                    for (let y = 2025; y <= 2026; y++) {
+                      const startM = y === 2025 ? 9 : 1;
                       const endM = 12;
                       for (let m = startM; m <= endM; m++) {
                         const val = `${y}-${String(m).padStart(2, "0")}`;
@@ -529,10 +534,10 @@ export default function StatementPage() {
                               type="button"
                               onClick={handleSubmitForApproval}
                               disabled={submitting}
-                              className="flex items-center gap-1.5 px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg border border-blue-400/30 transition-all shrink-0"
+                              className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg border border-orange-400 transition-all shadow-lg shrink-0"
                             >
-                              <svg className="w-4 h-4 text-blue-300 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                              <span className="text-[9px] font-black text-blue-200 uppercase tracking-wider">{submitting ? "Submitting..." : "Submit for Approval"}</span>
+                              <svg className="w-4 h-4 text-white shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                              <span className="text-[9px] font-black text-white uppercase tracking-wider">{submitting ? "Submitting..." : "Submit for Approval"}</span>
                             </button>
                           )}
                         </div>

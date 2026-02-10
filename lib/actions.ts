@@ -590,8 +590,9 @@ export async function submitForApproval(monthYear: string, client: string, submi
         submission_status: 'Submitted',
         submitted_by: submittedBy,
         submitted_at: now,
-        approved_by: null,
-        approved_at: null,
+        approved_by: '',
+        approved_role: '',
+        approved_at: '',
       },
       { onConflict: 'month_year,client' }
     )
@@ -642,10 +643,11 @@ export async function rejectApproval(monthYear: string, client: string): Promise
         month_year: monthYear,
         client,
         submission_status: 'Draft',
-        submitted_by: null,
-        submitted_at: null,
-        approved_by: null,
-        approved_at: null,
+        submitted_by: '',
+        submitted_at: '',
+        approved_by: '',
+        approved_role: '',
+        approved_at: '',
       },
       { onConflict: 'month_year,client' }
     )
