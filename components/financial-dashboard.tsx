@@ -757,12 +757,6 @@ export default function FinancialDashboardPage() {
                 <label className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Search</label>
                 <input type="text" placeholder="Name..." value={stmtSearch} onChange={(e) => setStmtSearch(e.target.value)} className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/40 w-32" />
               </div>
-              {/* Approve button - only when not yet approved */}
-              {!approval && (
-                <button type="button" onClick={() => setApprovalModal(true)} className="self-end px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-sm">
-                  Approve
-                </button>
-              )}
             </div>
 
             {/* Statement Table */}
@@ -779,11 +773,19 @@ export default function FinancialDashboardPage() {
                         <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50" style={{ minWidth: "240px" }}>
                           <div className="flex items-center justify-between gap-2">
                             <span className="whitespace-nowrap">Name / Client / Trade / Location</span>
-                            {approval && (
-                              <div className="approval-stamp flex items-center gap-1 px-1.5 py-0.5 bg-emerald-600/80 rounded shrink-0">
-                                <svg className="w-3 h-3 text-emerald-100 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                                <span className="text-[8px] font-bold text-emerald-50 whitespace-nowrap">{approval.name} - {approval.date}</span>
+                            {approval ? (
+                              <div className="approval-stamp flex items-center gap-1.5 px-2.5 py-1 bg-red-600 rounded-lg border-2 border-red-400 shadow-lg shadow-red-900/30 shrink-0">
+                                <svg className="w-4 h-4 text-white shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                <div className="flex flex-col leading-none">
+                                  <span className="text-[10px] font-black text-white uppercase tracking-widest">APPROVED</span>
+                                  <span className="text-[7px] font-bold text-red-100 whitespace-nowrap">{approval.name} | {approval.date}</span>
+                                </div>
                               </div>
+                            ) : (
+                              <button type="button" onClick={() => setApprovalModal(true)} className="flex items-center gap-1.5 px-2.5 py-1 bg-white/10 hover:bg-white/20 rounded-lg border border-white/20 transition-all shrink-0">
+                                <svg className="w-3.5 h-3.5 text-white/70 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                <span className="text-[9px] font-black text-white/70 uppercase tracking-wider">Approve</span>
+                              </button>
                             )}
                           </div>
                         </th>
