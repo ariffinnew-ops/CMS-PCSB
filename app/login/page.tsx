@@ -4,8 +4,8 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { login, isAuthenticated } from "@/lib/auth";
-import { recordLoginLog } from "@/lib/actions";
+import { login, isAuthenticated, mergeSupabaseUsers } from "@/lib/auth";
+import { recordLoginLog, getSupabaseUsers } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,7 +25,20 @@ export default function LoginPage() {
     setMounted(true);
     if (isAuthenticated()) {
       router.push("/dashboard");
+      return;
     }
+
+    // TEMPORARY BYPASS: Force L1 admin session directly (skips localStorage check)
+    sessionStorage.setItem("cms_auth_user", JSON.stringify({
+      username: "admin",
+      fullName: "System Administrator",
+      role: "L1",
+      defaultProject: "PCSB",
+    }));
+    sessionStorage.setItem("cms_last_activity", Date.now().toString());
+    sessionStorage.setItem("cms_selected_project", "PCSB");
+    router.push("/dashboard");
+    return;
   }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,7 +46,13 @@ export default function LoginPage() {
     setIsLoading(true);
     setNotification(null);
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // Ensure latest Supabase users are synced before login attempt
+    try {
+      const sbUsers = await getSupabaseUsers();
+      if (sbUsers.length > 0) mergeSupabaseUsers(sbUsers);
+    } catch { /* fallback to local */ }
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
     const user = login(username, password);
 

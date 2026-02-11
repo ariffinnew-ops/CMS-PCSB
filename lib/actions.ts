@@ -233,6 +233,73 @@ export async function getLoginLogs(): Promise<LoginLogEntry[]> {
   return (data as LoginLogEntry[]) || []
 }
 
+// ─── CMS Users (Supabase cms_users) ───
+
+export interface CmsUser {
+  id?: number;
+  username: string;
+  password: string;
+  full_name: string;
+  role: string;
+  default_project: string;
+  created_at?: string;
+}
+
+export async function getSupabaseUsers(): Promise<CmsUser[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('cms_users')
+    .select('*')
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.warn('cms_users fetch error (table may not exist):', error.message)
+    return []
+  }
+  return (data as CmsUser[]) || []
+}
+
+export async function upsertCmsUser(user: Omit<CmsUser, 'id' | 'created_at'>): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('cms_users')
+    .upsert(
+      {
+        username: user.username.toLowerCase(),
+        password: user.password,
+        full_name: user.full_name,
+        role: user.role,
+        default_project: user.default_project,
+      },
+      { onConflict: 'username' }
+    )
+
+  if (error) {
+    console.warn('cms_users upsert error:', error.message)
+    return { success: false, error: error.message }
+  }
+  return { success: true }
+}
+
+export async function deleteCmsUser(username: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('cms_users')
+    .delete()
+    .eq('username', username.toLowerCase())
+
+  if (error) {
+    console.warn('cms_users delete error:', error.message)
+    return { success: false, error: error.message }
+  }
+  return { success: true }
+}
+
+// Sync all users from Supabase -> returns merged list (Supabase users override local)
+export async function syncUsersFromSupabase(): Promise<CmsUser[]> {
+  return getSupabaseUsers()
+}
+
 // ─── Crew Master Data (for rates/financial lookups) ───
 
 export interface CrewMasterRecord {

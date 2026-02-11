@@ -140,9 +140,9 @@ export interface StoredUser {
   defaultProject?: ProjectKey;
 }
 
-// Default seed users
+// Default seed users (fallback when Supabase is unavailable)
 const DEFAULT_USERS: StoredUser[] = [
-  { username: "admin", password: "admin999", fullName: "System Administrator", role: "L1", defaultProject: "PCSB" },
+  { username: "admin", password: "admin009", fullName: "System Administrator", role: "L1", defaultProject: "PCSB" },
   { username: "datalogger", password: "data999", fullName: "Data Logger PCSB", role: "L2A", defaultProject: "PCSB" },
   { username: "guest", password: "guest999", fullName: "Guest User", role: "L4", defaultProject: "PCSB" },
 ];
@@ -165,6 +165,30 @@ export function saveUsers(users: StoredUser[]): void {
   if (typeof window !== "undefined") {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
   }
+}
+
+// Merge Supabase cms_users into local store
+// Supabase users override matching local users, but DEFAULT_USERS are kept as fallback
+export function mergeSupabaseUsers(supabaseUsers: { username: string; password: string; full_name: string; role: string; default_project: string }[]): StoredUser[] {
+  if (supabaseUsers.length === 0) return getAllUsers();
+
+  // Convert Supabase format to StoredUser format
+  const sbUsers: StoredUser[] = supabaseUsers.map(u => ({
+    username: u.username.toLowerCase(),
+    password: u.password,
+    fullName: u.full_name,
+    role: u.role as UserRole,
+    defaultProject: (u.default_project || "PCSB") as ProjectKey,
+  }));
+
+  // Start with DEFAULT_USERS as base, then overlay Supabase users
+  const merged = new Map<string, StoredUser>();
+  for (const u of DEFAULT_USERS) merged.set(u.username.toLowerCase(), u);
+  for (const u of sbUsers) merged.set(u.username.toLowerCase(), u);
+
+  const result = Array.from(merged.values());
+  saveUsers(result);
+  return result;
 }
 
 // ---------------------------------------------------------------------------

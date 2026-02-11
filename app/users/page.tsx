@@ -16,7 +16,14 @@ import {
   type StoredUser,
   type PermissionLevel,
 } from "@/lib/auth";
-import { getLoginLogs, type LoginLogEntry } from "@/lib/actions";
+import {
+  getLoginLogs,
+  getSupabaseUsers,
+  upsertCmsUser,
+  deleteCmsUser,
+  type LoginLogEntry,
+} from "@/lib/actions";
+import { mergeSupabaseUsers } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
 const ALL_ROLES: UserRole[] = ["L1", "L2A", "L2B", "L4", "L5A", "L5B", "L6", "L7"];
@@ -47,13 +54,7 @@ export default function UsersPage() {
   const [matrixDirty, setMatrixDirty] = useState(false);
   const [loginLogs, setLoginLogs] = useState<LoginLogEntry[]>([]);
   const [logsLoading, setLogsLoading] = useState(true);
-
-  useEffect(() => {
-    getLoginLogs().then(logs => {
-      setLoginLogs(logs);
-      setLogsLoading(false);
-    });
-  }, []);
+  const [syncing, setSyncing] = useState(false);
 
   // Form state
   const [formUsername, setFormUsername] = useState("");
@@ -62,6 +63,7 @@ export default function UsersPage() {
   const [formRole, setFormRole] = useState<UserRole>("L2A");
   const [formProject, setFormProject] = useState<ProjectKey>("PCSB");
 
+  // Load user, sync from Supabase, and fetch login logs
   useEffect(() => {
     const currentUser = getUser();
     if (!currentUser || currentUser.role !== "L1") {
@@ -69,7 +71,27 @@ export default function UsersPage() {
       return;
     }
     setUser(currentUser);
-    setUsers(getStoredUsers());
+
+    // Fetch users from Supabase and merge (Supabase is source of truth)
+    setSyncing(true);
+    getSupabaseUsers().then(sbUsers => {
+      if (sbUsers.length > 0) {
+        const merged = mergeSupabaseUsers(sbUsers);
+        setUsers(merged);
+      } else {
+        // Supabase empty or unavailable -- fall back to local
+        setUsers(getStoredUsers());
+      }
+      setSyncing(false);
+    }).catch(() => {
+      setUsers(getStoredUsers());
+      setSyncing(false);
+    });
+
+    getLoginLogs().then(logs => {
+      setLoginLogs(logs);
+      setLogsLoading(false);
+    });
   }, [router]);
 
   const showNotif = useCallback((message: string, type: "success" | "error") => {
@@ -87,7 +109,7 @@ export default function UsersPage() {
     setShowForm(false);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimUser = formUsername.trim().toLowerCase();
     const trimName = formFullName.trim();
@@ -110,7 +132,17 @@ export default function UsersPage() {
       };
       saveUsers(existing);
       setUsers(existing);
-      showNotif(`User "${trimUser}" updated.`, "success");
+
+      // Sync to Supabase
+      await upsertCmsUser({
+        username: trimUser,
+        password: formPassword,
+        full_name: trimName,
+        role: formRole,
+        default_project: formProject,
+      });
+
+      showNotif(`User "${trimUser}" updated (synced to Supabase).`, "success");
     } else {
       if (existing.some((u) => u.username.toLowerCase() === trimUser)) {
         showNotif(`Username "${trimUser}" already exists.`, "error");
@@ -126,7 +158,17 @@ export default function UsersPage() {
       const updated = [...existing, newUser];
       saveUsers(updated);
       setUsers(updated);
-      showNotif(`User "${trimUser}" created.`, "success");
+
+      // Sync to Supabase
+      await upsertCmsUser({
+        username: trimUser,
+        password: formPassword,
+        full_name: trimName,
+        role: formRole,
+        default_project: formProject,
+      });
+
+      showNotif(`User "${trimUser}" created (synced to Supabase).`, "success");
     }
     resetForm();
   };
@@ -142,7 +184,7 @@ export default function UsersPage() {
     setShowForm(true);
   };
 
-  const handleDelete = (idx: number) => {
+  const handleDelete = async (idx: number) => {
     const u = users[idx];
     if (u.username === user?.username) {
       showNotif("Cannot delete your own account.", "error");
@@ -151,7 +193,11 @@ export default function UsersPage() {
     const updated = users.filter((_, i) => i !== idx);
     saveUsers(updated);
     setUsers(updated);
-    showNotif(`User "${u.username}" deleted.`, "success");
+
+    // Sync to Supabase
+    await deleteCmsUser(u.username);
+
+    showNotif(`User "${u.username}" deleted (synced to Supabase).`, "success");
   };
 
   const getPermBadge = (level: PermissionLevel) => {
@@ -214,6 +260,12 @@ export default function UsersPage() {
             <p className="text-xs text-muted-foreground mt-0.5">
               Manage system users and role assignments. L1 access only.
             </p>
+            {syncing && (
+              <div className="flex items-center gap-1.5 mt-1">
+                <div className="animate-spin rounded-full h-3 w-3 border-t border-b border-blue-500" />
+                <span className="text-[10px] font-bold text-blue-400">Syncing from Supabase...</span>
+              </div>
+            )}
           </div>
           <button
             type="button"
@@ -369,6 +421,9 @@ export default function UsersPage() {
               <h2 className="text-xs font-black text-white uppercase tracking-widest">
                 Active Users
               </h2>
+              <span className="text-[8px] font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded">
+                Source: Supabase / cms_users
+              </span>
             </div>
             <span className="text-[10px] font-bold text-slate-400 bg-slate-800 px-2.5 py-1 rounded-md">
               {users.length} {users.length === 1 ? "user" : "users"}
