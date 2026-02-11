@@ -591,17 +591,22 @@ export default function UsersPage() {
           </div>
         </div>
 
-        {/* Login Activity Log */}
+        {/* Login Activity Logs */}
         <div className="bg-card rounded-xl border border-border shadow-xl overflow-hidden">
-          <div className="px-5 py-3 bg-slate-900 border-b border-slate-800 flex items-center gap-3">
-            <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <h2 className="text-xs font-black text-white uppercase tracking-widest">
-              Login Activity Log
-            </h2>
-            <span className="text-[8px] font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded">
-              Last 100 entries
+          <div className="px-5 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <h2 className="text-xs font-black text-white uppercase tracking-widest">
+                Login Activity Logs
+              </h2>
+              <span className="text-[8px] font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded">
+                Source: Supabase / cms_login_logs
+              </span>
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-800 px-2.5 py-1 rounded-md">
+              {loginLogs.length} {loginLogs.length === 1 ? "entry" : "entries"}
             </span>
           </div>
           {logsLoading ? (
@@ -611,44 +616,85 @@ export default function UsersPage() {
           ) : loginLogs.length === 0 ? (
             <div className="px-6 py-8 text-center">
               <p className="text-sm text-muted-foreground font-medium">No login records found.</p>
-              <p className="text-xs text-muted-foreground mt-1">Login activity will appear here once the login_logs table is created in Supabase.</p>
+              <p className="text-xs text-muted-foreground mt-1">Login activity will appear here after users sign in.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto max-h-[350px]">
+            <div className="overflow-x-auto max-h-[400px]">
               <table className="w-full">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-slate-50 dark:bg-slate-900/50 border-b-2 border-border">
-                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Timestamp</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Time</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Username</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Role</th>
                     <th className="px-4 py-2.5 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Level</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Project</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Error</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {loginLogs.map((log, idx) => (
-                    <tr key={log.id ?? idx} className="hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-colors">
-                      <td className="px-4 py-2 text-xs font-mono text-muted-foreground">{log.timestamp}</td>
-                      <td className="px-4 py-2 text-xs font-semibold text-foreground">{log.username}</td>
-                      <td className="px-4 py-2">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${getRoleBadge(log.role as UserRole)}`}>
-                          {log.role}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-center">
-                        {log.success ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-black text-emerald-600">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                            Success
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-[10px] font-black text-red-500">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                            Failed
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {loginLogs.map((log, idx) => {
+                    // Format: DD/MM HH:mm
+                    let timeStr = "-";
+                    if (log.created_at) {
+                      const d = new Date(log.created_at);
+                      const dd = String(d.getDate()).padStart(2, "0");
+                      const mm = String(d.getMonth() + 1).padStart(2, "0");
+                      const hh = String(d.getHours()).padStart(2, "0");
+                      const min = String(d.getMinutes()).padStart(2, "0");
+                      timeStr = `${dd}/${mm} ${hh}:${min}`;
+                    }
+                    const isSuccess = log.login_status === "SUCCESS";
+                    return (
+                      <tr key={log.id ?? idx} className="hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-colors">
+                        <td className="px-4 py-2.5 text-xs font-mono text-muted-foreground whitespace-nowrap">{timeStr}</td>
+                        <td className="px-4 py-2.5">
+                          <span className="text-xs font-bold text-foreground">{log.username_attempt}</span>
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          {isSuccess ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-black text-emerald-600">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Success
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-[10px] font-black text-red-500">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                              Failed
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {log.user_level && log.user_level !== "unknown" ? (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${getRoleBadge(log.user_level as UserRole)}`}>
+                              {log.user_level}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {log.project_scope && log.project_scope !== "-" ? (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                              log.project_scope === "PCSB"
+                                ? "bg-blue-600/15 text-blue-500 border border-blue-500/30"
+                                : "bg-orange-500/15 text-orange-500 border border-orange-500/30"
+                            }`}>
+                              {log.project_scope}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {log.error_message ? (
+                            <span className="text-[10px] font-semibold text-red-400">{log.error_message}</span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-muted-foreground">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

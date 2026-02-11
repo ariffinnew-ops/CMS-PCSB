@@ -167,24 +167,45 @@ export async function deleteCrewByName(crewId: string, crewName: string): Promis
   }
 
 // Login Logs
+// ---------------------------------------------------------------------------
+// Login Logs — maps to `cms_login_logs` table
+// Columns: username_attempt, login_status, user_level, project_scope,
+//          error_message, created_at
+// ---------------------------------------------------------------------------
 export interface LoginLogEntry {
   id?: number;
-  username: string;
-  role: string;
-  timestamp: string;
-  success: boolean;
+  username_attempt: string;
+  login_status: "SUCCESS" | "FAILED";
+  user_level: string;
+  project_scope: string;
+  error_message: string | null;
+  created_at?: string;
 }
 
-export async function recordLoginLog(log: Omit<LoginLogEntry, 'id'>): Promise<{ success: boolean; error?: string }> {
+export interface RecordLoginLogParams {
+  username_attempt: string;
+  login_status: "SUCCESS" | "FAILED";
+  user_level: string;
+  project_scope: string;
+  error_message?: string | null;
+}
+
+export async function recordLoginLog(params: RecordLoginLogParams): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient()
 
     const { error } = await supabase
-      .from('login_logs')
-      .insert(log)
+      .from('cms_login_logs')
+      .insert({
+        username_attempt: params.username_attempt,
+        login_status: params.login_status,
+        user_level: params.user_level,
+        project_scope: params.project_scope,
+        error_message: params.error_message || null,
+      })
 
     if (error) {
-      console.warn('Login logging skipped (table may not exist):', error.message)
+      console.warn('Login logging skipped:', error.message)
       return { success: false, error: error.message }
     }
 
@@ -199,9 +220,9 @@ export async function getLoginLogs(): Promise<LoginLogEntry[]> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
-    .from('login_logs')
+    .from('cms_login_logs')
     .select('*')
-    .order('timestamp', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(100)
 
   if (error) {
@@ -209,7 +230,7 @@ export async function getLoginLogs(): Promise<LoginLogEntry[]> {
     return []
   }
 
-  return data || []
+  return (data as LoginLogEntry[]) || []
 }
 
 // ─── Crew Master Data (for rates/financial lookups) ───
