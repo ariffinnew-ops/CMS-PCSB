@@ -143,8 +143,6 @@ export interface StoredUser {
 // Default seed users (fallback when Supabase is unavailable)
 const DEFAULT_USERS: StoredUser[] = [
   { username: "admin", password: "admin009", fullName: "System Administrator", role: "L1", defaultProject: "PCSB" },
-  { username: "datalogger", password: "data999", fullName: "Data Logger PCSB", role: "L2A", defaultProject: "PCSB" },
-  { username: "guest", password: "guest999", fullName: "Guest User", role: "L4", defaultProject: "PCSB" },
 ];
 
 function getAllUsers(): StoredUser[] {
