@@ -365,7 +365,7 @@ function EditableCell({
   );
 }
 
-// ═══════════════════════════════════�������������������═══
+// ═══════════════════════════════════���������������������═══
 // MAIN PAGE
 // ════════════════════════════���══════════
 export default function TrainingMatrixPage() {
@@ -380,7 +380,7 @@ export default function TrainingMatrixPage() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const today = useMemo(() => new Date(), []);
 
-  const canEdit = user?.role === "admin" || user?.role === "datalogger";
+  const canEdit = user?.role === "L1" || user?.role === "L2A" || user?.role === "L2B";
 
   const loadData = useCallback(async () => {
     const result = await getMatrixData();
