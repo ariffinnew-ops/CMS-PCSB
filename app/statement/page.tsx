@@ -510,7 +510,7 @@ export default function StatementPage() {
                           const role = user?.role as UserRole | undefined;
                           const isL1 = role === "L1";
                           const isL2 = role === "L2A" || role === "L2B";
-                          const isL5 = role === "L5";
+                          const isL5 = role === "L5A" || role === "L5B";
                           const isL4 = role === "L4";
                           const canSubmit = isL1 || isL2;
                           const canApprove = isL1 || isL5 || isL4;

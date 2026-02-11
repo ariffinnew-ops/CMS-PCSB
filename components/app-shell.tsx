@@ -27,13 +27,13 @@ interface NavItem {
 }
 
 const allNavItems: NavItem[] = [
-  { id: "dashboard", label: "Dashboard", href: "/dashboard", roles: ["L1","L2A","L2B","L4","L5","L6","L7"] },
-  { id: "roster", label: "Roster", href: "/roster", roles: ["L1","L2A","L2B","L4","L5"] },
-  { id: "training", label: "Training Matrix", href: "/training", roles: ["L1","L2A","L2B","L4","L5"] },
-  { id: "staff", label: "Staff Detail", href: "/staff", roles: ["L1","L2A","L2B","L4","L5"] },
-  { id: "statement", label: "Statement", href: "/statement", roles: ["L1","L2A","L2B","L4","L5","L6","L7"] },
-  { id: "financial", label: "Financial", href: "/financial", roles: ["L1","L2A","L2B","L4","L5","L6","L7"] },
-  { id: "admin", label: "Data Manager", href: "/admin", roles: ["L1","L2A","L2B","L4","L5"] },
+  { id: "dashboard", label: "Dashboard", href: "/dashboard", roles: ["L1","L2A","L2B","L4","L5A","L5B","L6","L7"] },
+  { id: "roster", label: "Roster", href: "/roster", roles: ["L1","L2A","L2B","L4","L5A","L5B"] },
+  { id: "training", label: "Training Matrix", href: "/training", roles: ["L1","L2A","L2B","L4","L5A","L5B"] },
+  { id: "staff", label: "Staff Detail", href: "/staff", roles: ["L1","L2A","L2B","L4","L5A","L5B"] },
+  { id: "statement", label: "Statement", href: "/statement", roles: ["L1","L2A","L2B","L4","L5A","L5B","L6","L7"] },
+  { id: "financial", label: "Financial", href: "/financial", roles: ["L1","L2A","L2B","L4","L5A","L5B","L6","L7"] },
+  { id: "admin", label: "Data Manager", href: "/admin", roles: ["L1","L2A","L2B","L4","L5A","L5B"] },
   { id: "users", label: "User Mgmt", href: "/users", roles: ["L1"] },
 ];
 
@@ -107,7 +107,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       case "L1": return "text-amber-400";
       case "L2A": case "L2B": return "text-blue-400";
       case "L4": return "text-emerald-400";
-      case "L5": return "text-purple-400";
+      case "L5A": case "L5B": return "text-purple-400";
       case "L6": case "L7": return "text-cyan-400";
       default: return "text-slate-500";
     }

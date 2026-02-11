@@ -18,7 +18,7 @@ import {
 } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
-const ALL_ROLES: UserRole[] = ["L1", "L2A", "L2B", "L4", "L5", "L6", "L7"];
+const ALL_ROLES: UserRole[] = ["L1", "L2A", "L2B", "L4", "L5A", "L5B", "L6", "L7"];
 const ALL_PROJECTS: ProjectKey[] = ["PCSB", "OTHERS"];
 
 const PAGE_LABELS: Record<string, string> = {
@@ -183,7 +183,8 @@ export default function UsersPage() {
       L2A: "bg-blue-500/15 text-blue-400 border-blue-500/40",
       L2B: "bg-indigo-500/15 text-indigo-400 border-indigo-500/40",
       L4: "bg-emerald-500/15 text-emerald-400 border-emerald-500/40",
-      L5: "bg-purple-500/15 text-purple-400 border-purple-500/40",
+      L5A: "bg-purple-500/15 text-purple-400 border-purple-500/40",
+      L5B: "bg-violet-500/15 text-violet-400 border-violet-500/40",
       L6: "bg-cyan-500/15 text-cyan-400 border-cyan-500/40",
       L7: "bg-teal-500/15 text-teal-400 border-teal-500/40",
     };
