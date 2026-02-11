@@ -20,6 +20,7 @@ export interface RosterRow {
   day_standby: number | null;     // number of standby days
   is_offshore: boolean | null;    // only meaningful for OFFSHORE MEDIC
   medevac_dates: string[] | null; // only meaningful for ESCORT MEDIC (up to 5 dates)
+  al_dates: string[] | null; // only meaningful for OHN (up to 4 annual leave dates)
 }
 
 // Pivoted view: one row per crew with all cycles grouped (for UI rendering)
@@ -41,6 +42,7 @@ export interface PivotedCrewRow {
     day_standby: number | null;
     is_offshore: boolean | null;
     medevac_dates: string[] | null;
+    al_dates: string[] | null;
   }>;
 }
 
