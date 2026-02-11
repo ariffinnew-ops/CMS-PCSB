@@ -670,6 +670,7 @@ export async function getOHNStaffFromMaster(): Promise<PivotedCrewRow[]> {
 export interface ApprovalRecord {
   month_year: string;
   client: string;
+  project_code: string;
   approved_by: string;
   approved_role: string;
   approved_at: string;
@@ -678,8 +679,8 @@ export interface ApprovalRecord {
   submitted_at?: string;
 }
 
-// Get full approval record with submission_status
-export async function getApproval(monthYear: string, client: string): Promise<ApprovalRecord | null> {
+// Get approval record by (month_year, client, project_code)
+export async function getApproval(monthYear: string, client: string, projectCode: string = 'PCSB'): Promise<ApprovalRecord | null> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -687,27 +688,36 @@ export async function getApproval(monthYear: string, client: string): Promise<Ap
     .select('*')
     .eq('month_year', monthYear)
     .eq('client', client)
-    .maybeSingle()
+    .eq('project_code', projectCode)
+    .limit(1)
 
   if (error) {
-    console.warn('Approval fetch error:', error.message)
+    console.error('[Approval] fetch error:', error.message)
     return null
   }
 
-  return data as ApprovalRecord | null
+  if (!data || data.length === 0) return null
+  return data[0] as ApprovalRecord
 }
 
-// Stage 1: Submit for approval (admin/datalogger)
-export async function submitForApproval(monthYear: string, client: string, submittedBy: string): Promise<{ success: boolean; error?: string }> {
+// Stage 1: Submit for approval (L1/L2)
+// Uses upsert with unique constraint on (month_year, client, project_code)
+export async function submitForApproval(
+  monthYear: string,
+  client: string,
+  submittedBy: string,
+  projectCode: string = 'PCSB'
+): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
   const now = new Date().toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' })
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('cms_pcsb_approvals')
     .upsert(
       {
         month_year: monthYear,
         client,
+        project_code: projectCode,
         submission_status: 'Submitted',
         submitted_by: submittedBy,
         submitted_at: now,
@@ -715,54 +725,69 @@ export async function submitForApproval(monthYear: string, client: string, submi
         approved_role: '',
         approved_at: '',
       },
-      { onConflict: 'month_year,client' }
+      { onConflict: 'month_year,client,project_code' }
     )
+    .select()
 
   if (error) {
-    console.warn('Submit for approval error:', error.message)
+    console.error('[Approval] submitForApproval UPSERT error:', error.message)
     return { success: false, error: error.message }
   }
 
+  console.log('[Approval] submitForApproval success:', data)
   return { success: true }
 }
 
-// Stage 2: Manager approval (PM only)
-export async function approveStatement(monthYear: string, client: string, approvedBy: string): Promise<{ success: boolean; error?: string }> {
+// Stage 2: Manager approval (L5/L4/L1)
+export async function approveStatement(
+  monthYear: string,
+  client: string,
+  approvedBy: string,
+  projectCode: string = 'PCSB'
+): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
   const now = new Date().toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' })
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('cms_pcsb_approvals')
     .upsert(
       {
         month_year: monthYear,
         client,
+        project_code: projectCode,
         submission_status: 'Approved',
         approved_by: approvedBy,
         approved_role: 'Project Manager',
         approved_at: now,
       },
-      { onConflict: 'month_year,client' }
+      { onConflict: 'month_year,client,project_code' }
     )
+    .select()
 
   if (error) {
-    console.warn('Approve statement error:', error.message)
+    console.error('[Approval] approveStatement UPSERT error:', error.message)
     return { success: false, error: error.message }
   }
 
+  console.log('[Approval] approveStatement success:', data)
   return { success: true }
 }
 
 // Reject / Unlock: reset back to Draft
-export async function rejectApproval(monthYear: string, client: string): Promise<{ success: boolean; error?: string }> {
+export async function rejectApproval(
+  monthYear: string,
+  client: string,
+  projectCode: string = 'PCSB'
+): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('cms_pcsb_approvals')
     .upsert(
       {
         month_year: monthYear,
         client,
+        project_code: projectCode,
         submission_status: 'Draft',
         submitted_by: '',
         submitted_at: '',
@@ -770,14 +795,16 @@ export async function rejectApproval(monthYear: string, client: string): Promise
         approved_role: '',
         approved_at: '',
       },
-      { onConflict: 'month_year,client' }
+      { onConflict: 'month_year,client,project_code' }
     )
+    .select()
 
   if (error) {
-    console.warn('Reject approval error:', error.message)
+    console.error('[Approval] rejectApproval UPSERT error:', error.message)
     return { success: false, error: error.message }
   }
 
+  console.log('[Approval] rejectApproval success:', data)
   return { success: true }
 }
 
@@ -791,15 +818,16 @@ export async function upsertApproval(record: ApprovalRecord): Promise<{ success:
       {
         month_year: record.month_year,
         client: record.client,
+        project_code: record.project_code || 'PCSB',
         approved_by: record.approved_by,
         approved_role: record.approved_role,
         approved_at: record.approved_at,
       },
-      { onConflict: 'month_year,client' }
+      { onConflict: 'month_year,client,project_code' }
     )
 
   if (error) {
-    console.warn('Approval upsert error (table may not exist):', error.message)
+    console.warn('Approval upsert error:', error.message)
     return { success: false, error: error.message }
   }
 

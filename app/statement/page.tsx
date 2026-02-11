@@ -277,10 +277,12 @@ export default function StatementPage() {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   // Load approval record from Supabase
+  const projectCode = typeof window !== "undefined" ? getSelectedProject() : "PCSB";
+
   useEffect(() => {
     if (!selectedMonth || !clientFilter) return;
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
-    getApproval(selectedMonth, key).then((rec) => {
+    getApproval(selectedMonth, key, projectCode).then((rec) => {
       if (rec) {
         setApprovalRecord(rec);
         setSubmissionStatus((rec.submission_status as "Draft" | "Submitted" | "Approved") || "Draft");
@@ -289,90 +291,75 @@ export default function StatementPage() {
         setSubmissionStatus("Draft");
       }
     });
-  }, [selectedMonth, clientFilter]);
+  }, [selectedMonth, clientFilter, projectCode]);
 
-  // Stage 1: Submit for Approval
+  // Stage 1: Submit for Approval (L1/L2)
   const handleSubmitForApproval = async () => {
     if (submitting) return;
     setSubmitting(true);
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
     const submitterName = user?.fullName || user?.username || "Unknown";
-    const now = new Date().toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' });
 
-    // Optimistically update UI immediately so L1 can see the cycle
-    setSubmissionStatus("Submitted");
-    setApprovalRecord(prev => ({
-      month_year: selectedMonth,
-      client: key,
-      submission_status: "Submitted",
-      submitted_by: submitterName,
-      submitted_at: now,
-      approved_by: prev?.approved_by || "",
-      approved_role: prev?.approved_role || "",
-      approved_at: prev?.approved_at || "",
-    }));
+    const result = await submitForApproval(selectedMonth, key, submitterName, projectCode);
 
-    // Fire DB call in background
-    const result = await submitForApproval(selectedMonth, key, submitterName);
-    if (result.success) {
-      const rec = await getApproval(selectedMonth, key);
-      if (rec) {
-        setApprovalRecord(rec);
-        setSubmissionStatus((rec.submission_status as "Draft" | "Submitted" | "Approved") || "Submitted");
-      }
+    if (!result.success) {
+      console.error("[Approval] submitForApproval FAILED:", result.error);
+      alert("Submission Failed: " + result.error);
+      setSubmitting(false);
+      return;
+    }
+
+    // Only update UI after confirmed DB success
+    const rec = await getApproval(selectedMonth, key, projectCode);
+    if (rec) {
+      setApprovalRecord(rec);
+      setSubmissionStatus((rec.submission_status as "Draft" | "Submitted" | "Approved") || "Submitted");
     }
     setSubmitting(false);
   };
 
-  // Stage 2: PM Approval
+  // Stage 2: Manager Approval (L5/L4/L1)
   const handleApprove = async () => {
     if (!approverName.trim() || submitting) return;
     setSubmitting(true);
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
-    const now = new Date().toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' });
 
-    // Optimistically update UI
-    setSubmissionStatus("Approved");
-    setApprovalRecord(prev => ({
-      month_year: selectedMonth,
-      client: key,
-      submission_status: "Approved",
-      submitted_by: prev?.submitted_by || "",
-      submitted_at: prev?.submitted_at || "",
-      approved_by: approverName.trim(),
-      approved_role: "Project Manager",
-      approved_at: now,
-    }));
+    const result = await approveStatement(selectedMonth, key, approverName.trim(), projectCode);
 
-    const result = await approveStatement(selectedMonth, key, approverName.trim());
-    if (result.success) {
-      const rec = await getApproval(selectedMonth, key);
-      if (rec) setApprovalRecord(rec);
+    if (!result.success) {
+      console.error("[Approval] approveStatement FAILED:", result.error);
+      alert("Approval Failed: " + result.error);
+      setSubmitting(false);
+      return;
+    }
+
+    const rec = await getApproval(selectedMonth, key, projectCode);
+    if (rec) {
+      setApprovalRecord(rec);
+      setSubmissionStatus("Approved");
     }
     setApprovalModal(false);
     setApproverName("");
     setSubmitting(false);
   };
 
-  // Reject / Unlock: reset to Draft
+  // Reject / Unlock: reset to Draft (L1 only)
   const handleReject = async () => {
     if (submitting) return;
     setSubmitting(true);
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
 
-    // Optimistically update UI
+    const result = await rejectApproval(selectedMonth, key, projectCode);
+
+    if (!result.success) {
+      console.error("[Approval] rejectApproval FAILED:", result.error);
+      alert("Reset Failed: " + result.error);
+      setSubmitting(false);
+      return;
+    }
+
     setSubmissionStatus("Draft");
     setApprovalRecord(null);
-
-    const result = await rejectApproval(selectedMonth, key);
-    if (!result.success) {
-      // If DB fails, reload actual state
-      const rec = await getApproval(selectedMonth, key);
-      if (rec) {
-        setApprovalRecord(rec);
-        setSubmissionStatus((rec.submission_status as "Draft" | "Submitted" | "Approved") || "Draft");
-      }
-    }
     setSubmitting(false);
   };
 
@@ -636,8 +623,12 @@ export default function StatementPage() {
                                       disabled={submitting}
                                       className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg border border-orange-400 transition-all shadow-lg shrink-0"
                                     >
-                                      <svg className="w-4 h-4 text-white shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                      <span className="text-[9px] font-black text-white uppercase tracking-wider">{submitting ? "Submitting..." : "Submit for Approval"}</span>
+  {submitting ? (
+    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent shrink-0" />
+  ) : (
+    <svg className="w-4 h-4 text-white shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+  )}
+  <span className="text-[9px] font-black text-white uppercase tracking-wider">{submitting ? "Submitting..." : "Submit for Approval"}</span>
                                     </button>
                                   ) : (
                                     <div className="flex items-center gap-1.5 px-2.5 py-2 bg-orange-500/15 rounded-lg border border-orange-400/30 shrink-0">
@@ -818,9 +809,10 @@ export default function StatementPage() {
             </div>
             <div className="flex justify-end gap-2 px-5 py-3 border-t border-border bg-muted/30 rounded-b-2xl">
               <button type="button" onClick={() => { setApprovalModal(false); setApproverName(""); }} className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border">Cancel</button>
-              <button type="button" onClick={handleApprove} disabled={!approverName.trim() || submitting} className={`px-5 py-2 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all ${approverName.trim() && !submitting ? "bg-red-600 hover:bg-red-500 text-white shadow-lg" : "bg-muted text-muted-foreground cursor-not-allowed"}`}>
-                {submitting ? "Approving..." : "Certify & Approve"}
-              </button>
+  <button type="button" onClick={handleApprove} disabled={!approverName.trim() || submitting} className={`flex items-center gap-2 px-5 py-2 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all ${approverName.trim() && !submitting ? "bg-red-600 hover:bg-red-500 text-white shadow-lg" : "bg-muted text-muted-foreground cursor-not-allowed"}`}>
+  {submitting && <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />}
+  {submitting ? "Approving..." : "Certify & Approve"}
+  </button>
             </div>
           </div>
         </div>
