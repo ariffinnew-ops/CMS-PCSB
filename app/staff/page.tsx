@@ -107,8 +107,6 @@ function MovementGrid({ rosterRows }: { rosterRows: Record<string, unknown>[] })
       {/* Summary bar */}
       <div className="flex items-center gap-4 px-2 py-1.5 bg-slate-100 rounded-lg">
         <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">{summary.totalCycles} cycles</span>
-        <span className="text-[9px] font-black text-blue-600 uppercase tracking-wider">{summary.totalDays} OA days</span>
-        <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider">{fmtRM(summary.totalAllow)} total</span>
       </div>
       {/* Mini Gantt grid */}
       <div className="overflow-auto flex-grow">
@@ -205,7 +203,7 @@ function DetailOverlay({ detail, onClose, canEdit, onSave }: { detail: Record<st
 
   const startEdit = () => {
     const form: Record<string, string> = {};
-    const keys = ["crew_name", "nric_passport", "address", "phone", "email1", "email2", "post", "client", "location", "hire_date", "resign_date", "exp_date", "status", "nok_name", "nok_relation", "nok_phone"];
+    const keys = ["crew_name", "nric_passport", "address", "phone", "email1", "email2", "post", "client", "location", "hire_date", "resign_date", "exp_date", "status", "nok_name", "nok_relation", "nok_phone", "bank", "acc_no"];
     for (const k of keys) form[k] = d[k] !== undefined && d[k] !== null ? String(d[k]) : "";
     setEditForm(form);
     setEditing(true);
@@ -278,6 +276,29 @@ function DetailOverlay({ detail, onClose, canEdit, onSave }: { detail: Record<st
             <button type="button" onClick={onClose} className="px-4 py-1.5 rounded-lg text-xs font-black uppercase bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors">Close</button>
           </div>
         </div>
+        {/* Payroll Info Box */}
+        <div className="mb-5 bg-blue-50 border border-blue-200 rounded-xl px-5 py-4">
+          <h4 className="text-xs font-black uppercase tracking-wider text-blue-700 mb-3">Payroll Information</h4>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+            <div>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Bank</p>
+              {editing ? (
+                <input type="text" value={editForm["bank"] || ""} onChange={(e) => set("bank", e.target.value)} className={inputCls} placeholder="e.g. Maybank" />
+              ) : (
+                <p className="text-sm font-semibold text-foreground">{d.bank ? String(d.bank) : "-"}</p>
+              )}
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Account No</p>
+              {editing ? (
+                <input type="text" value={editForm["acc_no"] || ""} onChange={(e) => set("acc_no", e.target.value)} className={inputCls} placeholder="e.g. 1234567890" />
+              ) : (
+                <p className="text-sm font-semibold text-foreground">{d.acc_no ? String(d.acc_no) : "-"}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
         <div className="space-y-6">
           {fields.map((sec) => (
             <div key={sec.section}>
@@ -602,33 +623,23 @@ export default function StaffDetailPage() {
         {/* ═══ SECTION A: PROFILE SIDEBAR (30%) ═══ */}
         <div className="bg-background border border-border rounded-xl overflow-hidden flex flex-col h-full">
 
-          {/* Search + Autocomplete */}
-          <div className="p-3 border-b border-border" ref={searchRef}>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search staff..."
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setShowAutoComplete(true); }}
-                onFocus={() => setShowAutoComplete(true)}
-                className="w-full bg-gray-200 rounded-lg px-3 py-2 text-sm text-black font-semibold outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
-              />
-              {/* Autocomplete list */}
-              {showAutoComplete && search.trim() && filteredCrew.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50">
-                  {filteredCrew.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => { setSelectedId(c.id); setSearch(""); setShowAutoComplete(false); }}
-                      className="w-full text-left px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent transition-colors border-b border-border last:border-0"
-                    >
-                      {c.crew_name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+          {/* Staff Dropdown (A-Z from cms_pcsb_master) */}
+          <div className="p-3 border-b border-border">
+            <select
+              value={selectedId}
+              onChange={(e) => setSelectedId(e.target.value)}
+              className="w-full bg-gray-200 rounded-lg px-3 py-2 text-sm text-black font-semibold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value="" disabled>-- Select Staff --</option>
+              {crewList
+                .slice()
+                .sort((a, b) => (a.crew_name || "").localeCompare(b.crew_name || ""))
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.crew_name}
+                  </option>
+                ))}
+            </select>
           </div>
 
           {d && (
