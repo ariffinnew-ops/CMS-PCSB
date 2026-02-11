@@ -1039,9 +1039,11 @@ export default function AdminPage() {
   const rR = !toNext ? "rounded-r-sm" : "";
   return (
   <td key={d.dayNum} className={`p-0 relative ${d.isWeekend ? "bg-gray-50" : "bg-white"}`} style={{ height: "22px" }}>
-  <div className="absolute inset-y-0 right-0 w-px bg-gray-200 z-0" />
+  {(status === "OFF" || !toNext) && (
+    <div className="absolute inset-y-0 right-0 w-px bg-gray-200 z-0" />
+  )}
   {status !== "OFF" && (
-  <div className={`absolute z-10 gantt-bar-admin ${rL} ${rR} ${barClass} flex items-center justify-center`} style={{ top: "3px", bottom: "3px", left: 0, right: 0 }}>
+  <div className={`absolute z-20 gantt-bar-admin ${rL} ${rR} ${barClass} flex items-center justify-center`} style={{ top: "3px", bottom: "3px", left: 0, right: 0 }}>
     {barLabel && <span className={`text-[6px] font-black leading-none ${status === "AL" ? "text-black" : "text-white"}`}>{barLabel}</span>}
   </div>
   )}
