@@ -941,8 +941,8 @@ export default function AdminPage() {
               const m = safeParseDate(cycle.sign_on);
               const d = safeParseDate(cycle.sign_off);
               if (!m || !d) continue;
-              // Sign-off date excluded: use < instead of <=
-              if (checkTime >= m.getTime() && checkTime < d.getTime()) {
+              // Bar includes sign-off (demob) date; only days/allowance calc excludes it
+              if (checkTime >= m.getTime() && checkTime <= d.getTime()) {
                 return isSecondaryRow(row) ? "SECONDARY" : "PRIMARY";
               }
             }
