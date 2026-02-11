@@ -234,14 +234,17 @@ export async function getLoginLogs(): Promise<LoginLogEntry[]> {
 }
 
 // ─── CMS Users (Supabase cms_users) ───
+// Actual table columns: username, password_manual, full_name, user_level,
+//                        assigned_project, is_first_login, created_at
 
 export interface CmsUser {
   id?: number;
   username: string;
-  password: string;
+  password_manual: string;
   full_name: string;
-  role: string;
-  default_project: string;
+  user_level: string;
+  assigned_project: string;
+  is_first_login?: boolean;
   created_at?: string;
 }
 
@@ -253,31 +256,66 @@ export async function getSupabaseUsers(): Promise<CmsUser[]> {
     .order('created_at', { ascending: true })
 
   if (error) {
-    console.warn('cms_users fetch error (table may not exist):', error.message)
+    console.warn('cms_users fetch error:', error.message)
     return []
   }
   return (data as CmsUser[]) || []
 }
 
-export async function upsertCmsUser(user: Omit<CmsUser, 'id' | 'created_at'>): Promise<{ success: boolean; error?: string }> {
+export async function insertCmsUser(params: {
+  username: string;
+  password_manual: string;
+  full_name: string;
+  user_level: string;
+  assigned_project: string;
+}): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('cms_users')
-    .upsert(
+    .insert([
       {
-        username: user.username.toLowerCase(),
-        password: user.password,
-        full_name: user.full_name,
-        role: user.role,
-        default_project: user.default_project,
-      },
-      { onConflict: 'username' }
-    )
+        username: params.username.toLowerCase(),
+        password_manual: params.password_manual,
+        full_name: params.full_name,
+        user_level: params.user_level,
+        assigned_project: params.assigned_project,
+        is_first_login: true,
+      }
+    ])
+    .select()
 
   if (error) {
-    console.warn('cms_users upsert error:', error.message)
+    console.error('cms_users INSERT error:', error.message)
     return { success: false, error: error.message }
   }
+  console.log('cms_users INSERT success:', data)
+  return { success: true }
+}
+
+export async function updateCmsUser(params: {
+  username: string;
+  password_manual: string;
+  full_name: string;
+  user_level: string;
+  assigned_project: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('cms_users')
+    .update({
+      password_manual: params.password_manual,
+      full_name: params.full_name,
+      user_level: params.user_level,
+      assigned_project: params.assigned_project,
+    })
+    .eq('username', params.username.toLowerCase())
+    .select()
+
+  if (error) {
+    console.error('cms_users UPDATE error:', error.message)
+    return { success: false, error: error.message }
+  }
+  console.log('cms_users UPDATE success:', data)
   return { success: true }
 }
 
@@ -289,15 +327,10 @@ export async function deleteCmsUser(username: string): Promise<{ success: boolea
     .eq('username', username.toLowerCase())
 
   if (error) {
-    console.warn('cms_users delete error:', error.message)
+    console.error('cms_users DELETE error:', error.message)
     return { success: false, error: error.message }
   }
   return { success: true }
-}
-
-// Sync all users from Supabase -> returns merged list (Supabase users override local)
-export async function syncUsersFromSupabase(): Promise<CmsUser[]> {
-  return getSupabaseUsers()
 }
 
 // ─── Crew Master Data (for rates/financial lookups) ───

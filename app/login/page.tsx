@@ -50,11 +50,6 @@ export default function LoginPage() {
 
     await new Promise((resolve) => setTimeout(resolve, 300));
 
-    // Debug: log what users are in the store at login time
-    const debugUsers = JSON.parse(localStorage.getItem("cms_users_store") || "[]");
-    console.log("[v0] Users in store at login:", debugUsers.map((u: { username: string; password: string; role: string }) => `${u.username}/${u.password}/${u.role}`));
-    console.log("[v0] Attempting login with:", username);
-
     const user = login(username, password);
 
     // Record login log to cms_login_logs (non-blocking)

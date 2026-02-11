@@ -19,7 +19,8 @@ import {
 import {
   getLoginLogs,
   getSupabaseUsers,
-  upsertCmsUser,
+  insertCmsUser,
+  updateCmsUser,
   deleteCmsUser,
   type LoginLogEntry,
 } from "@/lib/actions";
@@ -122,6 +123,21 @@ export default function UsersPage() {
     const existing = [...users];
 
     if (editingIdx !== null) {
+      // --- EDIT existing user ---
+      const result = await updateCmsUser({
+        username: trimUser,
+        password_manual: formPassword,
+        full_name: trimName,
+        user_level: formRole,
+        assigned_project: formProject,
+      });
+
+      if (result.error) {
+        alert("Database Update Failed: " + result.error);
+        return;
+      }
+
+      // Update local state
       existing[editingIdx] = {
         ...existing[editingIdx],
         username: trimUser,
@@ -133,21 +149,36 @@ export default function UsersPage() {
       saveUsers(existing);
       setUsers(existing);
 
-      // Sync to Supabase
-      await upsertCmsUser({
-        username: trimUser,
-        password: formPassword,
-        full_name: trimName,
-        role: formRole,
-        default_project: formProject,
-      });
+      // Re-fetch to confirm
+      const sbUsers = await getSupabaseUsers();
+      if (sbUsers.length > 0) {
+        const merged = mergeSupabaseUsers(sbUsers);
+        setUsers(merged);
+      }
 
-      showNotif(`User "${trimUser}" updated (synced to Supabase).`, "success");
+      alert("User Updated Successfully!");
+      showNotif(`User "${trimUser}" updated.`, "success");
     } else {
+      // --- CREATE new user ---
       if (existing.some((u) => u.username.toLowerCase() === trimUser)) {
         showNotif(`Username "${trimUser}" already exists.`, "error");
         return;
       }
+
+      const result = await insertCmsUser({
+        username: trimUser,
+        password_manual: formPassword,
+        full_name: trimName,
+        user_level: formRole,
+        assigned_project: formProject,
+      });
+
+      if (result.error) {
+        alert("Database Insert Failed: " + result.error);
+        return;
+      }
+
+      // Update local state
       const newUser: StoredUser = {
         username: trimUser,
         password: formPassword,
@@ -159,16 +190,15 @@ export default function UsersPage() {
       saveUsers(updated);
       setUsers(updated);
 
-      // Sync to Supabase
-      await upsertCmsUser({
-        username: trimUser,
-        password: formPassword,
-        full_name: trimName,
-        role: formRole,
-        default_project: formProject,
-      });
+      // Re-fetch to confirm
+      const sbUsers = await getSupabaseUsers();
+      if (sbUsers.length > 0) {
+        const merged = mergeSupabaseUsers(sbUsers);
+        setUsers(merged);
+      }
 
-      showNotif(`User "${trimUser}" created (synced to Supabase).`, "success");
+      alert("User Created Successfully!");
+      showNotif(`User "${trimUser}" created.`, "success");
     }
     resetForm();
   };
