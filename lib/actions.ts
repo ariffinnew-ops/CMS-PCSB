@@ -720,10 +720,10 @@ export async function submitForApproval(
         project_code: projectCode,
         submission_status: 'Submitted',
         submitted_by: submittedBy,
-        submitted_at: now,
-        approved_by: '',
-        approved_role: '',
-        approved_at: '',
+        submitted_at: now || null,
+        approved_by: null,
+        approved_role: null,
+        approved_at: null,
       },
       { onConflict: 'month_year,client,project_code' }
     )
@@ -758,7 +758,7 @@ export async function approveStatement(
         submission_status: 'Approved',
         approved_by: approvedBy,
         approved_role: 'Project Manager',
-        approved_at: now,
+        approved_at: now || null,
       },
       { onConflict: 'month_year,client,project_code' }
     )
@@ -789,11 +789,11 @@ export async function rejectApproval(
         client,
         project_code: projectCode,
         submission_status: 'Draft',
-        submitted_by: '',
-        submitted_at: '',
-        approved_by: '',
-        approved_role: '',
-        approved_at: '',
+        submitted_by: null,
+        submitted_at: null,
+        approved_by: null,
+        approved_role: null,
+        approved_at: null,
       },
       { onConflict: 'month_year,client,project_code' }
     )
