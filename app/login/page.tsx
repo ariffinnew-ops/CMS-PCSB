@@ -37,14 +37,24 @@ export default function LoginPage() {
 
     const user = login(username, password);
 
-    // Try to record login log, but don't block login if it fails
+    // Record login log to cms_login_logs (non-blocking)
     try {
-      await recordLoginLog({
-        username: username.toLowerCase(),
-        role: user?.role || "unknown",
-        timestamp: new Date().toISOString(),
-        success: !!user,
-      });
+      if (user) {
+        await recordLoginLog({
+          username_attempt: username.toLowerCase(),
+          login_status: "SUCCESS",
+          user_level: user.role,
+          project_scope: user.defaultProject || "PCSB",
+        });
+      } else {
+        await recordLoginLog({
+          username_attempt: username.toLowerCase(),
+          login_status: "FAILED",
+          user_level: "unknown",
+          project_scope: "-",
+          error_message: "Invalid username or password",
+        });
+      }
     } catch (error) {
       // Silently fail - login logging is optional
       console.warn("Login logging failed:", error);

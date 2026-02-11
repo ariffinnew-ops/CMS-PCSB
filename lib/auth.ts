@@ -17,6 +17,7 @@ export interface AuthUser {
   defaultProject?: ProjectKey;
 }
 
+// Legacy type kept for backward compat -- actual logging uses cms_login_logs via actions.ts
 export interface LoginLog {
   id?: number;
   username: string;
