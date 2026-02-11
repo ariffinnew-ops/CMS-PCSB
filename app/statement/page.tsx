@@ -291,82 +291,66 @@ export default function StatementPage() {
     });
   }, [selectedMonth, clientFilter]);
 
-  // Stage 1: Submit for Approval
+  // Stage 1: Submit for Approval (L1/L2)
   const handleSubmitForApproval = async () => {
     if (submitting) return;
     setSubmitting(true);
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
     const submitterName = user?.fullName || user?.username || "Unknown";
-    const now = new Date().toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' });
 
-    // Optimistically update UI immediately so L1 can see the cycle
-    setSubmissionStatus("Submitted");
-    setApprovalRecord(prev => ({
-      month_year: selectedMonth,
-      client: key,
-      submission_status: "Submitted",
-      submitted_by: submitterName,
-      submitted_at: now,
-      approved_by: prev?.approved_by || "",
-      approved_role: prev?.approved_role || "",
-      approved_at: prev?.approved_at || "",
-    }));
-
-    // Fire DB call in background
+    // Write to Supabase first, then update UI from DB
     const result = await submitForApproval(selectedMonth, key, submitterName);
     if (result.success) {
       const rec = await getApproval(selectedMonth, key);
       if (rec) {
         setApprovalRecord(rec);
         setSubmissionStatus((rec.submission_status as "Draft" | "Submitted" | "Approved") || "Submitted");
+      } else {
+        // DB wrote but read failed -- set UI manually
+        setSubmissionStatus("Submitted");
       }
+    } else {
+      console.error("[v0] submitForApproval failed:", result.error);
     }
     setSubmitting(false);
   };
 
-  // Stage 2: PM Approval
+  // Stage 2: Manager Approval (L5/L4/L1)
   const handleApprove = async () => {
     if (!approverName.trim() || submitting) return;
     setSubmitting(true);
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
-    const now = new Date().toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' });
-
-    // Optimistically update UI
-    setSubmissionStatus("Approved");
-    setApprovalRecord(prev => ({
-      month_year: selectedMonth,
-      client: key,
-      submission_status: "Approved",
-      submitted_by: prev?.submitted_by || "",
-      submitted_at: prev?.submitted_at || "",
-      approved_by: approverName.trim(),
-      approved_role: "Project Manager",
-      approved_at: now,
-    }));
 
     const result = await approveStatement(selectedMonth, key, approverName.trim());
     if (result.success) {
       const rec = await getApproval(selectedMonth, key);
-      if (rec) setApprovalRecord(rec);
+      if (rec) {
+        setApprovalRecord(rec);
+        setSubmissionStatus("Approved");
+      } else {
+        setSubmissionStatus("Approved");
+      }
+    } else {
+      console.error("[v0] approveStatement failed:", result.error);
     }
     setApprovalModal(false);
     setApproverName("");
     setSubmitting(false);
   };
 
-  // Reject / Unlock: reset to Draft
+  // Reject / Unlock: reset to Draft (L1 only)
   const handleReject = async () => {
     if (submitting) return;
     setSubmitting(true);
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
 
-    // Optimistically update UI
-    setSubmissionStatus("Draft");
-    setApprovalRecord(null);
-
     const result = await rejectApproval(selectedMonth, key);
-    if (!result.success) {
-      // If DB fails, reload actual state
+    if (result.success) {
+      setSubmissionStatus("Draft");
+      setApprovalRecord(null);
+    } else {
+      console.error("[v0] rejectApproval failed:", result.error);
+      // Reload actual state
       const rec = await getApproval(selectedMonth, key);
       if (rec) {
         setApprovalRecord(rec);
