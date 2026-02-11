@@ -28,17 +28,17 @@ export default function LoginPage() {
       return;
     }
 
-    // TEMPORARY BYPASS: Auto-login as L1 admin
-    const adminUser = login("admin", "admin009");
-    if (adminUser) {
-      router.push("/dashboard");
-      return;
-    }
-
-    // Pre-fetch Supabase users so all cms_users can login
-    getSupabaseUsers().then(sbUsers => {
-      if (sbUsers.length > 0) mergeSupabaseUsers(sbUsers);
-    }).catch(() => { /* Supabase unavailable, local users still work */ });
+    // TEMPORARY BYPASS: Force L1 admin session directly (skips localStorage check)
+    sessionStorage.setItem("cms_auth_user", JSON.stringify({
+      username: "admin",
+      fullName: "System Administrator",
+      role: "L1",
+      defaultProject: "PCSB",
+    }));
+    sessionStorage.setItem("cms_last_activity", Date.now().toString());
+    sessionStorage.setItem("cms_selected_project", "PCSB");
+    router.push("/dashboard");
+    return;
   }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
