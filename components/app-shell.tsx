@@ -7,7 +7,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { getUser, logout, canAccessPage, setupIdleTimeout, getSelectedProject, setSelectedProject, ROLE_LABELS, type AuthUser, type UserRole, type ProjectKey } from "@/lib/auth";
+import { getUser, logout, canAccessPage, getPermission, setupIdleTimeout, getSelectedProject, setSelectedProject, ROLE_LABELS, type AuthUser, type UserRole, type ProjectKey } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -87,7 +87,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return cleanup;
   }, [user, router, toast]);
 
-  const navItems = user ? allNavItems.filter(item => item.roles.includes(user.role)) : [];
+  // Filter nav: hide pages where the user has NO ACCESS in BOTH projects
+  const navItems = user ? allNavItems.filter(item => {
+    const pcsbPerm = getPermission(item.href, "PCSB", user.role);
+    const othersPerm = getPermission(item.href, "OTHERS", user.role);
+    return pcsbPerm !== "NONE" || othersPerm !== "NONE";
+  }) : [];
 
   const handleLogout = () => {
     logout();
@@ -146,36 +151,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
               </Link>
 
-              {/* Project Switcher - directly after logo */}
-              <div className="hidden lg:flex flex-col items-start gap-0.5">
-                <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest leading-none">Project</span>
-                <div className="flex items-center bg-slate-800/80 rounded-md border border-slate-700/60 p-0.5">
-                  <button
-                    type="button"
-                    onClick={() => handleProjectSwitch("PCSB")}
-                    className={cn(
-                      "px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all duration-200",
-                      selectedProject === "PCSB"
-                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-                        : "text-slate-500 hover:text-white hover:bg-slate-700/50"
-                    )}
-                  >
-                    PCSB
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleProjectSwitch("OTHERS")}
-                    className={cn(
-                      "px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all duration-200",
-                      selectedProject === "OTHERS"
-                        ? "bg-orange-500 text-white shadow-md shadow-orange-500/30"
-                        : "text-slate-500 hover:text-white hover:bg-slate-700/50"
-                    )}
-                  >
-                    OTHERS
-                  </button>
-                </div>
-              </div>
             </div>
 
             <div className="hidden lg:block w-px h-8 bg-slate-800" />
@@ -265,32 +240,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </p>
               </div>
             </div>
-            {/* Mobile Project Switcher */}
-            <div className="flex items-center gap-2 pb-3 mb-3 border-b border-slate-800">
-              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Project:</span>
-              <div className="flex items-center bg-slate-800/60 rounded-lg border border-slate-700/50 p-0.5">
-                <button
-                  type="button"
-                  onClick={() => handleProjectSwitch("PCSB")}
-                  className={cn(
-                    "px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all",
-                    selectedProject === "PCSB"
-                      ? "bg-blue-600 text-white shadow-lg"
-                      : "text-slate-400 hover:text-white"
-                  )}
-                >PCSB</button>
-                <button
-                  type="button"
-                  onClick={() => handleProjectSwitch("OTHERS")}
-                  className={cn(
-                    "px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all",
-                    selectedProject === "OTHERS"
-                      ? "bg-orange-500 text-white shadow-lg"
-                      : "text-slate-400 hover:text-white"
-                  )}
-                >OTHERS</button>
-              </div>
-            </div>
+
             <nav className="flex flex-col gap-1">
               {navItems.map((item) => (
                 <Link
