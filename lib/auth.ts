@@ -73,7 +73,6 @@ const DEFAULT_PERMISSION_MATRIX: Record<string, PagePermission> = {
   "/financial":  { PCSB: perm("EDIT","VIEW","NONE","VIEW","VIEW","NONE","VIEW","VIEW"), OTHERS: perm("EDIT","NONE","VIEW","VIEW","NONE","VIEW","VIEW","VIEW") },
   "/admin":      { PCSB: perm("EDIT","EDIT","VIEW","VIEW","VIEW","NONE","NONE","NONE"), OTHERS: perm("EDIT","VIEW","EDIT","VIEW","NONE","VIEW","NONE","NONE") },
   "/users":      { PCSB: perm("EDIT","NONE","NONE","NONE","NONE","NONE","NONE","NONE"), OTHERS: perm("EDIT","NONE","NONE","NONE","NONE","NONE","NONE","NONE") },
-  "/logs":       { PCSB: perm("EDIT","NONE","NONE","NONE","NONE","NONE","NONE","NONE"), OTHERS: perm("EDIT","NONE","NONE","NONE","NONE","NONE","NONE","NONE") },
 };
 
 const MATRIX_STORAGE_KEY = "cms_permission_matrix";

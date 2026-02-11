@@ -296,18 +296,26 @@ export default function StatementPage() {
     if (submitting) return;
     setSubmitting(true);
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
-    const submitterName = user?.username || "Unknown";
+    const submitterName = user?.fullName || user?.username || "Unknown";
+    console.log("[v0] handleSubmitForApproval called", { selectedMonth, key, submitterName });
     const result = await submitForApproval(selectedMonth, key, submitterName);
+    console.log("[v0] submitForApproval result:", result);
     if (result.success) {
       // Reload record from DB
       const rec = await getApproval(selectedMonth, key);
+      console.log("[v0] reloaded approval record:", rec);
       if (rec) {
         setApprovalRecord(rec);
-        setSubmissionStatus((rec.submission_status as "Draft" | "Submitted" | "Approved") || "Draft");
+        const newStatus = (rec.submission_status as "Draft" | "Submitted" | "Approved") || "Draft";
+        console.log("[v0] setting submissionStatus to:", newStatus);
+        setSubmissionStatus(newStatus);
       } else {
         // If no record returned, set directly
+        console.log("[v0] no record returned, setting Submitted directly");
         setSubmissionStatus("Submitted");
       }
+    } else {
+      console.log("[v0] submitForApproval FAILED:", result.error);
     }
     setSubmitting(false);
   };
@@ -317,7 +325,9 @@ export default function StatementPage() {
     if (!approverName.trim() || submitting) return;
     setSubmitting(true);
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
+    console.log("[v0] handleApprove called", { selectedMonth, key, approverName: approverName.trim() });
     const result = await approveStatement(selectedMonth, key, approverName.trim());
+    console.log("[v0] approveStatement result:", result);
     if (result.success) {
       setSubmissionStatus("Approved");
       const rec = await getApproval(selectedMonth, key);
@@ -333,7 +343,9 @@ export default function StatementPage() {
     if (submitting) return;
     setSubmitting(true);
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
+    console.log("[v0] handleReject called", { selectedMonth, key });
     const result = await rejectApproval(selectedMonth, key);
+    console.log("[v0] rejectApproval result:", result);
     if (result.success) {
       setSubmissionStatus("Draft");
       setApprovalRecord(null);

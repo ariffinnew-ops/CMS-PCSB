@@ -30,7 +30,6 @@ const PAGE_LABELS: Record<string, string> = {
   "/financial": "Financial",
   "/admin": "Data Mgr",
   "/users": "User Mgmt",
-  "/logs": "Logs",
 };
 
 const PAGES = Object.keys(PAGE_LABELS);
