@@ -297,25 +297,29 @@ export default function StatementPage() {
     setSubmitting(true);
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
     const submitterName = user?.fullName || user?.username || "Unknown";
-    console.log("[v0] handleSubmitForApproval called", { selectedMonth, key, submitterName });
+    const now = new Date().toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    // Optimistically update UI immediately so L1 can see the cycle
+    setSubmissionStatus("Submitted");
+    setApprovalRecord(prev => ({
+      month_year: selectedMonth,
+      client: key,
+      submission_status: "Submitted",
+      submitted_by: submitterName,
+      submitted_at: now,
+      approved_by: prev?.approved_by || "",
+      approved_role: prev?.approved_role || "",
+      approved_at: prev?.approved_at || "",
+    }));
+
+    // Fire DB call in background
     const result = await submitForApproval(selectedMonth, key, submitterName);
-    console.log("[v0] submitForApproval result:", result);
     if (result.success) {
-      // Reload record from DB
       const rec = await getApproval(selectedMonth, key);
-      console.log("[v0] reloaded approval record:", rec);
       if (rec) {
         setApprovalRecord(rec);
-        const newStatus = (rec.submission_status as "Draft" | "Submitted" | "Approved") || "Draft";
-        console.log("[v0] setting submissionStatus to:", newStatus);
-        setSubmissionStatus(newStatus);
-      } else {
-        // If no record returned, set directly
-        console.log("[v0] no record returned, setting Submitted directly");
-        setSubmissionStatus("Submitted");
+        setSubmissionStatus((rec.submission_status as "Draft" | "Submitted" | "Approved") || "Submitted");
       }
-    } else {
-      console.log("[v0] submitForApproval FAILED:", result.error);
     }
     setSubmitting(false);
   };
@@ -325,11 +329,23 @@ export default function StatementPage() {
     if (!approverName.trim() || submitting) return;
     setSubmitting(true);
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
-    console.log("[v0] handleApprove called", { selectedMonth, key, approverName: approverName.trim() });
+    const now = new Date().toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    // Optimistically update UI
+    setSubmissionStatus("Approved");
+    setApprovalRecord(prev => ({
+      month_year: selectedMonth,
+      client: key,
+      submission_status: "Approved",
+      submitted_by: prev?.submitted_by || "",
+      submitted_at: prev?.submitted_at || "",
+      approved_by: approverName.trim(),
+      approved_role: "Project Manager",
+      approved_at: now,
+    }));
+
     const result = await approveStatement(selectedMonth, key, approverName.trim());
-    console.log("[v0] approveStatement result:", result);
     if (result.success) {
-      setSubmissionStatus("Approved");
       const rec = await getApproval(selectedMonth, key);
       if (rec) setApprovalRecord(rec);
     }
@@ -343,12 +359,19 @@ export default function StatementPage() {
     if (submitting) return;
     setSubmitting(true);
     const key = clientFilter === "ALL" ? "ALL" : clientFilter;
-    console.log("[v0] handleReject called", { selectedMonth, key });
+
+    // Optimistically update UI
+    setSubmissionStatus("Draft");
+    setApprovalRecord(null);
+
     const result = await rejectApproval(selectedMonth, key);
-    console.log("[v0] rejectApproval result:", result);
-    if (result.success) {
-      setSubmissionStatus("Draft");
-      setApprovalRecord(null);
+    if (!result.success) {
+      // If DB fails, reload actual state
+      const rec = await getApproval(selectedMonth, key);
+      if (rec) {
+        setApprovalRecord(rec);
+        setSubmissionStatus((rec.submission_status as "Draft" | "Submitted" | "Approved") || "Draft");
+      }
     }
     setSubmitting(false);
   };

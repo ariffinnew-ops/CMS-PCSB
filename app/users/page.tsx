@@ -16,6 +16,7 @@ import {
   type StoredUser,
   type PermissionLevel,
 } from "@/lib/auth";
+import { getLoginLogs, type LoginLogEntry } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 
 const ALL_ROLES: UserRole[] = ["L1", "L2A", "L2B", "L4", "L5A", "L5B", "L6", "L7"];
@@ -44,6 +45,15 @@ export default function UsersPage() {
   const [matrixProject, setMatrixProject] = useState<ProjectKey>("PCSB");
   const [matrix, setMatrix] = useState(() => getPermissionMatrix());
   const [matrixDirty, setMatrixDirty] = useState(false);
+  const [loginLogs, setLoginLogs] = useState<LoginLogEntry[]>([]);
+  const [logsLoading, setLogsLoading] = useState(true);
+
+  useEffect(() => {
+    getLoginLogs().then(logs => {
+      setLoginLogs(logs);
+      setLogsLoading(false);
+    });
+  }, []);
 
   // Form state
   const [formUsername, setFormUsername] = useState("");
@@ -579,6 +589,70 @@ export default function UsersPage() {
               Click any cell to cycle permissions (L1 is locked to EDIT)
             </span>
           </div>
+        </div>
+
+        {/* Login Activity Log */}
+        <div className="bg-card rounded-xl border border-border shadow-xl overflow-hidden">
+          <div className="px-5 py-3 bg-slate-900 border-b border-slate-800 flex items-center gap-3">
+            <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h2 className="text-xs font-black text-white uppercase tracking-widest">
+              Login Activity Log
+            </h2>
+            <span className="text-[8px] font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded">
+              Last 100 entries
+            </span>
+          </div>
+          {logsLoading ? (
+            <div className="flex items-center justify-center h-24">
+              <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-foreground" />
+            </div>
+          ) : loginLogs.length === 0 ? (
+            <div className="px-6 py-8 text-center">
+              <p className="text-sm text-muted-foreground font-medium">No login records found.</p>
+              <p className="text-xs text-muted-foreground mt-1">Login activity will appear here once the login_logs table is created in Supabase.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto max-h-[350px]">
+              <table className="w-full">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-slate-50 dark:bg-slate-900/50 border-b-2 border-border">
+                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Timestamp</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Username</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Role</th>
+                    <th className="px-4 py-2.5 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {loginLogs.map((log, idx) => (
+                    <tr key={log.id ?? idx} className="hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-colors">
+                      <td className="px-4 py-2 text-xs font-mono text-muted-foreground">{log.timestamp}</td>
+                      <td className="px-4 py-2 text-xs font-semibold text-foreground">{log.username}</td>
+                      <td className="px-4 py-2">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${getRoleBadge(log.role as UserRole)}`}>
+                          {log.role}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        {log.success ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-black text-emerald-600">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            Success
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-[10px] font-black text-red-500">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                            Failed
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </AppShell>
