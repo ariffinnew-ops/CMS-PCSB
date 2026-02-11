@@ -23,17 +23,18 @@ export default function LoginPage() {
 
   useEffect(() => {
     setMounted(true);
-
-    // TEMPORARY BYPASS: Force L1 admin session directly (always override)
-    sessionStorage.setItem("cms_auth_user", JSON.stringify({
-      username: "admin",
-      fullName: "System Administrator",
-      role: "L1",
-      defaultProject: "PCSB",
-    }));
-    sessionStorage.setItem("cms_last_activity", Date.now().toString());
-    sessionStorage.setItem("cms_selected_project", "PCSB");
-    router.push("/dashboard");
+    if (isAuthenticated()) {
+      router.push("/dashboard");
+      return;
+    }
+    // Clear stale localStorage users so DEFAULT_USERS with admin009 takes effect
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("cms_users_store");
+    }
+    // Then sync from Supabase (Supabase users overlay DEFAULT_USERS)
+    getSupabaseUsers().then(sbUsers => {
+      if (sbUsers.length > 0) mergeSupabaseUsers(sbUsers);
+    }).catch(() => { /* Supabase unavailable, DEFAULT_USERS still work */ });
   }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
