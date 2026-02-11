@@ -23,12 +23,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     setMounted(true);
-    if (isAuthenticated()) {
-      router.push("/dashboard");
-      return;
-    }
 
-    // TEMPORARY BYPASS: Force L1 admin session directly (skips localStorage check)
+    // TEMPORARY BYPASS: Force L1 admin session directly (always override)
     sessionStorage.setItem("cms_auth_user", JSON.stringify({
       username: "admin",
       fullName: "System Administrator",
@@ -38,7 +34,6 @@ export default function LoginPage() {
     sessionStorage.setItem("cms_last_activity", Date.now().toString());
     sessionStorage.setItem("cms_selected_project", "PCSB");
     router.push("/dashboard");
-    return;
   }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
