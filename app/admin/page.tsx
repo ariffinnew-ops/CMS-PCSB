@@ -918,14 +918,26 @@ export default function AdminPage() {
           };
 
           // Sign-off date excluded from Gantt bar (not counted as POB)
-          const getDayStatus = (row: typeof sortedData[0], day: number) => {
-            const checkDate = new Date(eYear, eMonth, day, 0, 0, 0, 0);
-            const checkTime = checkDate.getTime();
-            if (row.post?.includes("IM") || row.post?.includes("OHN")) {
-              const dow = checkDate.getDay();
-              return dow === 0 || dow === 6 ? "OHN_WEEKEND" : "OHN_WEEKDAY";
-            }
-            for (const cycle of Object.values(row.cycles)) {
+ const formatDayISO = (day: number) => `${eYear}-${String(eMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+ const getDayStatus = (row: typeof sortedData[0], day: number) => {
+  const checkDate = new Date(eYear, eMonth, day, 0, 0, 0, 0);
+  const checkTime = checkDate.getTime();
+  const dayISO = formatDayISO(day);
+  if (row.post?.includes("IM") || row.post?.includes("OHN")) {
+  // Check AL dates across all cycles
+  for (const cycle of Object.values(row.cycles)) {
+    if (cycle.al_dates && cycle.al_dates.some((d: string) => d === dayISO)) return "AL";
+  }
+  const dow = checkDate.getDay();
+  return dow === 0 || dow === 6 ? "OHN_WEEKEND" : "OHN_WEEKDAY";
+  }
+  // Check medevac dates for EM
+  if (row.post?.includes("ESCORT MEDIC")) {
+    for (const cycle of Object.values(row.cycles)) {
+      if (cycle.medevac_dates && cycle.medevac_dates.some((d: string) => d === dayISO)) return "MEDEVAC";
+    }
+  }
+  for (const cycle of Object.values(row.cycles)) {
               const m = safeParseDate(cycle.sign_on);
               const d = safeParseDate(cycle.sign_off);
               if (!m || !d) continue;
@@ -936,11 +948,12 @@ export default function AdminPage() {
             }
             return "OFF";
           };
-          const getConnect = (row: typeof sortedData[0], day: number) => {
-            const s = getDayStatus(row, day);
-            if (s === "OHN_WEEKDAY" || s === "OHN_WEEKEND") return "OHN";
-            return s;
-          };
+  const getConnect = (row: typeof sortedData[0], day: number) => {
+  const s = getDayStatus(row, day);
+  if (s === "OHN_WEEKDAY" || s === "OHN_WEEKEND" || s === "AL") return "OHN";
+  if (s === "MEDEVAC") return "ACTIVE";
+  return s;
+  };
           const connectsToNext = (row: typeof sortedData[0], day: number) => day < daysCount && getConnect(row, day) !== "OFF" && getConnect(row, day + 1) !== "OFF";
           const connectsFromPrev = (row: typeof sortedData[0], day: number) => day > 1 && getConnect(row, day) !== "OFF" && getConnect(row, day - 1) !== "OFF";
 
@@ -1015,19 +1028,24 @@ export default function AdminPage() {
                             const status = getDayStatus(row, d.dayNum);
                             const toNext = connectsToNext(row, d.dayNum);
                             const fromPrev = connectsFromPrev(row, d.dayNum);
-                            let barClass = "";
-                            if (status === "PRIMARY" || status === "OHN_WEEKDAY") barClass = "bg-blue-500";
-                            else if (status === "SECONDARY") barClass = "bg-sky-300";
-                            else if (status === "OHN_WEEKEND") barClass = "bg-slate-400";
-                            const rL = !fromPrev ? "rounded-l-sm" : "";
-                            const rR = !toNext ? "rounded-r-sm" : "";
-                            return (
-                              <td key={d.dayNum} className={`p-0 relative ${d.isWeekend ? "bg-gray-50" : "bg-white"}`} style={{ height: "22px" }}>
-                                <div className="absolute inset-y-0 right-0 w-px bg-gray-200 z-0" />
-                                {status !== "OFF" && (
-                                  <div className={`absolute z-10 gantt-bar-admin ${rL} ${rR} ${barClass}`} style={{ top: "3px", bottom: "3px", left: 0, right: 0 }} />
-                                )}
-                              </td>
+  let barClass = "";
+  let barLabel = "";
+  if (status === "AL") { barClass = "bg-yellow-400"; barLabel = "AL"; }
+  else if (status === "MEDEVAC") { barClass = "bg-red-500"; barLabel = "MV"; }
+  else if (status === "PRIMARY" || status === "OHN_WEEKDAY") barClass = "bg-blue-500";
+  else if (status === "SECONDARY") barClass = "bg-sky-300";
+  else if (status === "OHN_WEEKEND") barClass = "bg-slate-400";
+  const rL = !fromPrev ? "rounded-l-sm" : "";
+  const rR = !toNext ? "rounded-r-sm" : "";
+  return (
+  <td key={d.dayNum} className={`p-0 relative ${d.isWeekend ? "bg-gray-50" : "bg-white"}`} style={{ height: "22px" }}>
+  <div className="absolute inset-y-0 right-0 w-px bg-gray-200 z-0" />
+  {status !== "OFF" && (
+  <div className={`absolute z-10 gantt-bar-admin ${rL} ${rR} ${barClass} flex items-center justify-center`} style={{ top: "3px", bottom: "3px", left: 0, right: 0 }}>
+    {barLabel && <span className={`text-[6px] font-black leading-none ${status === "AL" ? "text-black" : "text-white"}`}>{barLabel}</span>}
+  </div>
+  )}
+  </td>
                             );
                           })}
                         </tr>
