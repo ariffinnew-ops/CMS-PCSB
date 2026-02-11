@@ -192,7 +192,7 @@ export interface RecordLoginLogParams {
 
 export async function recordLoginLog(params: RecordLoginLogParams): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
 
     const { error } = await supabase
       .from('cms_login_logs')
@@ -217,7 +217,7 @@ export async function recordLoginLog(params: RecordLoginLogParams): Promise<{ su
 }
 
 export async function getLoginLogs(): Promise<LoginLogEntry[]> {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('cms_login_logs')
