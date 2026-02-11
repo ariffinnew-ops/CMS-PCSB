@@ -168,7 +168,7 @@ export function saveUsers(users: StoredUser[]): void {
 }
 
 // Merge Supabase cms_users into local store
-// Supabase users override matching local users, but DEFAULT_USERS are kept as fallback
+// Supabase users are added, but L1 admin from DEFAULT_USERS is always protected
 export function mergeSupabaseUsers(supabaseUsers: { username: string; password: string; full_name: string; role: string; default_project: string }[]): StoredUser[] {
   if (supabaseUsers.length === 0) return getAllUsers();
 
@@ -182,9 +182,13 @@ export function mergeSupabaseUsers(supabaseUsers: { username: string; password: 
   }));
 
   // Start with DEFAULT_USERS as base, then overlay Supabase users
+  // EXCEPT: never let Supabase overwrite the hardcoded "admin" L1 account
   const merged = new Map<string, StoredUser>();
   for (const u of DEFAULT_USERS) merged.set(u.username.toLowerCase(), u);
-  for (const u of sbUsers) merged.set(u.username.toLowerCase(), u);
+  for (const u of sbUsers) {
+    if (u.username.toLowerCase() === "admin") continue; // protect L1 admin
+    merged.set(u.username.toLowerCase(), u);
+  }
 
   const result = Array.from(merged.values());
   saveUsers(result);
