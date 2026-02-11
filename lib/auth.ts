@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 // Role system: L1 (Super Admin) through L7
 // ---------------------------------------------------------------------------
-export type UserRole = "L1" | "L2A" | "L2B" | "L4" | "L5" | "L6" | "L7";
+export type UserRole = "L1" | "L2A" | "L2B" | "L4" | "L5A" | "L5B" | "L6" | "L7";
 
 // Keep legacy aliases so existing code that checks "admin" / "datalogger" still compiles
 export type LegacyRole = "admin" | "datalogger" | "guest";
@@ -31,7 +31,8 @@ export const ROLE_LEVELS: Record<UserRole, number> = {
   L2A: 2,
   L2B: 2,
   L4: 4,
-  L5: 5,
+  L5A: 5,
+  L5B: 5,
   L6: 6,
   L7: 7,
 };
@@ -41,7 +42,8 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   L2A: "Data Lodger (PCSB)",
   L2B: "Data Lodger (Others)",
   L4: "PMT",
-  L5: "Project Manager",
+  L5A: "Project Manager (PCSB)",
+  L5B: "Project Manager (Others)",
   L6: "HR Payroll",
   L7: "Account",
 };
@@ -58,32 +60,62 @@ interface PagePermission {
   OTHERS: Record<UserRole, PermissionLevel>;
 }
 
-const perm = (l1: PermissionLevel, l2a: PermissionLevel, l2b: PermissionLevel, l4: PermissionLevel, l5: PermissionLevel, l6: PermissionLevel, l7: PermissionLevel): Record<UserRole, PermissionLevel> => ({
-  L1: l1, L2A: l2a, L2B: l2b, L4: l4, L5: l5, L6: l6, L7: l7,
+const perm = (l1: PermissionLevel, l2a: PermissionLevel, l2b: PermissionLevel, l4: PermissionLevel, l5a: PermissionLevel, l5b: PermissionLevel, l6: PermissionLevel, l7: PermissionLevel): Record<UserRole, PermissionLevel> => ({
+  L1: l1, L2A: l2a, L2B: l2b, L4: l4, L5A: l5a, L5B: l5b, L6: l6, L7: l7,
 });
 
-export const PERMISSION_MATRIX: Record<string, PagePermission> = {
-  "/dashboard":  { PCSB: perm("EDIT","VIEW","VIEW","VIEW","VIEW","VIEW","VIEW"), OTHERS: perm("EDIT","VIEW","VIEW","VIEW","VIEW","VIEW","VIEW") },
-  "/roster":     { PCSB: perm("EDIT","VIEW","VIEW","VIEW","VIEW","NONE","NONE"), OTHERS: perm("EDIT","VIEW","VIEW","VIEW","VIEW","NONE","NONE") },
-  "/training":   { PCSB: perm("EDIT","EDIT","VIEW","EDIT","VIEW","NONE","NONE"), OTHERS: perm("EDIT","VIEW","EDIT","EDIT","VIEW","NONE","NONE") },
-  "/staff":      { PCSB: perm("EDIT","EDIT","VIEW","EDIT","VIEW","NONE","NONE"), OTHERS: perm("EDIT","VIEW","EDIT","EDIT","VIEW","NONE","NONE") },
-  "/statement":  { PCSB: perm("EDIT","VIEW","NONE","VIEW","VIEW","VIEW","VIEW"), OTHERS: perm("EDIT","NONE","VIEW","VIEW","VIEW","VIEW","VIEW") },
-  "/financial":  { PCSB: perm("EDIT","VIEW","NONE","VIEW","VIEW","VIEW","VIEW"), OTHERS: perm("EDIT","NONE","VIEW","VIEW","VIEW","VIEW","VIEW") },
-  "/admin":      { PCSB: perm("EDIT","EDIT","VIEW","VIEW","VIEW","NONE","NONE"), OTHERS: perm("EDIT","VIEW","EDIT","VIEW","VIEW","NONE","NONE") },
-  "/users":      { PCSB: perm("EDIT","NONE","NONE","NONE","NONE","NONE","NONE"), OTHERS: perm("EDIT","NONE","NONE","NONE","NONE","NONE","NONE") },
-  "/logs":       { PCSB: perm("EDIT","NONE","NONE","NONE","NONE","NONE","NONE"), OTHERS: perm("EDIT","NONE","NONE","NONE","NONE","NONE","NONE") },
+const DEFAULT_PERMISSION_MATRIX: Record<string, PagePermission> = {
+  "/dashboard":  { PCSB: perm("EDIT","VIEW","VIEW","VIEW","VIEW","VIEW","VIEW","VIEW"), OTHERS: perm("EDIT","VIEW","VIEW","VIEW","VIEW","VIEW","VIEW","VIEW") },
+  "/roster":     { PCSB: perm("EDIT","VIEW","VIEW","VIEW","VIEW","NONE","NONE","NONE"), OTHERS: perm("EDIT","VIEW","VIEW","VIEW","NONE","VIEW","NONE","NONE") },
+  "/training":   { PCSB: perm("EDIT","EDIT","VIEW","EDIT","VIEW","NONE","NONE","NONE"), OTHERS: perm("EDIT","VIEW","EDIT","EDIT","NONE","VIEW","NONE","NONE") },
+  "/staff":      { PCSB: perm("EDIT","EDIT","VIEW","EDIT","VIEW","NONE","NONE","NONE"), OTHERS: perm("EDIT","VIEW","EDIT","EDIT","NONE","VIEW","NONE","NONE") },
+  "/statement":  { PCSB: perm("EDIT","VIEW","NONE","VIEW","VIEW","NONE","VIEW","VIEW"), OTHERS: perm("EDIT","NONE","VIEW","VIEW","NONE","VIEW","VIEW","VIEW") },
+  "/financial":  { PCSB: perm("EDIT","VIEW","NONE","VIEW","VIEW","NONE","VIEW","VIEW"), OTHERS: perm("EDIT","NONE","VIEW","VIEW","NONE","VIEW","VIEW","VIEW") },
+  "/admin":      { PCSB: perm("EDIT","EDIT","VIEW","VIEW","VIEW","NONE","NONE","NONE"), OTHERS: perm("EDIT","VIEW","EDIT","VIEW","NONE","VIEW","NONE","NONE") },
+  "/users":      { PCSB: perm("EDIT","NONE","NONE","NONE","NONE","NONE","NONE","NONE"), OTHERS: perm("EDIT","NONE","NONE","NONE","NONE","NONE","NONE","NONE") },
 };
 
-// Get permission for a specific page + project + role
+const MATRIX_STORAGE_KEY = "cms_permission_matrix";
+
+function loadMatrix(): Record<string, PagePermission> {
+  if (typeof window === "undefined") return DEFAULT_PERMISSION_MATRIX;
+  const stored = localStorage.getItem(MATRIX_STORAGE_KEY);
+  if (!stored) return DEFAULT_PERMISSION_MATRIX;
+  try {
+    const parsed = JSON.parse(stored) as Record<string, PagePermission>;
+    // Detect old format (has L5 instead of L5A/L5B) and reset to defaults
+    const firstPage = Object.values(parsed)[0];
+    if (firstPage && firstPage.PCSB && ("L5" in firstPage.PCSB) && !("L5A" in firstPage.PCSB)) {
+      localStorage.removeItem(MATRIX_STORAGE_KEY);
+      return DEFAULT_PERMISSION_MATRIX;
+    }
+    return parsed;
+  } catch { return DEFAULT_PERMISSION_MATRIX; }
+}
+
+export function getPermissionMatrix(): Record<string, PagePermission> {
+  return loadMatrix();
+}
+
+export function savePermissionMatrix(matrix: Record<string, PagePermission>): void {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(MATRIX_STORAGE_KEY, JSON.stringify(matrix));
+  }
+}
+
+// Live reference (always reads latest)
+export const PERMISSION_MATRIX = DEFAULT_PERMISSION_MATRIX;
+
+// Get permission for a specific page + project + role (reads live stored matrix)
 export function getPermission(pathname: string, project: ProjectKey, role: UserRole): PermissionLevel {
-  const pagePerm = PERMISSION_MATRIX[pathname];
+  const matrix = loadMatrix();
+  const pagePerm = matrix[pathname];
   if (!pagePerm) return "VIEW"; // default allow view for undefined pages
   return pagePerm[project]?.[role] ?? "NONE";
 }
 
 // Check if user can access a page at all (VIEW or EDIT)
 export function canAccessPage(role: UserRole, pathname: string): boolean {
-  // Check across both projects -- if accessible in either, allow navigation
   const pcsbPerm = getPermission(pathname, "PCSB", role);
   const othersPerm = getPermission(pathname, "OTHERS", role);
   return pcsbPerm !== "NONE" || othersPerm !== "NONE";
@@ -203,7 +235,7 @@ export function getUser(): AuthUser | null {
     try {
       const parsed = JSON.parse(stored) as AuthUser;
       // Force re-login if stored session has old role format
-      const validRoles: UserRole[] = ["L1","L2A","L2B","L4","L5","L6","L7"];
+      const validRoles: UserRole[] = ["L1","L2A","L2B","L4","L5A","L5B","L6","L7"];
       if (!validRoles.includes(parsed.role)) {
         logout();
         return null;
