@@ -7,7 +7,8 @@ import {
   getStoredUsers,
   saveUsers,
   ROLE_LABELS,
-  PERMISSION_MATRIX,
+  getPermissionMatrix,
+  savePermissionMatrix,
   getPermission,
   type AuthUser,
   type UserRole,
@@ -42,6 +43,8 @@ export default function UsersPage() {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [matrixProject, setMatrixProject] = useState<ProjectKey>("PCSB");
+  const [matrix, setMatrix] = useState(() => getPermissionMatrix());
+  const [matrixDirty, setMatrixDirty] = useState(false);
 
   // Form state
   const [formUsername, setFormUsername] = useState("");
@@ -146,6 +149,32 @@ export default function UsersPage() {
     if (level === "EDIT") return "bg-emerald-600 text-white";
     if (level === "VIEW") return "bg-blue-600/80 text-white";
     return "bg-slate-800 text-slate-500";
+  };
+
+  // Cycle permission: EDIT -> VIEW -> NONE -> EDIT  (L1 always stays EDIT)
+  const cyclePermission = (page: string, role: UserRole) => {
+    if (role === "L1") return; // L1 always EDIT
+    const current = matrix[page]?.[matrixProject]?.[role] ?? "NONE";
+    const next: PermissionLevel = current === "EDIT" ? "VIEW" : current === "VIEW" ? "NONE" : "EDIT";
+    setMatrix(prev => {
+      const updated = JSON.parse(JSON.stringify(prev));
+      if (!updated[page]) return prev;
+      updated[page][matrixProject][role] = next;
+      return updated;
+    });
+    setMatrixDirty(true);
+  };
+
+  const handleSaveMatrix = () => {
+    savePermissionMatrix(matrix);
+    setMatrixDirty(false);
+    showNotif("Access matrix saved successfully.", "success");
+  };
+
+  const handleResetMatrix = () => {
+    const fresh = getPermissionMatrix();
+    setMatrix(fresh);
+    setMatrixDirty(false);
   };
 
   const getRoleBadge = (role: UserRole) => {
@@ -418,7 +447,7 @@ export default function UsersPage() {
           </div>
         </div>
 
-        {/* CMS Access Matrix - from PERMISSION_MATRIX (mirrors Supabase cms_access_matrix) */}
+        {/* CMS Access Matrix - Editable (mirrors Supabase cms_access_matrix) */}
         <div className="bg-card rounded-xl border border-border shadow-xl overflow-hidden">
           <div className="px-5 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -431,30 +460,55 @@ export default function UsersPage() {
               <span className="text-[8px] font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded">
                 Source: Supabase / cms_access_matrix
               </span>
+              {matrixDirty && (
+                <span className="text-[8px] font-black text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30 animate-pulse">
+                  UNSAVED
+                </span>
+              )}
             </div>
-            <div className="flex items-center bg-slate-800 rounded-md border border-slate-700 p-0.5">
-              <button
-                type="button"
-                onClick={() => setMatrixProject("PCSB")}
-                className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all ${
-                  matrixProject === "PCSB"
-                    ? "bg-blue-600 text-white shadow-md"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                PCSB
-              </button>
-              <button
-                type="button"
-                onClick={() => setMatrixProject("OTHERS")}
-                className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all ${
-                  matrixProject === "OTHERS"
-                    ? "bg-orange-500 text-white shadow-md"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                OTHERS
-              </button>
+            <div className="flex items-center gap-2">
+              {matrixDirty && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleResetMatrix}
+                    className="px-3 py-1.5 rounded-md bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-black uppercase tracking-wider transition-all"
+                  >
+                    Discard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveMatrix}
+                    className="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/30"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              )}
+              <div className="flex items-center bg-slate-800 rounded-md border border-slate-700 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setMatrixProject("PCSB")}
+                  className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all ${
+                    matrixProject === "PCSB"
+                      ? "bg-blue-600 text-white shadow-md"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  PCSB
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMatrixProject("OTHERS")}
+                  className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all ${
+                    matrixProject === "OTHERS"
+                      ? "bg-orange-500 text-white shadow-md"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  OTHERS
+                </button>
+              </div>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -483,12 +537,21 @@ export default function UsersPage() {
                       </span>
                     </td>
                     {PAGES.map((page) => {
-                      const level = getPermission(page, matrixProject, role);
+                      const level = matrix[page]?.[matrixProject]?.[role] ?? "NONE";
+                      const isLocked = role === "L1"; // L1 always EDIT
                       return (
                         <td key={page} className="px-3 py-3 text-center">
-                          <span className={`inline-block px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-wider min-w-[42px] ${getPermBadge(level)}`}>
+                          <button
+                            type="button"
+                            onClick={() => cyclePermission(page, role)}
+                            disabled={isLocked}
+                            className={`inline-block px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-wider min-w-[42px] transition-all ${
+                              isLocked ? "cursor-default opacity-70" : "cursor-pointer hover:ring-2 hover:ring-blue-400/50 active:scale-95"
+                            } ${getPermBadge(level)}`}
+                            title={isLocked ? "L1 always has EDIT access" : `Click to change: ${level}`}
+                          >
                             {level === "NONE" ? "--" : level}
-                          </span>
+                          </button>
                         </td>
                       );
                     })}
@@ -497,19 +560,24 @@ export default function UsersPage() {
               </tbody>
             </table>
           </div>
-          <div className="px-5 py-3 bg-slate-50 dark:bg-slate-900/30 border-t border-border flex items-center gap-5">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-emerald-600" />
-              <span className="text-[10px] font-bold text-muted-foreground">EDIT</span>
+          <div className="px-5 py-3 bg-slate-50 dark:bg-slate-900/30 border-t border-border flex items-center justify-between">
+            <div className="flex items-center gap-5">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-emerald-600" />
+                <span className="text-[10px] font-bold text-muted-foreground">EDIT</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-blue-600/80" />
+                <span className="text-[10px] font-bold text-muted-foreground">VIEW</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-slate-800" />
+                <span className="text-[10px] font-bold text-muted-foreground">NO ACCESS</span>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-blue-600/80" />
-              <span className="text-[10px] font-bold text-muted-foreground">VIEW</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-slate-800" />
-              <span className="text-[10px] font-bold text-muted-foreground">NO ACCESS</span>
-            </div>
+            <span className="text-[9px] text-muted-foreground font-semibold">
+              Click any cell to cycle permissions (L1 is locked to EDIT)
+            </span>
           </div>
         </div>
       </div>

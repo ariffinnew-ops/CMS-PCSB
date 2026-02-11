@@ -62,7 +62,7 @@ const perm = (l1: PermissionLevel, l2a: PermissionLevel, l2b: PermissionLevel, l
   L1: l1, L2A: l2a, L2B: l2b, L4: l4, L5: l5, L6: l6, L7: l7,
 });
 
-export const PERMISSION_MATRIX: Record<string, PagePermission> = {
+const DEFAULT_PERMISSION_MATRIX: Record<string, PagePermission> = {
   "/dashboard":  { PCSB: perm("EDIT","VIEW","VIEW","VIEW","VIEW","VIEW","VIEW"), OTHERS: perm("EDIT","VIEW","VIEW","VIEW","VIEW","VIEW","VIEW") },
   "/roster":     { PCSB: perm("EDIT","VIEW","VIEW","VIEW","VIEW","NONE","NONE"), OTHERS: perm("EDIT","VIEW","VIEW","VIEW","VIEW","NONE","NONE") },
   "/training":   { PCSB: perm("EDIT","EDIT","VIEW","EDIT","VIEW","NONE","NONE"), OTHERS: perm("EDIT","VIEW","EDIT","EDIT","VIEW","NONE","NONE") },
@@ -74,16 +74,38 @@ export const PERMISSION_MATRIX: Record<string, PagePermission> = {
   "/logs":       { PCSB: perm("EDIT","NONE","NONE","NONE","NONE","NONE","NONE"), OTHERS: perm("EDIT","NONE","NONE","NONE","NONE","NONE","NONE") },
 };
 
-// Get permission for a specific page + project + role
+const MATRIX_STORAGE_KEY = "cms_permission_matrix";
+
+function loadMatrix(): Record<string, PagePermission> {
+  if (typeof window === "undefined") return DEFAULT_PERMISSION_MATRIX;
+  const stored = localStorage.getItem(MATRIX_STORAGE_KEY);
+  if (!stored) return DEFAULT_PERMISSION_MATRIX;
+  try { return JSON.parse(stored) as Record<string, PagePermission>; } catch { return DEFAULT_PERMISSION_MATRIX; }
+}
+
+export function getPermissionMatrix(): Record<string, PagePermission> {
+  return loadMatrix();
+}
+
+export function savePermissionMatrix(matrix: Record<string, PagePermission>): void {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(MATRIX_STORAGE_KEY, JSON.stringify(matrix));
+  }
+}
+
+// Live reference (always reads latest)
+export const PERMISSION_MATRIX = DEFAULT_PERMISSION_MATRIX;
+
+// Get permission for a specific page + project + role (reads live stored matrix)
 export function getPermission(pathname: string, project: ProjectKey, role: UserRole): PermissionLevel {
-  const pagePerm = PERMISSION_MATRIX[pathname];
+  const matrix = loadMatrix();
+  const pagePerm = matrix[pathname];
   if (!pagePerm) return "VIEW"; // default allow view for undefined pages
   return pagePerm[project]?.[role] ?? "NONE";
 }
 
 // Check if user can access a page at all (VIEW or EDIT)
 export function canAccessPage(role: UserRole, pathname: string): boolean {
-  // Check across both projects -- if accessible in either, allow navigation
   const pcsbPerm = getPermission(pathname, "PCSB", role);
   const othersPerm = getPermission(pathname, "OTHERS", role);
   return pcsbPerm !== "NONE" || othersPerm !== "NONE";
