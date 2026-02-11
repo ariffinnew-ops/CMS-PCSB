@@ -150,7 +150,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   />
                 </div>
               </Link>
+            </div>
 
+            {/* Project Toggle */}
+            <div className="hidden lg:flex items-center bg-slate-900 rounded-lg border border-slate-700 p-0.5">
+              <button
+                type="button"
+                onClick={() => handleProjectSwitch("PCSB")}
+                className={cn(
+                  "px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest transition-all",
+                  selectedProject === "PCSB"
+                    ? "bg-emerald-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                PCSB
+              </button>
+              <button
+                type="button"
+                onClick={() => handleProjectSwitch("OTHERS")}
+                className={cn(
+                  "px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest transition-all",
+                  selectedProject === "OTHERS"
+                    ? "bg-orange-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                Others
+              </button>
             </div>
 
             <div className="hidden lg:block w-px h-8 bg-slate-800" />
@@ -239,6 +266,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   {getRoleLabel(user?.role || "L4")}
                 </p>
               </div>
+            </div>
+
+            {/* Mobile Project Toggle */}
+            <div className="flex items-center bg-slate-800 rounded-lg border border-slate-700 p-0.5 mb-3">
+              <button
+                type="button"
+                onClick={() => handleProjectSwitch("PCSB")}
+                className={cn(
+                  "flex-1 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all",
+                  selectedProject === "PCSB"
+                    ? "bg-emerald-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                PCSB
+              </button>
+              <button
+                type="button"
+                onClick={() => handleProjectSwitch("OTHERS")}
+                className={cn(
+                  "flex-1 px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all",
+                  selectedProject === "OTHERS"
+                    ? "bg-orange-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                Others
+              </button>
             </div>
 
             <nav className="flex flex-col gap-1">
