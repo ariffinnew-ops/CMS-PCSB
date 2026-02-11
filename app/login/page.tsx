@@ -27,6 +27,14 @@ export default function LoginPage() {
       router.push("/dashboard");
       return;
     }
+
+    // TEMPORARY BYPASS: Auto-login as L1 admin
+    const adminUser = login("admin", "admin009");
+    if (adminUser) {
+      router.push("/dashboard");
+      return;
+    }
+
     // Pre-fetch Supabase users so all cms_users can login
     getSupabaseUsers().then(sbUsers => {
       if (sbUsers.length > 0) mergeSupabaseUsers(sbUsers);
