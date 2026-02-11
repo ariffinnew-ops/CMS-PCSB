@@ -167,9 +167,10 @@ export function saveUsers(users: StoredUser[]): void {
   }
 }
 
-// Merge Supabase cms_users into local store (Supabase is source of truth)
+// Merge Supabase cms_users into local store
+// Supabase users override matching local users, but DEFAULT_USERS are kept as fallback
 export function mergeSupabaseUsers(supabaseUsers: { username: string; password: string; full_name: string; role: string; default_project: string }[]): StoredUser[] {
-  if (supabaseUsers.length === 0) return getAllUsers(); // Supabase unavailable, keep local
+  if (supabaseUsers.length === 0) return getAllUsers();
 
   // Convert Supabase format to StoredUser format
   const sbUsers: StoredUser[] = supabaseUsers.map(u => ({
@@ -180,9 +181,14 @@ export function mergeSupabaseUsers(supabaseUsers: { username: string; password: 
     defaultProject: (u.default_project || "PCSB") as ProjectKey,
   }));
 
-  // Save Supabase users as the canonical list
-  saveUsers(sbUsers);
-  return sbUsers;
+  // Start with DEFAULT_USERS as base, then overlay Supabase users
+  const merged = new Map<string, StoredUser>();
+  for (const u of DEFAULT_USERS) merged.set(u.username.toLowerCase(), u);
+  for (const u of sbUsers) merged.set(u.username.toLowerCase(), u);
+
+  const result = Array.from(merged.values());
+  saveUsers(result);
+  return result;
 }
 
 // ---------------------------------------------------------------------------
