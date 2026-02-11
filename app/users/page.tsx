@@ -56,6 +56,8 @@ export default function UsersPage() {
   const [loginLogs, setLoginLogs] = useState<LoginLogEntry[]>([]);
   const [logsLoading, setLogsLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ idx: number; username: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Form state
   const [formUsername, setFormUsername] = useState("");
@@ -97,7 +99,7 @@ export default function UsersPage() {
 
   const showNotif = useCallback((message: string, type: "success" | "error") => {
     setNotification({ type, message });
-    setTimeout(() => setNotification(null), 3000);
+    setTimeout(() => setNotification(null), 4000);
   }, []);
 
   const resetForm = () => {
@@ -133,7 +135,7 @@ export default function UsersPage() {
       });
 
       if (result.error) {
-        alert("Database Update Failed: " + result.error);
+        showNotif("Database update failed: " + result.error, "error");
         return;
       }
 
@@ -156,8 +158,7 @@ export default function UsersPage() {
         setUsers(merged);
       }
 
-      alert("User Updated Successfully!");
-      showNotif(`User "${trimUser}" updated.`, "success");
+      showNotif(`User "${trimUser}" has been updated successfully.`, "success");
     } else {
       // --- CREATE new user ---
       if (existing.some((u) => u.username.toLowerCase() === trimUser)) {
@@ -174,7 +175,7 @@ export default function UsersPage() {
       });
 
       if (result.error) {
-        alert("Database Insert Failed: " + result.error);
+        showNotif("Database insert failed: " + result.error, "error");
         return;
       }
 
@@ -197,8 +198,7 @@ export default function UsersPage() {
         setUsers(merged);
       }
 
-      alert("User Created Successfully!");
-      showNotif(`User "${trimUser}" created.`, "success");
+      showNotif(`User "${trimUser}" has been created and synced to the database.`, "success");
     }
     resetForm();
   };
@@ -214,20 +214,37 @@ export default function UsersPage() {
     setShowForm(true);
   };
 
-  const handleDelete = async (idx: number) => {
+  const handleDeleteRequest = (idx: number) => {
     const u = users[idx];
     if (u.username === user?.username) {
-      showNotif("Cannot delete your own account.", "error");
+      showNotif("Action denied -- you cannot remove your own account.", "error");
       return;
     }
+    setDeleteConfirm({ idx, username: u.username });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm) return;
+    setDeleting(true);
+    const { idx, username } = deleteConfirm;
+
+    // Delete from Supabase first
+    const result = await deleteCmsUser(username);
+    if (result.error) {
+      showNotif(`Failed to remove "${username}" from database: ${result.error}`, "error");
+      setDeleting(false);
+      setDeleteConfirm(null);
+      return;
+    }
+
+    // Update local state
     const updated = users.filter((_, i) => i !== idx);
     saveUsers(updated);
     setUsers(updated);
 
-    // Sync to Supabase
-    await deleteCmsUser(u.username);
-
-    showNotif(`User "${u.username}" deleted (synced to Supabase).`, "success");
+    showNotif(`User "${username}" has been permanently removed.`, "success");
+    setDeleting(false);
+    setDeleteConfirm(null);
   };
 
   const getPermBadge = (level: PermissionLevel) => {
@@ -309,16 +326,34 @@ export default function UsersPage() {
           </button>
         </div>
 
-        {/* Notification */}
+        {/* Notification Toast */}
         {notification && (
           <div
-            className={`px-4 py-3 rounded-lg text-sm font-bold border animate-in fade-in slide-in-from-top-2 duration-300 ${
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-semibold border animate-in fade-in slide-in-from-top-2 duration-300 shadow-lg ${
               notification.type === "success"
-                ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                : "bg-red-500/15 text-red-400 border-red-500/30"
+                ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/25"
+                : "bg-red-500/10 text-red-500 border-red-500/25"
             }`}
           >
-            {notification.message}
+            {notification.type === "success" ? (
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+              </svg>
+            )}
+            <span>{notification.message}</span>
+            <button
+              type="button"
+              onClick={() => setNotification(null)}
+              className="ml-auto text-current opacity-50 hover:opacity-100 transition-opacity"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         )}
 
@@ -516,7 +551,7 @@ export default function UsersPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDelete(i)}
+                          onClick={() => handleDeleteRequest(i)}
                           disabled={u.username === user?.username}
                           className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${
                             u.username === user?.username
@@ -541,6 +576,53 @@ export default function UsersPage() {
             </table>
           </div>
         </div>
+
+        {/* Delete Confirmation Modal */}
+        {deleteConfirm && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-card rounded-2xl w-full max-w-sm shadow-2xl border border-border">
+              <div className="px-6 py-5 border-b border-border flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-foreground">Confirm Deletion</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">This action cannot be undone.</p>
+                </div>
+              </div>
+              <div className="px-6 py-4">
+                <p className="text-sm text-foreground">
+                  Are you sure you want to permanently delete user{" "}
+                  <span className="font-black text-red-500">{deleteConfirm.username}</span>?
+                  This will remove the account from the database.
+                </p>
+              </div>
+              <div className="px-6 py-4 border-t border-border flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirm(null)}
+                  disabled={deleting}
+                  className="px-5 py-2.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-xs uppercase tracking-wider transition-all border border-border"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteConfirm}
+                  disabled={deleting}
+                  className="px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider transition-all shadow-lg hover:shadow-red-500/30 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {deleting && (
+                    <div className="animate-spin rounded-full h-3 w-3 border-t border-b border-white" />
+                  )}
+                  {deleting ? "Deleting..." : "Yes, Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* CMS Access Matrix - Editable (mirrors Supabase cms_access_matrix) */}
         <div className="bg-card rounded-xl border border-border shadow-xl overflow-hidden">
