@@ -7,15 +7,32 @@ import {
   getStoredUsers,
   saveUsers,
   ROLE_LABELS,
+  PERMISSION_MATRIX,
+  getPermission,
   type AuthUser,
   type UserRole,
   type ProjectKey,
   type StoredUser,
+  type PermissionLevel,
 } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
 const ALL_ROLES: UserRole[] = ["L1", "L2A", "L2B", "L4", "L5", "L6", "L7"];
 const ALL_PROJECTS: ProjectKey[] = ["PCSB", "OTHERS"];
+
+const PAGE_LABELS: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/roster": "Roster",
+  "/training": "Training",
+  "/staff": "Staff",
+  "/statement": "Statement",
+  "/financial": "Financial",
+  "/admin": "Data Mgr",
+  "/users": "User Mgmt",
+  "/logs": "Logs",
+};
+
+const PAGES = Object.keys(PAGE_LABELS);
 
 export default function UsersPage() {
   const router = useRouter();
@@ -24,6 +41,7 @@ export default function UsersPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [matrixProject, setMatrixProject] = useState<ProjectKey>("PCSB");
 
   // Form state
   const [formUsername, setFormUsername] = useState("");
@@ -70,7 +88,6 @@ export default function UsersPage() {
     const existing = [...users];
 
     if (editingIdx !== null) {
-      // Update existing
       existing[editingIdx] = {
         ...existing[editingIdx],
         username: trimUser,
@@ -83,7 +100,6 @@ export default function UsersPage() {
       setUsers(existing);
       showNotif(`User "${trimUser}" updated.`, "success");
     } else {
-      // Check duplicate username
       if (existing.some((u) => u.username.toLowerCase() === trimUser)) {
         showNotif(`Username "${trimUser}" already exists.`, "error");
         return;
@@ -126,17 +142,23 @@ export default function UsersPage() {
     showNotif(`User "${u.username}" deleted.`, "success");
   };
 
+  const getPermBadge = (level: PermissionLevel) => {
+    if (level === "EDIT") return "bg-emerald-600 text-white";
+    if (level === "VIEW") return "bg-blue-600/80 text-white";
+    return "bg-slate-800 text-slate-500";
+  };
+
   const getRoleBadge = (role: UserRole) => {
     const colors: Record<UserRole, string> = {
-      L1: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-      L2A: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-      L2B: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-      L4: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-      L5: "bg-purple-500/20 text-purple-300 border-purple-500/30",
-      L6: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
-      L7: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
+      L1: "bg-amber-500/15 text-amber-400 border-amber-500/40",
+      L2A: "bg-blue-500/15 text-blue-400 border-blue-500/40",
+      L2B: "bg-indigo-500/15 text-indigo-400 border-indigo-500/40",
+      L4: "bg-emerald-500/15 text-emerald-400 border-emerald-500/40",
+      L5: "bg-purple-500/15 text-purple-400 border-purple-500/40",
+      L6: "bg-cyan-500/15 text-cyan-400 border-cyan-500/40",
+      L7: "bg-teal-500/15 text-teal-400 border-teal-500/40",
     };
-    return colors[role] || "bg-slate-500/20 text-slate-300 border-slate-500/30";
+    return colors[role] || "bg-slate-500/15 text-slate-400 border-slate-500/40";
   };
 
   if (!user) return null;
@@ -157,9 +179,9 @@ export default function UsersPage() {
           <button
             type="button"
             onClick={() => { resetForm(); setShowForm(true); }}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-all shadow-lg hover:shadow-blue-500/30"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-all shadow-lg hover:shadow-blue-500/30"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
             Add User
@@ -169,7 +191,7 @@ export default function UsersPage() {
         {/* Notification */}
         {notification && (
           <div
-            className={`px-4 py-2.5 rounded-lg text-xs font-bold border animate-in fade-in slide-in-from-top-2 duration-300 ${
+            className={`px-4 py-3 rounded-lg text-sm font-bold border animate-in fade-in slide-in-from-top-2 duration-300 ${
               notification.type === "success"
                 ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
                 : "bg-red-500/15 text-red-400 border-red-500/30"
@@ -182,113 +204,115 @@ export default function UsersPage() {
         {/* Add/Edit Form Modal */}
         {showForm && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1100] flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-card rounded-2xl w-full max-w-md shadow-2xl border border-border flex flex-col">
-              <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-blue-600 rounded-t-2xl">
-                <h3 className="text-xs font-black uppercase tracking-wider text-white">
+            <div className="bg-card rounded-2xl w-full max-w-lg shadow-2xl border border-border flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-blue-600 rounded-t-2xl">
+                <h3 className="text-sm font-black uppercase tracking-wider text-white">
                   {editingIdx !== null ? "Edit User" : "Create New User"}
                 </h3>
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="text-white/80 hover:text-white text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
+                  className="text-white/80 hover:text-white text-lg font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
                 >
                   &times;
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
-                {/* Username */}
-                <div>
-                  <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    value={formUsername}
-                    onChange={(e) => setFormUsername(e.target.value)}
-                    className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-400"
-                    placeholder="e.g. john.doe"
-                    required
-                  />
-                </div>
+              <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Username */}
+                  <div>
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      value={formUsername}
+                      onChange={(e) => setFormUsername(e.target.value)}
+                      className="w-full bg-muted border border-border rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                      placeholder="e.g. john.doe"
+                      required
+                    />
+                  </div>
 
-                {/* Password */}
-                <div>
-                  <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
-                    Password
-                  </label>
-                  <input
-                    type="text"
-                    value={formPassword}
-                    onChange={(e) => setFormPassword(e.target.value)}
-                    className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-400"
-                    placeholder="Initial password"
-                    required
-                  />
+                  {/* Password */}
+                  <div>
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">
+                      Password
+                    </label>
+                    <input
+                      type="text"
+                      value={formPassword}
+                      onChange={(e) => setFormPassword(e.target.value)}
+                      className="w-full bg-muted border border-border rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                      placeholder="Initial password"
+                      required
+                    />
+                  </div>
                 </div>
 
                 {/* Full Name */}
                 <div>
-                  <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
+                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">
                     Full Name
                   </label>
                   <input
                     type="text"
                     value={formFullName}
                     onChange={(e) => setFormFullName(e.target.value)}
-                    className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-400"
+                    className="w-full bg-muted border border-border rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
                     placeholder="Full display name"
                     required
                   />
                 </div>
 
-                {/* Role */}
-                <div>
-                  <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
-                    User Role
-                  </label>
-                  <select
-                    value={formRole}
-                    onChange={(e) => setFormRole(e.target.value as UserRole)}
-                    className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-400"
-                  >
-                    {ALL_ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {r} - {ROLE_LABELS[r]}
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Role */}
+                  <div>
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">
+                      User Role
+                    </label>
+                    <select
+                      value={formRole}
+                      onChange={(e) => setFormRole(e.target.value as UserRole)}
+                      className="w-full bg-muted border border-border rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                    >
+                      {ALL_ROLES.map((r) => (
+                        <option key={r} value={r}>
+                          {r} - {ROLE_LABELS[r]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Default Project */}
+                  <div>
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">
+                      Default Project
+                    </label>
+                    <select
+                      value={formProject}
+                      onChange={(e) => setFormProject(e.target.value as ProjectKey)}
+                      className="w-full bg-muted border border-border rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                    >
+                      {ALL_PROJECTS.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                {/* Default Project */}
-                <div>
-                  <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
-                    Default Project
-                  </label>
-                  <select
-                    value={formProject}
-                    onChange={(e) => setFormProject(e.target.value as ProjectKey)}
-                    className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-400"
-                  >
-                    {ALL_PROJECTS.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
+                <div className="flex justify-end gap-3 pt-3 border-t border-border">
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border"
+                    className="px-5 py-2.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-xs uppercase tracking-wider transition-all border border-border"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] uppercase tracking-wider transition-all shadow-lg hover:shadow-blue-500/30"
+                    className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-wider transition-all shadow-lg hover:shadow-blue-500/30"
                   >
                     {editingIdx !== null ? "Update" : "Create"}
                   </button>
@@ -298,51 +322,71 @@ export default function UsersPage() {
           </div>
         )}
 
-        {/* Users Table */}
-        <div className="bg-card rounded-xl border border-border shadow-lg overflow-hidden">
+        {/* Users Table - large, easy to read */}
+        <div className="bg-card rounded-xl border border-border shadow-xl overflow-hidden">
+          <div className="px-5 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <h2 className="text-xs font-black text-white uppercase tracking-widest">
+                Active Users
+              </h2>
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-800 px-2.5 py-1 rounded-md">
+              {users.length} {users.length === 1 ? "user" : "users"}
+            </span>
+          </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full">
               <thead>
-                <tr className="bg-slate-900 text-white">
-                  <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest">#</th>
-                  <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest">Username</th>
-                  <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest">Full Name</th>
-                  <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest">Role</th>
-                  <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest">Default Project</th>
-                  <th className="px-4 py-3 text-[9px] font-black uppercase tracking-widest text-center">Actions</th>
+                <tr className="bg-slate-50 dark:bg-slate-900/50 border-b-2 border-border">
+                  <th className="px-5 py-3.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground w-12">#</th>
+                  <th className="px-5 py-3.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Username</th>
+                  <th className="px-5 py-3.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Full Name</th>
+                  <th className="px-5 py-3.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Role</th>
+                  <th className="px-5 py-3.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Project</th>
+                  <th className="px-5 py-3.5 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground w-40">Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-border">
                 {users.map((u, i) => (
                   <tr
                     key={u.username}
-                    className="border-b border-border hover:bg-muted/50 transition-colors"
+                    className="hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-colors group"
                   >
-                    <td className="px-4 py-2.5 text-xs font-bold text-muted-foreground">
+                    <td className="px-5 py-4 text-sm font-bold text-muted-foreground tabular-nums">
                       {i + 1}
                     </td>
-                    <td className="px-4 py-2.5 text-xs font-bold text-foreground">
-                      {u.username}
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold text-xs uppercase shrink-0">
+                          {u.username.charAt(0)}
+                        </div>
+                        <span className="text-sm font-bold text-foreground">{u.username}</span>
+                      </div>
                     </td>
-                    <td className="px-4 py-2.5 text-xs font-semibold text-foreground">
+                    <td className="px-5 py-4 text-sm font-semibold text-foreground">
                       {u.fullName}
                     </td>
-                    <td className="px-4 py-2.5">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border ${getRoleBadge(u.role)}`}
-                      >
-                        {u.role} - {ROLE_LABELS[u.role]}
+                    <td className="px-5 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider border ${getRoleBadge(u.role)}`}>
+                        {u.role} &middot; {ROLE_LABELS[u.role]}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-xs font-bold text-muted-foreground">
-                      {u.defaultProject || "-"}
+                    <td className="px-5 py-4">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                        u.defaultProject === "PCSB"
+                          ? "bg-blue-600/15 text-blue-500 border border-blue-500/30"
+                          : "bg-orange-500/15 text-orange-500 border border-orange-500/30"
+                      }`}>
+                        {u.defaultProject || "PCSB"}
+                      </span>
                     </td>
-                    <td className="px-4 py-2.5 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center justify-center gap-2">
                         <button
                           type="button"
                           onClick={() => handleEdit(i)}
-                          className="px-2 py-1 rounded-md bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-[9px] font-black uppercase tracking-wider border border-blue-400/30 transition-all"
+                          className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-sm hover:shadow-blue-500/20"
                         >
                           Edit
                         </button>
@@ -350,10 +394,10 @@ export default function UsersPage() {
                           type="button"
                           onClick={() => handleDelete(i)}
                           disabled={u.username === user?.username}
-                          className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider border transition-all ${
+                          className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${
                             u.username === user?.username
-                              ? "bg-slate-500/10 text-slate-500 border-slate-500/20 cursor-not-allowed"
-                              : "bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-400/30"
+                              ? "bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed"
+                              : "bg-red-600 hover:bg-red-500 text-white shadow-sm hover:shadow-red-500/20"
                           }`}
                         >
                           Delete
@@ -364,7 +408,7 @@ export default function UsersPage() {
                 ))}
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-xs text-muted-foreground">
+                    <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted-foreground">
                       No users found. Click "Add User" to create one.
                     </td>
                   </tr>
@@ -374,51 +418,76 @@ export default function UsersPage() {
           </div>
         </div>
 
-        {/* Permission Matrix Reference */}
-        <div className="bg-card rounded-xl border border-border shadow-lg overflow-hidden">
-          <div className="px-4 py-3 bg-slate-900 border-b border-border">
-            <h2 className="text-[10px] font-black text-white uppercase tracking-widest">
-              Role Permission Matrix (Reference)
-            </h2>
+        {/* CMS Access Matrix - from PERMISSION_MATRIX (mirrors Supabase cms_access_matrix) */}
+        <div className="bg-card rounded-xl border border-border shadow-xl overflow-hidden">
+          <div className="px-5 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+              </svg>
+              <h2 className="text-xs font-black text-white uppercase tracking-widest">
+                CMS Access Matrix
+              </h2>
+              <span className="text-[8px] font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded">
+                Source: Supabase / cms_access_matrix
+              </span>
+            </div>
+            <div className="flex items-center bg-slate-800 rounded-md border border-slate-700 p-0.5">
+              <button
+                type="button"
+                onClick={() => setMatrixProject("PCSB")}
+                className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all ${
+                  matrixProject === "PCSB"
+                    ? "bg-blue-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                PCSB
+              </button>
+              <button
+                type="button"
+                onClick={() => setMatrixProject("OTHERS")}
+                className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all ${
+                  matrixProject === "OTHERS"
+                    ? "bg-orange-500 text-white shadow-md"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                OTHERS
+              </button>
+            </div>
           </div>
-          <div className="overflow-x-auto p-4">
-            <table className="w-full text-left text-[9px]">
+          <div className="overflow-x-auto">
+            <table className="w-full">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="px-2 py-2 font-black uppercase tracking-widest text-muted-foreground">Role</th>
-                  <th className="px-2 py-2 font-black uppercase tracking-widest text-muted-foreground">Dashboard</th>
-                  <th className="px-2 py-2 font-black uppercase tracking-widest text-muted-foreground">Roster</th>
-                  <th className="px-2 py-2 font-black uppercase tracking-widest text-muted-foreground">Training</th>
-                  <th className="px-2 py-2 font-black uppercase tracking-widest text-muted-foreground">Staff</th>
-                  <th className="px-2 py-2 font-black uppercase tracking-widest text-muted-foreground">Statement</th>
-                  <th className="px-2 py-2 font-black uppercase tracking-widest text-muted-foreground">Financial</th>
-                  <th className="px-2 py-2 font-black uppercase tracking-widest text-muted-foreground">Data Mgr</th>
-                  <th className="px-2 py-2 font-black uppercase tracking-widest text-muted-foreground">User Mgmt</th>
+                <tr className="bg-slate-50 dark:bg-slate-900/50 border-b-2 border-border">
+                  <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground sticky left-0 bg-slate-50 dark:bg-slate-900/50 z-10 min-w-[180px]">
+                    Role
+                  </th>
+                  {PAGES.map((page) => (
+                    <th key={page} className="px-3 py-3 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground min-w-[80px]">
+                      {PAGE_LABELS[page]}
+                    </th>
+                  ))}
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-border">
                 {ALL_ROLES.map((role) => (
-                  <tr key={role} className="border-b border-border/50 hover:bg-muted/30">
-                    <td className="px-2 py-1.5 font-black text-foreground">
-                      {role} - {ROLE_LABELS[role]}
+                  <tr key={role} className="hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-colors">
+                    <td className="px-4 py-3 sticky left-0 bg-card z-10 border-r border-border">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${getRoleBadge(role)}`}>
+                        {role}
+                      </span>
+                      <span className="ml-2 text-xs font-semibold text-muted-foreground">
+                        {ROLE_LABELS[role]}
+                      </span>
                     </td>
-                    {["/dashboard", "/roster", "/training", "/staff", "/statement", "/financial", "/admin", "/users"].map((page) => {
-                      const pcsbPerm = (() => {
-                        const pm = { "/dashboard": "VIEW", "/roster": "VIEW", "/training": role === "L1" || role === "L2A" || role === "L4" ? "EDIT" : "VIEW", "/staff": role === "L1" || role === "L2A" || role === "L4" ? "EDIT" : "VIEW", "/statement": "VIEW", "/financial": "VIEW", "/admin": role === "L1" || role === "L2A" ? "EDIT" : "VIEW", "/users": role === "L1" ? "EDIT" : "NONE" } as Record<string, string>;
-                        return pm[page] || "NONE";
-                      })();
+                    {PAGES.map((page) => {
+                      const level = getPermission(page, matrixProject, role);
                       return (
-                        <td key={page} className="px-2 py-1.5 text-center">
-                          <span
-                            className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
-                              pcsbPerm === "EDIT"
-                                ? "bg-emerald-500/20 text-emerald-400"
-                                : pcsbPerm === "VIEW"
-                                ? "bg-blue-500/20 text-blue-400"
-                                : "bg-red-500/10 text-red-400"
-                            }`}
-                          >
-                            {pcsbPerm === "NONE" ? "-" : pcsbPerm}
+                        <td key={page} className="px-3 py-3 text-center">
+                          <span className={`inline-block px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-wider min-w-[42px] ${getPermBadge(level)}`}>
+                            {level === "NONE" ? "--" : level}
                           </span>
                         </td>
                       );
@@ -427,9 +496,20 @@ export default function UsersPage() {
                 ))}
               </tbody>
             </table>
-            <p className="text-[8px] text-muted-foreground mt-2 italic">
-              * Permissions may vary by selected project (PCSB vs OTHERS). This table shows PCSB defaults.
-            </p>
+          </div>
+          <div className="px-5 py-3 bg-slate-50 dark:bg-slate-900/30 border-t border-border flex items-center gap-5">
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-emerald-600" />
+              <span className="text-[10px] font-bold text-muted-foreground">EDIT</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-blue-600/80" />
+              <span className="text-[10px] font-bold text-muted-foreground">VIEW</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-slate-800" />
+              <span className="text-[10px] font-bold text-muted-foreground">NO ACCESS</span>
+            </div>
           </div>
         </div>
       </div>

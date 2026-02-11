@@ -129,20 +129,56 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex flex-col bg-muted text-foreground">
       <header className="bg-slate-950 border-b border-slate-800 sticky top-0 z-50 shadow-2xl">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <Link href="/dashboard" className="flex items-center group">
-              <div className="bg-white px-4 py-2 rounded-lg shadow-lg transform group-hover:scale-[1.02] transition-all">
-                <Image
-                  src="https://cptffqgvibhwjzvklual.supabase.co/storage/v1/object/public/branding/BOSH%20LOGO-trf.png"
-                  alt="Company Logo"
-                  width={160}
-                  height={40}
-                  className="h-8 w-auto"
-                  style={{ objectFit: 'contain' }}
-                  priority
-                />
+          <div className="flex items-center gap-4">
+            {/* Logo + Project Switcher group */}
+            <div className="flex items-center gap-3">
+              <Link href="/dashboard" className="flex items-center group">
+                <div className="bg-white px-4 py-2 rounded-lg shadow-lg transform group-hover:scale-[1.02] transition-all">
+                  <Image
+                    src="https://cptffqgvibhwjzvklual.supabase.co/storage/v1/object/public/branding/BOSH%20LOGO-trf.png"
+                    alt="Company Logo"
+                    width={160}
+                    height={40}
+                    className="h-8 w-auto"
+                    style={{ objectFit: 'contain' }}
+                    priority
+                  />
+                </div>
+              </Link>
+
+              {/* Project Switcher - directly after logo */}
+              <div className="hidden lg:flex flex-col items-start gap-0.5">
+                <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest leading-none">Project</span>
+                <div className="flex items-center bg-slate-800/80 rounded-md border border-slate-700/60 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => handleProjectSwitch("PCSB")}
+                    className={cn(
+                      "px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all duration-200",
+                      selectedProject === "PCSB"
+                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
+                        : "text-slate-500 hover:text-white hover:bg-slate-700/50"
+                    )}
+                  >
+                    PCSB
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleProjectSwitch("OTHERS")}
+                    className={cn(
+                      "px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider transition-all duration-200",
+                      selectedProject === "OTHERS"
+                        ? "bg-orange-500 text-white shadow-md shadow-orange-500/30"
+                        : "text-slate-500 hover:text-white hover:bg-slate-700/50"
+                    )}
+                  >
+                    OTHERS
+                  </button>
+                </div>
               </div>
-            </Link>
+            </div>
+
+            <div className="hidden lg:block w-px h-8 bg-slate-800" />
 
             <nav className="hidden lg:flex items-center gap-1">
               {navItems.map((item) => (
@@ -177,36 +213,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
 
           <div className="hidden lg:flex items-center gap-3">
-            {/* Project Switcher */}
-            <div className="flex items-center bg-slate-800/60 rounded-lg border border-slate-700/50 p-0.5">
-              <button
-                type="button"
-                onClick={() => handleProjectSwitch("PCSB")}
-                className={cn(
-                  "px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all duration-200",
-                  selectedProject === "PCSB"
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
-                    : "text-slate-400 hover:text-white hover:bg-slate-700/50"
-                )}
-              >
-                PCSB
-              </button>
-              <button
-                type="button"
-                onClick={() => handleProjectSwitch("OTHERS")}
-                className={cn(
-                  "px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all duration-200",
-                  selectedProject === "OTHERS"
-                    ? "bg-orange-500 text-white shadow-lg shadow-orange-500/30"
-                    : "text-slate-400 hover:text-white hover:bg-slate-700/50"
-                )}
-              >
-                OTHERS
-              </button>
-            </div>
-
-            <div className="w-px h-6 bg-slate-700" />
-
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
