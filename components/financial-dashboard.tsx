@@ -586,7 +586,7 @@ export default function FinancialDashboardPage() {
                       const curYear = now.getFullYear();
                       const curMonth = now.getMonth() + 1;
                       const opts: { value: string; label: string }[] = [];
-                      for (let y = curYear; y <= 2027; y++) { const startM = y === curYear ? curMonth : 1; for (let m = startM; m <= 12; m++) { const val = `${y}-${String(m).padStart(2, "0")}`; opts.push({ value: val, label: `${MONTH_NAMES[m - 1]} ${y}` }); } }
+                      for (let y = curYear; y <= 2026; y++) { const startM = y === curYear ? curMonth : 1; for (let m = startM; m <= 12; m++) { const val = `${y}-${String(m).padStart(2, "0")}`; opts.push({ value: val, label: `${MONTH_NAMES[m - 1]} ${y}` }); } }
                       return opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>);
                     })()}
                   </select>
