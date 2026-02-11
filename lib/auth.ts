@@ -169,16 +169,17 @@ export function saveUsers(users: StoredUser[]): void {
 
 // Merge Supabase cms_users into local store
 // Supabase users are added, but L1 admin from DEFAULT_USERS is always protected
-export function mergeSupabaseUsers(supabaseUsers: { username: string; password: string; full_name: string; role: string; default_project: string }[]): StoredUser[] {
+// Actual columns: username, password_manual, full_name, user_level, assigned_project
+export function mergeSupabaseUsers(supabaseUsers: { username: string; password_manual: string; full_name: string; user_level: string; assigned_project: string }[]): StoredUser[] {
   if (supabaseUsers.length === 0) return getAllUsers();
 
-  // Convert Supabase format to StoredUser format
+  // Convert Supabase column names to StoredUser format
   const sbUsers: StoredUser[] = supabaseUsers.map(u => ({
     username: u.username.toLowerCase(),
-    password: u.password,
+    password: u.password_manual,
     fullName: u.full_name,
-    role: u.role as UserRole,
-    defaultProject: (u.default_project || "PCSB") as ProjectKey,
+    role: u.user_level as UserRole,
+    defaultProject: (u.assigned_project || "PCSB") as ProjectKey,
   }));
 
   // Start with DEFAULT_USERS as base, then overlay Supabase users
