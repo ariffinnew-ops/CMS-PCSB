@@ -484,16 +484,19 @@ export default function RosterPage() {
                               }`}
                               style={{ height: '28px' }}
                             >
-                              <div className="absolute inset-y-0 right-0 w-px bg-gray-300 z-0" />
+                              {/* Only show grid line if no active bar spanning this edge */}
+                              {(status === "OFF" || !toNext) && (
+                                <div className="absolute inset-y-0 right-0 w-px bg-gray-300 z-0" />
+                              )}
                               
                               {status !== "OFF" && (
                                 <div
-                                  className={`absolute z-10 gantt-bar ${roundedLeft} ${roundedRight} ${barClass} flex items-center justify-center`}
+                                  className={`absolute z-20 gantt-bar ${roundedLeft} ${roundedRight} ${barClass} flex items-center justify-center`}
                                   style={{
                                     top: '4px',
                                     bottom: '4px',
-                                    left: fromPrev ? 0 : 0,
-                                    right: toNext ? 0 : 0,
+                                    left: 0,
+                                    right: 0,
                                   }}
                                 >
                                   {barLabel && (
