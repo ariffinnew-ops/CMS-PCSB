@@ -4,8 +4,8 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { login, isAuthenticated } from "@/lib/auth";
-import { recordLoginLog } from "@/lib/actions";
+import { login, isAuthenticated, mergeSupabaseUsers } from "@/lib/auth";
+import { recordLoginLog, getSupabaseUsers } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,7 +25,12 @@ export default function LoginPage() {
     setMounted(true);
     if (isAuthenticated()) {
       router.push("/dashboard");
+      return;
     }
+    // Pre-fetch Supabase users so all cms_users can login
+    getSupabaseUsers().then(sbUsers => {
+      if (sbUsers.length > 0) mergeSupabaseUsers(sbUsers);
+    }).catch(() => { /* Supabase unavailable, local users still work */ });
   }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,7 +38,13 @@ export default function LoginPage() {
     setIsLoading(true);
     setNotification(null);
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // Ensure latest Supabase users are synced before login attempt
+    try {
+      const sbUsers = await getSupabaseUsers();
+      if (sbUsers.length > 0) mergeSupabaseUsers(sbUsers);
+    } catch { /* fallback to local */ }
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
     const user = login(username, password);
 
