@@ -39,6 +39,7 @@ export default function AdminPage() {
     day_standby: number | null;
     is_offshore: boolean | null;
     medevac_dates: string[];
+    al_dates: string[];
   } | null>(null);
   const [hoveredNote, setHoveredNote] = useState<{
     text: string;
@@ -270,6 +271,7 @@ export default function AdminPage() {
             day_standby: null,
             is_offshore: null,
             medevac_dates: null,
+            al_dates: null,
           };
           return { ...row, cycles: newCycles };
         }));
@@ -299,6 +301,7 @@ export default function AdminPage() {
         day_standby: activeNote.day_standby,
         is_offshore: activeNote.is_offshore,
         medevac_dates: activeNote.medevac_dates.filter(Boolean).length > 0 ? activeNote.medevac_dates.filter(Boolean) : null,
+        al_dates: activeNote.al_dates.filter(Boolean).length > 0 ? activeNote.al_dates.filter(Boolean) : null,
       };
 
       if (activeNote.cycleRowId) {
@@ -850,8 +853,9 @@ export default function AdminPage() {
                                             day_relief: cycle?.day_relief ?? null,
                                             day_standby: cycle?.day_standby ?? null,
                                             is_offshore: cycle?.is_offshore ?? true,
-                                            medevac_dates: cycle?.medevac_dates ?? [],
-                                          })
+                            medevac_dates: cycle?.medevac_dates ?? [],
+                            al_dates: cycle?.al_dates ?? [],
+                          })
                                         }
                                         className={`text-[12px] hover:scale-125 transition-all p-1.5 rounded-lg border shadow-sm ${
                                           hasNote
@@ -1052,6 +1056,7 @@ export default function AdminPage() {
         {activeNote && (() => {
           const isOM = (activeNote.post || "").toUpperCase().includes("OFFSHORE MEDIC");
           const isEM = (activeNote.post || "").toUpperCase().includes("ESCORT MEDIC");
+          const isOHN = (activeNote.post || "").toUpperCase().includes("OHN");
           return (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-card rounded-2xl w-full max-w-md shadow-2xl border border-border flex flex-col max-h-[85vh]">
@@ -1138,7 +1143,8 @@ export default function AdminPage() {
                   )}
                 </div>
 
-                {/* Field B2: Standby Allowance - all crew */}
+                {/* Field B2: Standby Allowance - hidden for OHN */}
+                {!isOHN && (
                 <div>
                   <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">
                     Standby Allowance
@@ -1175,6 +1181,57 @@ export default function AdminPage() {
                     </p>
                   )}
                 </div>
+                )}
+
+                {/* Field AL: Annual Leave Dates - only for OHN */}
+                {isOHN && (
+                  <div>
+                    <label className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">
+                      Annual Leave Dates ({activeNote.al_dates.length}/4)
+                    </label>
+                    <div className="space-y-2">
+                      {activeNote.al_dates.map((dateVal, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="text-[8px] font-bold text-muted-foreground w-4 shrink-0">{idx + 1}.</span>
+                          <input
+                            type="date"
+                            value={dateVal}
+                            onChange={(e) => {
+                              const newDates = [...activeNote.al_dates];
+                              newDates[idx] = e.target.value;
+                              setActiveNote({ ...activeNote, al_dates: newDates });
+                            }}
+                            className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-yellow-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newDates = activeNote.al_dates.filter((_, i) => i !== idx);
+                              setActiveNote({ ...activeNote, al_dates: newDates });
+                            }}
+                            className="w-6 h-6 flex items-center justify-center rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-red-400 text-sm font-bold transition-colors shrink-0"
+                            title="Remove date"
+                          >
+                            &times;
+                          </button>
+                        </div>
+                      ))}
+                      {activeNote.al_dates.length < 4 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveNote({ ...activeNote, al_dates: [...activeNote.al_dates, ""] });
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-600 font-bold text-[10px] uppercase tracking-wider transition-colors border border-yellow-500/20"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                          Add AL Date
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[8px] text-muted-foreground mt-1.5">Up to 4 annual leave dates.</p>
+                  </div>
+                )}
 
                 {/* Field C: Medevac Case - only for ESCORT MEDIC */}
                 {isEM && (

@@ -196,6 +196,13 @@ export default function RosterPage() {
     return row.roles_em === "SECONDARY" || /\(S\d*\)/.test(name) || /\(R\d*\)/.test(name);
   };
 
+  // Format a day as YYYY-MM-DD for date comparison
+  const formatDayAsISO = (day: number) => {
+    const y = viewDate.getFullYear();
+    const m = viewDate.getMonth() + 1;
+    return `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  };
+
   // Sign-off date excluded from POB/days count
   const getDayStatus = (row: PivotedCrewRow, day: number) => {
     const checkDate = new Date(
@@ -206,10 +213,27 @@ export default function RosterPage() {
     );
     const checkTime = checkDate.getTime();
     const dayOfWeek = checkDate.getDay();
+    const dayISO = formatDayAsISO(day);
 
+    // OHN / IM: check for Annual Leave dates first
     if (row.post?.includes("IM") || row.post?.includes("OHN")) {
+      // Check al_dates across all cycles
+      for (const cycle of Object.values(row.cycles)) {
+        if (cycle.al_dates && cycle.al_dates.some((d) => d === dayISO)) {
+          return "AL";
+        }
+      }
       if (dayOfWeek === 0 || dayOfWeek === 6) return "OHN_WEEKEND";
       return "OHN_WEEKDAY";
+    }
+
+    // EM: check medevac dates
+    if (row.post?.includes("ESCORT MEDIC")) {
+      for (const cycle of Object.values(row.cycles)) {
+        if (cycle.medevac_dates && cycle.medevac_dates.some((d) => d === dayISO)) {
+          return "MEDEVAC";
+        }
+      }
     }
 
     for (const cycle of Object.values(row.cycles)) {
@@ -226,7 +250,8 @@ export default function RosterPage() {
 
   const getConnectStatus = (row: PivotedCrewRow, day: number) => {
     const status = getDayStatus(row, day);
-    if (status === "OHN_WEEKDAY" || status === "OHN_WEEKEND") return "OHN";
+    if (status === "OHN_WEEKDAY" || status === "OHN_WEEKEND" || status === "AL") return "OHN";
+    if (status === "MEDEVAC") return "ACTIVE";
     return status;
   };
 
@@ -441,7 +466,10 @@ export default function RosterPage() {
                           const fromPrev = connectsFromPrev(row, d.dayNum);
 
                           let barClass = "";
-                          if (status === "PRIMARY" || status === "OHN_WEEKDAY") barClass = "bg-blue-500";
+                          let barLabel = "";
+                          if (status === "AL") { barClass = "bg-yellow-400"; barLabel = "AL"; }
+                          else if (status === "MEDEVAC") { barClass = "bg-red-500"; barLabel = "MV"; }
+                          else if (status === "PRIMARY" || status === "OHN_WEEKDAY") barClass = "bg-blue-500";
                           else if (status === "SECONDARY") barClass = "bg-sky-300";
                           else if (status === "OHN_WEEKEND") barClass = "bg-slate-400";
 
@@ -460,14 +488,20 @@ export default function RosterPage() {
                               
                               {status !== "OFF" && (
                                 <div
-                                  className={`absolute z-10 gantt-bar ${roundedLeft} ${roundedRight} ${barClass}`}
+                                  className={`absolute z-10 gantt-bar ${roundedLeft} ${roundedRight} ${barClass} flex items-center justify-center`}
                                   style={{
                                     top: '4px',
                                     bottom: '4px',
                                     left: fromPrev ? 0 : 0,
                                     right: toNext ? 0 : 0,
                                   }}
-                                />
+                                >
+                                  {barLabel && (
+                                    <span className={`text-[7px] font-black leading-none ${status === "AL" ? "text-black" : "text-white"}`}>
+                                      {barLabel}
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </td>
                           );
@@ -498,6 +532,22 @@ export default function RosterPage() {
             <div className="w-5 h-3 bg-slate-400 rounded-sm" />
             <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">
               OHN Weekend
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-3 bg-yellow-400 rounded-sm flex items-center justify-center">
+              <span className="text-[6px] font-black text-black leading-none">AL</span>
+            </div>
+            <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">
+              Annual Leave (OHN)
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-3 bg-red-500 rounded-sm flex items-center justify-center">
+              <span className="text-[6px] font-black text-white leading-none">MV</span>
+            </div>
+            <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider">
+              Medevac (EM)
             </span>
           </div>
         </div>
