@@ -618,7 +618,8 @@ export default function StaffDetailPage() {
   }
 
   const d = detail;
-  const statusVal = String(d?.status || "Active");
+  const isResigned = d?.resign_date != null && String(d.resign_date).trim() !== "";
+  const statusVal = isResigned ? "Resigned" : String(d?.status || "Active");
   const statusColor = statusVal === "Resigned" ? "bg-red-100 text-red-700 border-red-200" : statusVal === "On Notice" ? "bg-amber-100 text-amber-700 border-amber-200" : "bg-emerald-100 text-emerald-700 border-emerald-200";
 
   return (
@@ -653,7 +654,7 @@ export default function StaffDetailPage() {
               <div className="flex items-center gap-3 px-4 pt-3 pb-2 shrink-0">
                 {/* Avatar (left, bigger) */}
                 <div className="relative group shrink-0">
-                  <div className="w-20 h-20 rounded-full bg-slate-200 flex items-center justify-center shadow-md border-2 border-slate-300 overflow-hidden">
+                  <div className="w-24 h-24 rounded-full bg-slate-200 flex items-center justify-center shadow-md border-2 border-slate-300 overflow-hidden">
                     {uploading ? (
                       <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
                     ) : d.avatar_url ? (
@@ -701,7 +702,14 @@ export default function StaffDetailPage() {
                 {/* Contract Status - single line, left aligned */}
                 <div>
                   <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Contract Status</p>
-                  {d.exp_date ? (
+                  {isResigned ? (
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs font-semibold text-foreground">{fmtDate(String(d.resign_date))}</span>
+                      <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-red-100 text-red-600 border border-red-200">
+                        Resigned
+                      </span>
+                    </div>
+                  ) : d.exp_date ? (
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-xs font-semibold text-foreground">{fmtDate(String(d.exp_date))}</span>
                       {expDays !== null && expDays >= 0 ? (
