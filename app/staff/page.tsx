@@ -571,7 +571,7 @@ export default function StaffDetailPage() {
     }
   };
 
-  // Profile picture upload
+  // Profile picture upload to Supabase Storage bucket "profile_pic"
   const handleProfilePicUpload = async (file: File) => {
     if (!selectedId || !file) return;
     if (file.size > 2 * 1024 * 1024) { alert("Max 2MB for profile picture"); return; }
@@ -579,19 +579,24 @@ export default function StaffDetailPage() {
     if (!["jpg", "jpeg", "png"].includes(ext || "")) { alert("Only JPG/PNG"); return; }
     setUploading(true);
     const supabase = createClient();
-    const path = `profiles/${selectedId}.${ext}`;
-    // Upsert: overwrite if exists
-    const { error } = await supabase.storage.from("pcsb-doc").upload(path, file, { upsert: true });
-    setUploading(false);
-    if (error) alert(error.message);
-    else {
-      // Get public URL and store in detail
-      const { data: urlData } = supabase.storage.from("pcsb-doc").getPublicUrl(path);
-      if (urlData?.publicUrl) {
-        await updateCrewDetail(selectedId, { profile_pic: urlData.publicUrl });
-        setDetail((prev) => prev ? { ...prev, profile_pic: urlData.publicUrl } : prev);
+    const timestamp = Date.now();
+    const path = `crew_photos/${selectedId}_${timestamp}.png`;
+    const { error } = await supabase.storage.from("profile_pic").upload(path, file, { upsert: true });
+    if (error) {
+      console.error("[Approval] avatar upload error:", error.message);
+      alert("Upload failed: " + error.message);
+      setUploading(false);
+      return;
+    }
+    // Get public URL and save to avatar_url column
+    const { data: urlData } = supabase.storage.from("profile_pic").getPublicUrl(path);
+    if (urlData?.publicUrl) {
+      const res = await updateCrewDetail(selectedId, { avatar_url: urlData.publicUrl });
+      if (res.success) {
+        setDetail((prev) => prev ? { ...prev, avatar_url: urlData.publicUrl } : prev);
       }
     }
+    setUploading(false);
   };
 
   // Add staff
@@ -649,15 +654,17 @@ export default function StaffDetailPage() {
                 {/* Avatar (left, bigger) */}
                 <div className="relative group shrink-0">
                   <div className="w-20 h-20 rounded-full bg-slate-200 flex items-center justify-center shadow-md border-2 border-slate-300 overflow-hidden">
-                    {d.profile_pic ? (
-                      <img src={String(d.profile_pic)} alt="Profile" className="w-full h-full object-cover" />
+                    {uploading ? (
+                      <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
+                    ) : d.avatar_url ? (
+                      <img src={String(d.avatar_url)} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
                       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="text-slate-400">
                         <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v2h20v-2c0-3.33-6.67-5-10-5z" fill="currentColor" />
                       </svg>
                     )}
                   </div>
-                  {isL1L2 && (
+                  {isL1L2 && !uploading && (
                     <label className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-white">
                         <path d="M12 16a4 4 0 100-8 4 4 0 000 8z" fill="currentColor" />
