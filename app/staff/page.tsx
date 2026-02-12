@@ -621,7 +621,7 @@ export default function StaffDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[30%_1fr] gap-3 h-[calc(100vh-120px)] animate-in fade-in duration-500">
 
         {/* ═══ SECTION A: PROFILE SIDEBAR (30%) ═══ */}
-        <div className="bg-background border border-border rounded-xl overflow-y-auto flex flex-col h-full">
+        <div className="bg-background border border-border rounded-xl overflow-hidden flex flex-col h-full">
 
           {/* Staff Dropdown (A-Z from cms_pcsb_master) */}
           <div className="p-3 border-b border-border">
@@ -645,10 +645,10 @@ export default function StaffDetailPage() {
           {d && (
             <>
               {/* Avatar + Status */}
-              <div className="flex flex-col items-center pt-3 pb-2 px-4 shrink-0">
+              <div className="flex flex-col items-center pt-2 pb-1 px-4 shrink-0">
                 {/* Profile avatar with hover upload */}
                 <div className="relative group">
-                  <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center shadow-md border-2 border-slate-300 overflow-hidden">
+                  <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center shadow-md border-2 border-slate-300 overflow-hidden">
                     {d.profile_pic ? (
                       <img src={String(d.profile_pic)} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
@@ -673,21 +673,21 @@ export default function StaffDetailPage() {
                     </label>
                   )}
                 </div>
-                <span className={`mt-2.5 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${statusColor}`}>
+                <span className={`mt-1.5 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${statusColor}`}>
                   {statusVal}
                 </span>
               </div>
 
               {/* Name & Trade */}
-              <div className="px-4 pb-2 text-center">
-                <h3 className="text-base font-black text-foreground uppercase leading-tight">{String(d.crew_name || "-")}</h3>
-                <p className="text-sm font-bold text-blue-600 mt-0.5">{String(d.post || "-")}</p>
+              <div className="px-4 pb-1 text-center">
+                <h3 className="text-sm font-black text-foreground uppercase leading-tight">{String(d.crew_name || "-")}</h3>
+                <p className="text-xs font-bold text-blue-600 mt-0.5">{String(d.post || "-")}</p>
               </div>
 
               <div className="border-t border-border mx-4" />
 
               {/* Compact Core Info */}
-              <div className="px-4 py-2 space-y-2 shrink-0">
+              <div className="px-4 py-1 space-y-1 shrink-0">
                 <div className="text-center">
                   <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Assignment / Location</p>
                   <p className="text-sm font-semibold text-foreground">{String(d.client || "-")} / {String(d.location || "-")}</p>
@@ -697,10 +697,10 @@ export default function StaffDetailPage() {
                 <div className="text-center">
                   <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Contract Status</p>
                   {d.exp_date ? (
-                    <div className="mt-1">
+                    <div className="mt-0.5">
                       <p className="text-xs font-semibold text-foreground">{fmtDate(String(d.exp_date))}</p>
                       {expDays !== null && expDays >= 0 ? (
-                        <div className={`mt-1 px-2.5 py-1 rounded-md inline-block ${
+                        <div className={`mt-0.5 px-2.5 py-0.5 rounded-md inline-block ${
                           expDays < 90 ? "bg-red-100 border border-red-200" : expDays < 180 ? "bg-amber-100 border border-amber-200" : "bg-emerald-100 border border-emerald-200"
                         }`}>
                           <span className={`text-[10px] font-black uppercase ${
@@ -710,7 +710,7 @@ export default function StaffDetailPage() {
                           </span>
                         </div>
                       ) : expDays !== null && expDays < 0 ? (
-                        <div className="mt-1 px-2.5 py-1 bg-red-100 border border-red-200 rounded-md inline-block">
+                        <div className="mt-0.5 px-2.5 py-0.5 bg-red-100 border border-red-200 rounded-md inline-block">
                           <span className="text-[10px] font-black text-red-600 uppercase">Expired ({Math.abs(expDays)} days ago)</span>
                         </div>
                       ) : null}
@@ -735,7 +735,7 @@ export default function StaffDetailPage() {
               </div>
 
               {/* Action Buttons */}
-              <div className="p-2 border-t border-border space-y-1.5 shrink-0 mt-auto">
+              <div className="px-2 py-1.5 border-t border-border space-y-1 shrink-0 mt-auto">
                 <button
                   type="button"
                   onClick={() => setShowDetailOverlay(true)}
