@@ -33,7 +33,7 @@ const allNavItems: NavItem[] = [
   { id: "staff", label: "Staff Detail", href: "/staff", roles: ["L1","L2A","L2B","L4","L5A","L5B"] },
   { id: "statement", label: "Statement", href: "/statement", roles: ["L1","L2A","L2B","L4","L5A","L5B","L6","L7"] },
   { id: "financial", label: "Financial", href: "/financial", roles: ["L1","L2A","L2B","L4","L5A","L5B","L6","L7"] },
-  { id: "admin", label: "Data Manager", href: "/admin", roles: ["L1","L2A","L2B","L4","L5A","L5B"] },
+  { id: "admin", label: "Data Manager", href: "/admin", roles: ["L1","L2A","L2B"] },
   { id: "users", label: "User Mgmt", href: "/users", roles: ["L1"] },
 ];
 

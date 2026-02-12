@@ -8,6 +8,7 @@ import { PivotedCrewRow, TradeType } from "@/lib/types";
 import { getPivotedRosterData, updateRosterRow, createRosterRow, deleteRosterRow, deleteCrewFromRoster, deleteCrewByName, getCrewList } from "@/lib/actions";
 import { safeParseDate, getTradeRank, shortenPost, formatDate, getFullTradeName } from "@/lib/logic";
 import { getClients, getPostsForClient, getLocationsForClientPost } from "@/lib/client-location-map";
+import { getUser } from "@/lib/auth";
 
 interface CrewListItem { id: string; crew_name: string; clean_name: string; post: string; client: string; location: string; status?: string }
 
@@ -21,6 +22,10 @@ export default function AdminPage() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [scrollPos, setScrollPos] = useState(0);
   const [maxScroll, setMaxScroll] = useState(0);
+
+  // Disable add/remove for L2A and L2B
+  const currentUser = getUser();
+  const canAddRemove = currentUser?.role !== "L2A" && currentUser?.role !== "L2B";
 
   const [notification, setNotification] = useState<{
     message: string;
@@ -703,6 +708,7 @@ export default function AdminPage() {
                                   {row.location} / {row.client}
                                 </span>
                               </div>
+                              {canAddRemove && (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -718,6 +724,7 @@ export default function AdminPage() {
                               >
                                 +
                               </button>
+                              )}
                             </div>
                           </td>
                           <td className="bg-gray-200 dark:bg-gray-700 py-1 w-full" />
@@ -729,14 +736,16 @@ export default function AdminPage() {
                             <span className="font-black text-foreground text-[11px] uppercase leading-tight block tracking-tight whitespace-normal break-words flex-1 cursor-default">
                               {getDisplayName(row)}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteModal({ crewId: row.crew_id, name: row.crew_name })}
-                              className="flex items-center justify-center w-5 h-5 bg-red-500 hover:bg-red-400 text-white rounded-full text-[14px] font-black transition-all shadow-md hover:shadow-red-500/40 hover:scale-110 flex-shrink-0 opacity-0 group-hover/name:opacity-100"
-                              title="Delete Row"
-                            >
-                              -
-                            </button>
+  {canAddRemove && (
+  <button
+  type="button"
+  onClick={() => setDeleteModal({ crewId: row.crew_id, name: row.crew_name })}
+  className="flex items-center justify-center w-5 h-5 bg-red-500 hover:bg-red-400 text-white rounded-full text-[14px] font-black transition-all shadow-md hover:shadow-red-500/40 hover:scale-110 flex-shrink-0 opacity-0 group-hover/name:opacity-100"
+  title="Delete Row"
+  >
+  -
+  </button>
+  )}
                           </div>
                         </td>
                         <td className="px-6 py-1 whitespace-nowrap">
