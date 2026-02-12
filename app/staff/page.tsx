@@ -644,10 +644,18 @@ export default function StaffDetailPage() {
 
           {d && (
             <>
-              {/* Avatar + Status */}
-              <div className="flex flex-col items-center pt-2 pb-1 px-4 shrink-0">
-                {/* Profile avatar with hover upload */}
-                <div className="relative group">
+              {/* Name + Avatar Row */}
+              <div className="flex items-center gap-3 pt-2 pb-1 px-4 shrink-0">
+                {/* Name & Trade (left) */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-black text-foreground uppercase leading-tight truncate">{String(d.crew_name || "-")}</h3>
+                  <p className="text-xs font-bold text-blue-600 mt-0.5 truncate">{String(d.post || "-")}</p>
+                  <span className={`mt-1 inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${statusColor}`}>
+                    {statusVal}
+                  </span>
+                </div>
+                {/* Avatar (right) */}
+                <div className="relative group shrink-0">
                   <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center shadow-md border-2 border-slate-300 overflow-hidden">
                     {d.profile_pic ? (
                       <img src={String(d.profile_pic)} alt="Profile" className="w-full h-full object-cover" />
@@ -657,7 +665,6 @@ export default function StaffDetailPage() {
                       </svg>
                     )}
                   </div>
-                  {/* Hover overlay for L1/L2 */}
                   {isL1L2 && (
                     <label className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-white">
@@ -673,15 +680,6 @@ export default function StaffDetailPage() {
                     </label>
                   )}
                 </div>
-                <span className={`mt-1.5 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${statusColor}`}>
-                  {statusVal}
-                </span>
-              </div>
-
-              {/* Name & Trade */}
-              <div className="px-4 pb-1 text-center">
-                <h3 className="text-sm font-black text-foreground uppercase leading-tight">{String(d.crew_name || "-")}</h3>
-                <p className="text-xs font-bold text-blue-600 mt-0.5">{String(d.post || "-")}</p>
               </div>
 
               <div className="border-t border-border mx-4" />
