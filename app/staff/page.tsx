@@ -621,7 +621,7 @@ export default function StaffDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[30%_1fr] gap-3 h-[calc(100vh-120px)] animate-in fade-in duration-500">
 
         {/* ═══ SECTION A: PROFILE SIDEBAR (30%) ═══ */}
-        <div className="bg-background border border-border rounded-xl overflow-hidden flex flex-col h-full">
+        <div className="bg-background border border-border rounded-xl overflow-y-auto flex flex-col h-full">
 
           {/* Staff Dropdown (A-Z from cms_pcsb_master) */}
           <div className="p-3 border-b border-border">
