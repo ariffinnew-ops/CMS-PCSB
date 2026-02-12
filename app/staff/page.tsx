@@ -644,15 +644,23 @@ export default function StaffDetailPage() {
 
           {d && (
             <>
-              {/* Avatar + Name Row */}
-              <div className="flex items-center gap-3 pt-3 pb-1 px-4 shrink-0">
-                {/* Avatar (left) */}
+              {/* Name + Avatar Row */}
+              <div className="flex items-center gap-3 pt-2 pb-1 px-4 shrink-0">
+                {/* Name & Trade (left) */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-black text-foreground uppercase leading-tight truncate">{String(d.crew_name || "-")}</h3>
+                  <p className="text-xs font-bold text-blue-600 mt-0.5 truncate">{String(d.post || "-")}</p>
+                  <span className={`mt-1 inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${statusColor}`}>
+                    {statusVal}
+                  </span>
+                </div>
+                {/* Avatar (right) */}
                 <div className="relative group shrink-0">
-                  <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center shadow-md border-2 border-slate-300 overflow-hidden">
+                  <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center shadow-md border-2 border-slate-300 overflow-hidden">
                     {d.profile_pic ? (
                       <img src={String(d.profile_pic)} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" className="text-slate-400">
+                      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" className="text-slate-400">
                         <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v2h20v-2c0-3.33-6.67-5-10-5z" fill="currentColor" />
                       </svg>
                     )}
@@ -671,14 +679,6 @@ export default function StaffDetailPage() {
                       />
                     </label>
                   )}
-                </div>
-                {/* Name & Trade (right) */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-black text-foreground uppercase leading-tight truncate">{String(d.crew_name || "-")}</h3>
-                  <p className="text-xs font-bold text-blue-600 mt-0.5 truncate">{String(d.post || "-")}</p>
-                  <span className={`mt-1 inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${statusColor}`}>
-                    {statusVal}
-                  </span>
                 </div>
               </div>
 
@@ -719,13 +719,13 @@ export default function StaffDetailPage() {
                 </div>
 
                 {d.phone && (
-                  <div className="text-center">
+                  <div>
                     <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Phone</p>
                     <p className="text-xs font-semibold text-foreground">{String(d.phone)}</p>
                   </div>
                 )}
                 {d.email1 && (
-                  <div className="text-center">
+                  <div>
                     <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Email</p>
                     <p className="text-xs font-semibold text-foreground break-all">{String(d.email1)}</p>
                   </div>
