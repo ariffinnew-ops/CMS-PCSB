@@ -508,6 +508,7 @@ export default function StaffDetailPage() {
     getCrewList(project).then((res) => {
       console.log("[v0] Staff page crew list result:", res.success, "rows:", res.data?.length, "project:", project);
       if (res.success && res.data) {
+        console.log("[v0] First 3 crew names:", res.data.slice(0, 3).map(c => c.crew_name));
         setCrewList(res.data);
         if (res.data.length > 0) setSelectedId(res.data[0].id);
       }
