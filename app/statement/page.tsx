@@ -72,7 +72,7 @@ export default function StatementPage() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([getPivotedRosterData(project), getCrewMasterData(), getCrewList(project)]).then(([pivotedData, master, crewResult]) => {
+    Promise.all([getPivotedRosterData(project), getCrewMasterData(project), getCrewList(project)]).then(([pivotedData, master, crewResult]) => {
       setData(pivotedData);
       setMasterData(master);
       if (crewResult.success && crewResult.data) setCrewList(crewResult.data);

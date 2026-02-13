@@ -349,24 +349,12 @@ export interface CrewMasterRecord {
   offshore_rate: number;
 }
 
-export async function getCrewMasterData(): Promise<CrewMasterRecord[]> {
+export async function getCrewMasterData(project?: string): Promise<CrewMasterRecord[]> {
   const supabase = await createClient()
 
-  // Try with basic & fixed_all columns first; fall back without them if columns don't exist yet
-  let { data, error } = await supabase
-    .from(MASTER_TABLE)
-    .select('id, crew_name, post, client, location, basic, fixed_all, offshore_rate, project')
-    .order('crew_name', { ascending: true })
-
-  if (error?.code === '42703') {
-    // Column doesn't exist yet -- fall back to base columns
-    const fallback = await supabase
-      .from(MASTER_TABLE)
-      .select('id, crew_name, post, client, location, project')
-      .order('crew_name', { ascending: true })
-    data = fallback.data
-    error = fallback.error
-  }
+  let q = supabase.from(MASTER_TABLE).select('*');
+  if (project) q = q.eq('project', project);
+  const { data, error } = await q.order('crew_name', { ascending: true })
 
   if (error) {
     console.error('Error fetching crew master data:', error)
@@ -521,31 +509,26 @@ function rosterTable(project?: string): string {
 export async function getCrewList(project?: string): Promise<{ success: boolean; data?: { id: string; crew_name: string; clean_name: string; post: string; client: string; location: string; status?: string }[]; error?: string }> {
   const supabase = await createClient()
 
-  // Try full select first
-  let q = supabase.from(MASTER_TABLE).select('id, crew_name, clean_name, post, client, location, status');
+  // Use select('*') to avoid column-not-found errors, then map to expected shape
+  let q = supabase.from(MASTER_TABLE).select('*');
   if (project) q = q.eq('project', project);
   const { data, error } = await q.order('crew_name', { ascending: true })
 
-  if (!error) {
-    return { success: true, data: data || [] }
+  if (error) {
+    console.error('Error fetching crew list:', error)
+    return { success: false, error: error.message }
   }
 
-  // If column doesn't exist (42703), fall back to minimal columns
-  if (error.code === '42703') {
-    console.log('[v0] getCrewList fallback: missing column, trying minimal select')
-    let q2 = supabase.from(MASTER_TABLE).select('id, crew_name, post, client, location');
-    if (project) q2 = q2.eq('project', project);
-    const { data: d2, error: e2 } = await q2.order('crew_name', { ascending: true })
-    if (e2) {
-      console.error('Error fetching crew list (fallback):', e2)
-      return { success: false, error: e2.message }
-    }
-    // Map to expected shape with defaults for missing columns
-    return { success: true, data: (d2 || []).map((r: Record<string, unknown>) => ({ id: r.id as string, crew_name: r.crew_name as string, clean_name: (r.crew_name as string || '').replace(/\s*\(R\)\s*/g, '').trim(), post: r.post as string, client: r.client as string, location: r.location as string, status: 'active' })) }
-  }
-
-  console.error('Error fetching crew list:', error)
-  return { success: false, error: error.message }
+  const mapped = (data || []).map((r: Record<string, unknown>) => ({
+    id: r.id as string,
+    crew_name: (r.crew_name as string) || '',
+    clean_name: (r.clean_name as string) || (r.crew_name as string || '').replace(/\s*\(R\)\s*/g, '').trim(),
+    post: (r.post as string) || '',
+    client: (r.client as string) || '',
+    location: (r.location as string) || '',
+    status: (r.status as string) || 'active',
+  }));
+  return { success: true, data: mapped }
 }
 
 

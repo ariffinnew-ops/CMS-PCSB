@@ -211,7 +211,7 @@ export default function FinancialDashboardPage() {
 
   useEffect(() => {
   setLoading(true);
-  Promise.all([getPivotedRosterData(project), getCrewMasterData(), getCrewList(project)]).then(([p, m, crewResult]) => {
+  Promise.all([getPivotedRosterData(project), getCrewMasterData(project), getCrewList(project)]).then(([p, m, crewResult]) => {
   setData(p); setMasterData(m);
   if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
   setLoading(false);
