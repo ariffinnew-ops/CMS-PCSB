@@ -14,12 +14,7 @@ export default function RootPage() {
 
   useEffect(() => {
     if (mounted) {
-      // Preview bypass: auto-login as L1 and go straight to dashboard
-      const isPreview = typeof window !== "undefined" && window.location.hostname.includes("vusercontent.net");
-      if (isPreview && !isAuthenticated()) {
-        sessionStorage.setItem("cms_user", JSON.stringify({ username: "admin", fullName: "Preview Admin", role: "L1", defaultProject: "PCSB" }));
-      }
-      if (isAuthenticated() || isPreview) {
+      if (isAuthenticated()) {
         router.push("/dashboard");
       } else {
         router.push("/login");

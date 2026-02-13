@@ -70,16 +70,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    // Preview bypass: auto-login as L1 in v0 preview environment
-    const isPreview = typeof window !== "undefined" && window.location.hostname.includes("vusercontent.net");
-    let currentUser = getUser();
-    if (!currentUser && isPreview) {
-      const bypassUser: AuthUser = { username: "admin", fullName: "Preview Admin", role: "L1", defaultProject: "PCSB" };
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("cms_user", JSON.stringify(bypassUser));
-      }
-      currentUser = bypassUser;
-    }
+    const currentUser = getUser();
     if (!currentUser) {
       router.push("/login");
       return;

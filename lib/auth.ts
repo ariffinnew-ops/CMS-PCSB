@@ -244,9 +244,18 @@ export function logout(): void {
   }
 }
 
+// Preview bypass: in-memory flag for v0 embedded preview where sessionStorage is blocked
+const PREVIEW_USER: AuthUser = { username: "admin", fullName: "Preview Admin", role: "L1", defaultProject: "PCSB" };
+function isV0Preview(): boolean {
+  return typeof window !== "undefined" && window.location.hostname.includes("vusercontent.net");
+}
+
 export function getUser(): AuthUser | null {
   if (typeof window === "undefined") return null;
   
+  // Preview bypass: skip storage entirely in embedded v0 preview
+  if (isV0Preview()) return PREVIEW_USER;
+
   // Check for session timeout
   const lastActivity = sessionStorage.getItem(LAST_ACTIVITY_KEY);
   if (lastActivity) {
