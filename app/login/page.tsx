@@ -37,6 +37,10 @@ export default function LoginPage() {
     setIsLoading(true);
     setNotification(null);
 
+    // Hard clear any stale session data before fresh login
+    sessionStorage.clear();
+    localStorage.clear();
+
     // Call Supabase Auth via server action
     const result = await signInWithEmail(email.trim().toLowerCase(), password);
 

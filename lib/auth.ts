@@ -154,11 +154,12 @@ export function getFirstAccessiblePage(role: UserRole): string {
 // No longer used for login or localStorage credential storage.
 // ---------------------------------------------------------------------------
 export interface StoredUser {
-  username: string;
-  fullName: string;
+  email: string;
+  crewName: string;
+  staffId?: string;
   role: UserRole;
-  defaultProject?: ProjectKey;
-  email?: string;
+  phone?: string;
+  status?: string;
 }
 
 // ---------------------------------------------------------------------------

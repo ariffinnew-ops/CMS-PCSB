@@ -22,95 +22,60 @@ export async function signInWithEmail(email: string, password: string): Promise<
     return { success: false, error: authError?.message || 'Authentication failed' }
   }
 
-  console.log('[v0] signInWithEmail: auth user id =', authData.user.id, 'email =', authData.user.email)
-
   // Step 2: Fetch user profile from cms_users using admin client (bypasses RLS)
+  // Real columns: id, email, crew_name, staff_id, role, phone, status
   const admin = createAdminClient()
   const { data: profile, error: profileError } = await admin
     .from('cms_users')
-    .select('id, username, full_name, user_level, assigned_project')
+    .select('id, email, crew_name, staff_id, role, status')
     .eq('id', authData.user.id)
     .single()
 
-  console.log('[v0] signInWithEmail: profile =', JSON.stringify(profile), 'profileError =', profileError?.message)
-
-  // If no cms_users row matched by id, try by email as fallback
+  // If id lookup fails, try by email (auto-heal id mismatch)
   if (profileError || !profile) {
-    const { data: profileByEmail, error: emailErr } = await admin
+    const { data: profileByEmail } = await admin
       .from('cms_users')
-      .select('id, username, full_name, user_level, assigned_project')
+      .select('id, email, crew_name, staff_id, role, status')
       .eq('email', authData.user.email)
       .single()
 
-    console.log('[v0] signInWithEmail: profileByEmail =', JSON.stringify(profileByEmail), 'emailErr =', emailErr?.message)
-
-    if (!emailErr && profileByEmail) {
-      // Fix the id mismatch: update cms_users.id to match auth.users.id
-      await admin
-        .from('cms_users')
-        .update({ id: authData.user.id })
-        .eq('email', authData.user.email)
-
+    if (profileByEmail) {
+      if (profileByEmail.id !== authData.user.id) {
+        await admin.from('cms_users').update({ id: authData.user.id }).eq('email', authData.user.email)
+      }
+      console.log('FINAL_SESSION_ROLE:', profileByEmail.role)
       return {
         success: true,
         user: {
-          username: profileByEmail.username,
-          fullName: profileByEmail.full_name,
-          role: profileByEmail.user_level,
-          defaultProject: profileByEmail.assigned_project || 'PCSB',
+          username: profileByEmail.email,
+          fullName: profileByEmail.crew_name || profileByEmail.email,
+          role: profileByEmail.role || 'L7',
+          defaultProject: 'PCSB',
         },
       }
     }
 
-    // Also try by username (for users created before email field existed)
-    const emailPrefix = authData.user.email?.split('@')[0]
-    const { data: profileByUsername } = await admin
-      .from('cms_users')
-      .select('id, username, full_name, user_level, assigned_project')
-      .eq('username', emailPrefix)
-      .single()
-
-    console.log('[v0] signInWithEmail: profileByUsername =', JSON.stringify(profileByUsername))
-
-    if (profileByUsername) {
-      // Fix the id: update cms_users.id to match auth.users.id
-      await admin
-        .from('cms_users')
-        .update({ id: authData.user.id })
-        .eq('username', emailPrefix)
-
-      return {
-        success: true,
-        user: {
-          username: profileByUsername.username,
-          fullName: profileByUsername.full_name,
-          role: profileByUsername.user_level,
-          defaultProject: profileByUsername.assigned_project || 'PCSB',
-        },
-      }
-    }
-
-    // Absolute fallback
-    const meta = authData.user.user_metadata || {}
-    console.log('[v0] signInWithEmail: FALLBACK to metadata, meta =', JSON.stringify(meta))
+    // No cms_users row found at all
+    console.log('FINAL_SESSION_ROLE: FALLBACK L7 - no cms_users row for', authData.user.email)
     return {
       success: true,
       user: {
-        username: meta.username || emailPrefix || 'user',
-        fullName: meta.full_name || 'Unknown User',
-        role: meta.user_level || 'L7',
-        defaultProject: meta.assigned_project || 'PCSB',
+        username: authData.user.email || 'user',
+        fullName: authData.user.email || 'Unknown User',
+        role: 'L7',
+        defaultProject: 'PCSB',
       },
     }
   }
 
+  console.log('FINAL_SESSION_ROLE:', profile.role)
   return {
     success: true,
     user: {
-      username: profile.username,
-      fullName: profile.full_name,
-      role: profile.user_level,
-      defaultProject: profile.assigned_project || 'PCSB',
+      username: profile.email,
+      fullName: profile.crew_name || profile.email,
+      role: profile.role || 'L7',
+      defaultProject: 'PCSB',
     },
   }
 }
@@ -366,18 +331,18 @@ export async function getLoginLogs(): Promise<LoginLogEntry[]> {
 }
 
   // ─── CMS Users (Supabase cms_users) ───
-  // Actual table columns: id (uuid), username, email, full_name, user_level,
-  //                        assigned_project, is_first_login, created_at
+  // Actual columns: id (uuid), email, crew_name, staff_id, role, phone, status, created_at, updated_at
   
   export interface CmsUser {
   id?: string;
-  username: string;
-  email?: string;
-  full_name: string;
-  user_level: string;
-  assigned_project: string;
-  is_first_login?: boolean;
+  email: string;
+  crew_name: string;
+  staff_id?: string;
+  role: string;
+  phone?: string;
+  status?: string;
   created_at?: string;
+  updated_at?: string;
   }
 
   export async function getSupabaseUsers(): Promise<CmsUser[]> {
@@ -388,20 +353,19 @@ export async function getLoginLogs(): Promise<LoginLogEntry[]> {
   .order('created_at', { ascending: true })
 
   if (error) {
-    console.warn('[v0] cms_users fetch error:', error.message)
+    console.warn('cms_users fetch error:', error.message)
     return []
   }
-  console.log('[v0] getSupabaseUsers: returned', data?.length, 'rows, first row keys:', data?.[0] ? Object.keys(data[0]) : 'none')
   return (data as CmsUser[]) || []
 }
 
 export async function insertCmsUser(params: {
-  username: string;
   email: string;
   password: string;
-  full_name: string;
-  user_level: string;
-  assigned_project: string;
+  crew_name: string;
+  staff_id?: string;
+  role: string;
+  phone?: string;
 }): Promise<{ success: boolean; error?: string }> {
   const admin = createAdminClient()
   const email = params.email.trim().toLowerCase()
@@ -411,7 +375,7 @@ export async function insertCmsUser(params: {
     email,
     password: params.password,
     email_confirm: true,
-    user_metadata: { username: params.username.toLowerCase(), full_name: params.full_name },
+    user_metadata: { crew_name: params.crew_name },
   })
 
   if (authError) {
@@ -421,21 +385,20 @@ export async function insertCmsUser(params: {
 
   const authUserId = authData.user.id
 
-  // Step 2: Insert into cms_users using the auth user's real UUID (no password column)
+  // Step 2: Insert into cms_users using real column names
   const { error } = await admin
     .from('cms_users')
     .insert([{
       id: authUserId,
-      username: params.username.toLowerCase(),
       email,
-      full_name: params.full_name,
-      user_level: params.user_level,
-      assigned_project: params.assigned_project,
-      is_first_login: true,
+      crew_name: params.crew_name,
+      staff_id: params.staff_id || null,
+      role: params.role,
+      phone: params.phone || null,
+      status: 'ACTIVE',
     }])
 
   if (error) {
-    // Rollback: delete the auth user if cms_users insert fails
     await admin.auth.admin.deleteUser(authUserId)
     console.error('cms_users INSERT error:', error.message)
     return { success: false, error: error.message }
@@ -445,23 +408,24 @@ export async function insertCmsUser(params: {
 }
 
 export async function updateCmsUser(params: {
-  username: string;
-  full_name: string;
-  user_level: string;
-  assigned_project: string;
-  password?: string; // optional: if provided, update auth password too
+  email: string;
+  crew_name: string;
+  staff_id?: string;
+  role: string;
+  phone?: string;
+  password?: string;
 }): Promise<{ success: boolean; error?: string }> {
   const admin = createAdminClient()
 
-  // Update cms_users profile
   const { error } = await admin
     .from('cms_users')
     .update({
-      full_name: params.full_name,
-      user_level: params.user_level,
-      assigned_project: params.assigned_project,
+      crew_name: params.crew_name,
+      staff_id: params.staff_id || null,
+      role: params.role,
+      phone: params.phone || null,
     })
-    .eq('username', params.username.toLowerCase())
+    .eq('email', params.email.toLowerCase())
 
   if (error) {
     console.error('cms_users UPDATE error:', error.message)
@@ -473,7 +437,7 @@ export async function updateCmsUser(params: {
     const { data: row } = await admin
       .from('cms_users')
       .select('id')
-      .eq('username', params.username.toLowerCase())
+      .eq('email', params.email.toLowerCase())
       .single()
 
     if (row?.id) {
@@ -489,14 +453,14 @@ export async function updateCmsUser(params: {
   return { success: true }
 }
 
-export async function deleteCmsUser(username: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteCmsUser(email: string): Promise<{ success: boolean; error?: string }> {
   const admin = createAdminClient()
 
   // Step 1: Get the user's auth UUID from cms_users
   const { data: row, error: fetchErr } = await admin
     .from('cms_users')
     .select('id')
-    .eq('username', username.toLowerCase())
+    .eq('email', email.toLowerCase())
     .single()
 
   if (fetchErr || !row) {
@@ -508,7 +472,7 @@ export async function deleteCmsUser(username: string): Promise<{ success: boolea
   const { error } = await admin
     .from('cms_users')
     .delete()
-    .eq('username', username.toLowerCase())
+    .eq('email', email.toLowerCase())
 
   if (error) {
     console.error('cms_users DELETE error:', error.message)

@@ -10,7 +10,6 @@ import {
   getPermission,
   type AuthUser,
   type UserRole,
-  type ProjectKey,
   type StoredUser,
   type PermissionLevel,
 } from "@/lib/auth";
@@ -27,7 +26,6 @@ import {
 import { useRouter } from "next/navigation";
 
 const ALL_ROLES: UserRole[] = ["L1", "L2A", "L2B", "L4", "L5A", "L5B", "L6", "L7"];
-const ALL_PROJECTS: ProjectKey[] = ["PCSB", "OTHERS"];
 
 const PAGE_LABELS: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -49,13 +47,14 @@ export default function UsersPage() {
   const refreshUsers = async () => {
     const sbUsers = await getSupabaseUsers();
     return sbUsers
-      .filter(u => u.username) // skip any rows with missing username
+      .filter(u => u.email)
       .map(u => ({
-        username: u.username,
-        fullName: u.full_name || "",
-        role: (u.user_level || "L7") as UserRole,
-        defaultProject: (u.assigned_project || "PCSB") as ProjectKey,
-        email: u.email || "",
+        email: u.email,
+        crewName: u.crew_name || "",
+        staffId: u.staff_id || "",
+        role: (u.role || "L7") as UserRole,
+        phone: u.phone || "",
+        status: u.status || "ACTIVE",
       })) as StoredUser[];
   };
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -71,16 +70,16 @@ export default function UsersPage() {
   const [loginLogs, setLoginLogs] = useState<LoginLogEntry[]>([]);
   const [logsLoading, setLogsLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ idx: number; username: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ idx: number; email: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   // Form state
-  const [formUsername, setFormUsername] = useState("");
   const [formEmail, setFormEmail] = useState("");
   const [formPassword, setFormPassword] = useState("");
-  const [formFullName, setFormFullName] = useState("");
+  const [formCrewName, setFormCrewName] = useState("");
+  const [formStaffId, setFormStaffId] = useState("");
   const [formRole, setFormRole] = useState<UserRole>("L2A");
-  const [formProject, setFormProject] = useState<ProjectKey>("PCSB");
+  const [formPhone, setFormPhone] = useState("");
 
   // Load user, sync from Supabase, and fetch login logs
   useEffect(() => {
@@ -123,50 +122,47 @@ export default function UsersPage() {
   }, []);
 
   const resetForm = () => {
-    setFormUsername("");
     setFormEmail("");
     setFormPassword("");
-    setFormFullName("");
+    setFormCrewName("");
+    setFormStaffId("");
     setFormRole("L2A");
-    setFormProject("PCSB");
+    setFormPhone("");
     setEditingIdx(null);
     setShowForm(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimUser = formUsername.trim().toLowerCase();
-    const trimName = formFullName.trim();
-
     const trimEmail = formEmail.trim().toLowerCase();
+    const trimName = formCrewName.trim();
 
-    if (!trimUser || !trimName) {
-      showNotif("Username and Full Name are required.", "error");
+    if (!trimEmail || !trimName) {
+      showNotif("Email and Crew Name are required.", "error");
       return;
     }
 
-    // Email + password required for new users (Supabase Auth needs them)
-    if (editingIdx === null) {
-      if (!trimEmail) { showNotif("Email is required for new users.", "error"); return; }
-      if (!formPassword) { showNotif("Password is required for new users.", "error"); return; }
-    }
-
     // Validate email format
-    if (trimEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimEmail)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimEmail)) {
       showNotif("Please enter a valid email address.", "error");
       return;
     }
 
-    const existing = [...users];
+    // Password required for new users
+    if (editingIdx === null && !formPassword) {
+      showNotif("Password is required for new users.", "error");
+      return;
+    }
 
     if (editingIdx !== null) {
       // --- EDIT existing user ---
       const result = await updateCmsUser({
-        username: trimUser,
-        full_name: trimName,
-        user_level: formRole,
-        assigned_project: formProject,
-        password: formPassword || undefined, // only update if provided
+        email: trimEmail,
+        crew_name: trimName,
+        staff_id: formStaffId.trim() || undefined,
+        role: formRole,
+        phone: formPhone.trim() || undefined,
+        password: formPassword || undefined,
       });
 
       if (result.error) {
@@ -174,23 +170,23 @@ export default function UsersPage() {
         return;
       }
 
-      // Re-fetch from Supabase
       setUsers(await refreshUsers());
-      showNotif(`User "${trimUser}" has been updated.`, "success");
+      showNotif(`User "${trimEmail}" has been updated.`, "success");
     } else {
       // --- CREATE new user ---
-      if (existing.some((u) => u.username.toLowerCase() === trimUser)) {
-        showNotif(`Username "${trimUser}" already exists.`, "error");
+      const existing = [...users];
+      if (existing.some((u) => u.email.toLowerCase() === trimEmail)) {
+        showNotif(`Email "${trimEmail}" already exists.`, "error");
         return;
       }
 
       const result = await insertCmsUser({
-        username: trimUser,
         email: trimEmail,
         password: formPassword,
-        full_name: trimName,
-        user_level: formRole,
-        assigned_project: formProject,
+        crew_name: trimName,
+        staff_id: formStaffId.trim() || undefined,
+        role: formRole,
+        phone: formPhone.trim() || undefined,
       });
 
       if (result.error) {
@@ -198,43 +194,42 @@ export default function UsersPage() {
         return;
       }
 
-      // Re-fetch from Supabase
       setUsers(await refreshUsers());
-      showNotif(`User "${trimUser}" has been created.`, "success");
+      showNotif(`User "${trimEmail}" has been created.`, "success");
     }
     resetForm();
   };
 
   const handleEdit = (idx: number) => {
     const u = users[idx];
-    setFormUsername(u.username);
-    setFormEmail(u.email || "");
-    setFormPassword(""); // leave blank; only update if user types a new password
-    setFormFullName(u.fullName);
+    setFormEmail(u.email);
+    setFormPassword("");
+    setFormCrewName(u.crewName);
+    setFormStaffId(u.staffId || "");
     setFormRole(u.role);
-    setFormProject(u.defaultProject || "PCSB");
+    setFormPhone(u.phone || "");
     setEditingIdx(idx);
     setShowForm(true);
   };
 
   const handleDeleteRequest = (idx: number) => {
     const u = users[idx];
-    if (u.username === user?.username) {
+    if (u.email === user?.username) {
       showNotif("Action denied -- you cannot remove your own account.", "error");
       return;
     }
-    setDeleteConfirm({ idx, username: u.username });
+    setDeleteConfirm({ idx, email: u.email });
   };
 
   const handleDeleteConfirm = async () => {
     if (!deleteConfirm) return;
     setDeleting(true);
-    const { idx, username } = deleteConfirm;
+    const { idx, email } = deleteConfirm;
 
     // Delete from Supabase
-    const result = await deleteCmsUser(username);
+    const result = await deleteCmsUser(email);
     if (result.error) {
-      showNotif(`Failed to remove "${username}" from database: ${result.error}`, "error");
+      showNotif(`Failed to remove "${email}" from database: ${result.error}`, "error");
       setDeleting(false);
       setDeleteConfirm(null);
       return;
@@ -242,7 +237,7 @@ export default function UsersPage() {
 
     // Re-fetch from Supabase
     setUsers(await refreshUsers());
-    showNotif(`User "${username}" has been permanently removed.`, "success");
+    showNotif(`User "${email}" has been permanently removed.`, "success");
     setDeleting(false);
     setDeleteConfirm(null);
   };
@@ -389,42 +384,10 @@ export default function UsersPage() {
               </div>
 
               <form onSubmit={handleSubmit} className="px-5 py-3 space-y-3">
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Username */}
-                  <div>
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
-                      Username
-                    </label>
-                    <input
-                      type="text"
-                      value={formUsername}
-                      onChange={(e) => setFormUsername(e.target.value)}
-                      className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
-                      placeholder="e.g. john.doe"
-                      required
-                    />
-                  </div>
-
-                  {/* Password */}
-                  <div>
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
-                      Password {editingIdx !== null && <span className="text-slate-500 normal-case">(leave blank to keep current)</span>}
-                    </label>
-                    <input
-                      type="password"
-                      value={formPassword}
-                      onChange={(e) => setFormPassword(e.target.value)}
-                      className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
-                      placeholder={editingIdx !== null ? "Leave blank to keep current" : "Initial password"}
-                      required={editingIdx === null}
-                    />
-                  </div>
-                </div>
-
                 {/* Email */}
                 <div>
                   <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
-                    Email {editingIdx === null && <span className="text-red-400">*</span>}
+                    Email <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="email"
@@ -432,23 +395,55 @@ export default function UsersPage() {
                     onChange={(e) => setFormEmail(e.target.value)}
                     className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
                     placeholder="user@company.com"
+                    required
+                    disabled={editingIdx !== null}
+                  />
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
+                    Password {editingIdx !== null && <span className="text-slate-500 normal-case">(leave blank to keep current)</span>}
+                  </label>
+                  <input
+                    type="password"
+                    value={formPassword}
+                    onChange={(e) => setFormPassword(e.target.value)}
+                    className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                    placeholder={editingIdx !== null ? "Leave blank to keep current" : "Initial password"}
                     required={editingIdx === null}
                   />
                 </div>
 
-                {/* Full Name */}
-                <div>
-                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={formFullName}
-                    onChange={(e) => setFormFullName(e.target.value)}
-                    className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
-                    placeholder="Full display name"
-                    required
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Crew Name */}
+                  <div>
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
+                      Crew Name <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formCrewName}
+                      onChange={(e) => setFormCrewName(e.target.value)}
+                      className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                      placeholder="Full display name"
+                      required
+                    />
+                  </div>
+
+                  {/* Staff ID */}
+                  <div>
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
+                      Staff ID
+                    </label>
+                    <input
+                      type="text"
+                      value={formStaffId}
+                      onChange={(e) => setFormStaffId(e.target.value)}
+                      className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                      placeholder="e.g. ADM001"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -470,20 +465,18 @@ export default function UsersPage() {
                     </select>
                   </div>
 
-                  {/* Default Project */}
+                  {/* Phone */}
                   <div>
                     <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
-                      Default Project
+                      Phone
                     </label>
-                    <select
-                      value={formProject}
-                      onChange={(e) => setFormProject(e.target.value as ProjectKey)}
+                    <input
+                      type="text"
+                      value={formPhone}
+                      onChange={(e) => setFormPhone(e.target.value)}
                       className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
-                    >
-                      {ALL_PROJECTS.map((p) => (
-                        <option key={p} value={p}>{p}</option>
-                      ))}
-                    </select>
+                      placeholder="e.g. +60123456789"
+                    />
                   </div>
                 </div>
 
@@ -528,17 +521,18 @@ export default function UsersPage() {
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-900/50 border-b-2 border-border">
                   <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground w-10">#</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Username</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Full Name</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Email</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Crew Name</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Staff ID</th>
                   <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Role</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Project</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</th>
                   <th className="px-3 py-2 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground w-36">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {users.map((u, i) => (
                   <tr
-                    key={u.username}
+                    key={u.email}
                     className="hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-colors group"
                   >
                     <td className="px-3 py-1.5 text-xs font-bold text-muted-foreground tabular-nums">
@@ -547,13 +541,16 @@ export default function UsersPage() {
                     <td className="px-3 py-1.5">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold text-[9px] uppercase shrink-0">
-                          {u.username.charAt(0)}
+                          {u.email.charAt(0)}
                         </div>
-                        <span className="text-xs font-bold text-foreground">{u.username}</span>
+                        <span className="text-xs font-bold text-foreground">{u.email}</span>
                       </div>
                     </td>
                     <td className="px-3 py-1.5 text-xs font-semibold text-foreground">
-                      {u.fullName}
+                      {u.crewName}
+                    </td>
+                    <td className="px-3 py-1.5 text-xs font-semibold text-muted-foreground">
+                      {u.staffId || "-"}
                     </td>
                     <td className="px-3 py-1.5">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border ${getRoleBadge(u.role)}`}>
@@ -562,11 +559,11 @@ export default function UsersPage() {
                     </td>
                     <td className="px-3 py-1.5">
                       <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
-                        u.defaultProject === "PCSB"
-                          ? "bg-blue-600/15 text-blue-500 border border-blue-500/30"
-                          : "bg-orange-500/15 text-orange-500 border border-orange-500/30"
+                        u.status === "ACTIVE"
+                          ? "bg-green-600/15 text-green-500 border border-green-500/30"
+                          : "bg-slate-500/15 text-slate-500 border border-slate-500/30"
                       }`}>
-                        {u.defaultProject || "PCSB"}
+                        {u.status || "ACTIVE"}
                       </span>
                     </td>
                     <td className="px-3 py-1.5">
@@ -581,9 +578,9 @@ export default function UsersPage() {
                         <button
                           type="button"
                           onClick={() => handleDeleteRequest(i)}
-                          disabled={u.username === user?.username}
+                          disabled={u.email === user?.username}
                           className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all ${
-                            u.username === user?.username
+                            u.email === user?.username
                               ? "bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed"
                               : "bg-red-600 hover:bg-red-500 text-white shadow-sm hover:shadow-red-500/20"
                           }`}
@@ -624,7 +621,7 @@ export default function UsersPage() {
               <div className="px-6 py-4">
                 <p className="text-sm text-foreground">
                   Are you sure you want to permanently delete user{" "}
-                  <span className="font-black text-red-500">{deleteConfirm.username}</span>?
+                  <span className="font-black text-red-500">{deleteConfirm.email}</span>?
                   This will remove the account from the database.
                 </p>
               </div>
