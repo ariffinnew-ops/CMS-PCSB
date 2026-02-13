@@ -4,8 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { AppShell } from "@/components/app-shell";
 import {
   getUser,
-  getStoredUsers,
-  saveUsers,
   ROLE_LABELS,
   getPermissionMatrix,
   savePermissionMatrix,
@@ -26,7 +24,6 @@ import {
   saveAccessMatrixBulk,
   type LoginLogEntry,
 } from "@/lib/actions";
-import { mergeSupabaseUsers } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
 const ALL_ROLES: UserRole[] = ["L1", "L2A", "L2B", "L4", "L5A", "L5B", "L6", "L7"];
@@ -47,6 +44,18 @@ const PAGES = Object.keys(PAGE_LABELS);
 
 export default function UsersPage() {
   const router = useRouter();
+
+  // Helper: fetch users from Supabase and map to StoredUser
+  const refreshUsers = async () => {
+    const sbUsers = await getSupabaseUsers();
+    return sbUsers.map(u => ({
+      username: u.username,
+      fullName: u.full_name,
+      role: u.user_level as UserRole,
+      defaultProject: (u.assigned_project || "PCSB") as ProjectKey,
+      email: u.email,
+    })) as StoredUser[];
+  };
   const [user, setUser] = useState<AuthUser | null>(null);
   const [users, setUsers] = useState<StoredUser[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -80,17 +89,12 @@ export default function UsersPage() {
     }
     setUser(currentUser);
 
-    // Fetch users from Supabase (source of truth) + keep hardcoded admin
+    // Fetch users from Supabase (source of truth)
     setSyncing(true);
-    getSupabaseUsers().then(sbUsers => {
-      const merged = mergeSupabaseUsers(sbUsers);
-      setUsers(merged);
+    refreshUsers().then(mapped => {
+      setUsers(mapped);
       setSyncing(false);
-    }).catch(() => {
-      // Supabase unavailable -- fall back to local cache
-      setUsers(getStoredUsers());
-      setSyncing(false);
-    });
+    }).catch(() => setSyncing(false));
 
     getLoginLogs().then(logs => {
       setLoginLogs(logs);
@@ -134,15 +138,15 @@ export default function UsersPage() {
 
     const trimEmail = formEmail.trim().toLowerCase();
 
-    if (!trimUser || !formPassword || !trimName) {
-      showNotif("All fields are required.", "error");
+    if (!trimUser || !trimName) {
+      showNotif("Username and Full Name are required.", "error");
       return;
     }
 
-    // Email is required for new users (Supabase Auth needs it)
-    if (editingIdx === null && !trimEmail) {
-      showNotif("Email is required for new users.", "error");
-      return;
+    // Email + password required for new users (Supabase Auth needs them)
+    if (editingIdx === null) {
+      if (!trimEmail) { showNotif("Email is required for new users.", "error"); return; }
+      if (!formPassword) { showNotif("Password is required for new users.", "error"); return; }
     }
 
     // Validate email format
@@ -157,10 +161,10 @@ export default function UsersPage() {
       // --- EDIT existing user ---
       const result = await updateCmsUser({
         username: trimUser,
-        password_manual: formPassword,
         full_name: trimName,
         user_level: formRole,
         assigned_project: formProject,
+        password: formPassword || undefined, // only update if provided
       });
 
       if (result.error) {
@@ -168,11 +172,8 @@ export default function UsersPage() {
         return;
       }
 
-      // Re-fetch from Supabase to get fresh list and sync to local cache for login
-      const sbUsers = await getSupabaseUsers();
-      const merged = mergeSupabaseUsers(sbUsers);
-      setUsers(merged);
-
+      // Re-fetch from Supabase
+      setUsers(await refreshUsers());
       showNotif(`User "${trimUser}" has been updated.`, "success");
     } else {
       // --- CREATE new user ---
@@ -184,7 +185,7 @@ export default function UsersPage() {
       const result = await insertCmsUser({
         username: trimUser,
         email: trimEmail,
-        password_manual: formPassword,
+        password: formPassword,
         full_name: trimName,
         user_level: formRole,
         assigned_project: formProject,
@@ -195,11 +196,8 @@ export default function UsersPage() {
         return;
       }
 
-      // Re-fetch from Supabase to get fresh list and sync to local cache for login
-      const sbUsers = await getSupabaseUsers();
-      const merged = mergeSupabaseUsers(sbUsers);
-      setUsers(merged);
-
+      // Re-fetch from Supabase
+      setUsers(await refreshUsers());
       showNotif(`User "${trimUser}" has been created.`, "success");
     }
     resetForm();
@@ -208,7 +206,8 @@ export default function UsersPage() {
   const handleEdit = (idx: number) => {
     const u = users[idx];
     setFormUsername(u.username);
-    setFormPassword(u.password);
+    setFormEmail(u.email || "");
+    setFormPassword(""); // leave blank; only update if user types a new password
     setFormFullName(u.fullName);
     setFormRole(u.role);
     setFormProject(u.defaultProject || "PCSB");
@@ -239,11 +238,8 @@ export default function UsersPage() {
       return;
     }
 
-    // Re-fetch from Supabase to get fresh list and sync to local cache for login
-    const sbUsers = await getSupabaseUsers();
-    const merged = mergeSupabaseUsers(sbUsers);
-    setUsers(merged);
-
+    // Re-fetch from Supabase
+    setUsers(await refreshUsers());
     showNotif(`User "${username}" has been permanently removed.`, "success");
     setDeleting(false);
     setDeleteConfirm(null);
@@ -410,15 +406,15 @@ export default function UsersPage() {
                   {/* Password */}
                   <div>
                     <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
-                      Password
+                      Password {editingIdx !== null && <span className="text-slate-500 normal-case">(leave blank to keep current)</span>}
                     </label>
                     <input
-                      type="text"
+                      type="password"
                       value={formPassword}
                       onChange={(e) => setFormPassword(e.target.value)}
                       className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
-                      placeholder="Initial password"
-                      required
+                      placeholder={editingIdx !== null ? "Leave blank to keep current" : "Initial password"}
+                      required={editingIdx === null}
                     />
                   </div>
                 </div>

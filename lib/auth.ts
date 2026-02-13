@@ -162,70 +162,15 @@ export function getFirstAccessiblePage(role: UserRole): string {
 }
 
 // ---------------------------------------------------------------------------
-// User store (client-side, will be replaced by DB later)
+// StoredUser type -- kept for User Mgmt display compatibility
+// No longer used for login or localStorage credential storage.
 // ---------------------------------------------------------------------------
-const STORAGE_KEY = "cms_users_store";
-
 export interface StoredUser {
   username: string;
-  password: string;
   fullName: string;
   role: UserRole;
   defaultProject?: ProjectKey;
-}
-
-// Default seed users (fallback when Supabase is unavailable)
-const DEFAULT_USERS: StoredUser[] = [
-  { username: "admin", password: "admin009", fullName: "System Administrator", role: "L1", defaultProject: "PCSB" },
-];
-
-function getAllUsers(): StoredUser[] {
-  if (typeof window === "undefined") return DEFAULT_USERS;
-  const stored = safeGetLocal(STORAGE_KEY);
-  if (!stored) {
-    safeSetLocal(STORAGE_KEY, JSON.stringify(DEFAULT_USERS));
-    return DEFAULT_USERS;
-  }
-  try { return JSON.parse(stored) as StoredUser[]; } catch { return DEFAULT_USERS; }
-}
-
-export function getStoredUsers(): StoredUser[] {
-  return getAllUsers();
-}
-
-export function saveUsers(users: StoredUser[]): void {
-  if (typeof window !== "undefined") {
-    safeSetLocal(STORAGE_KEY, JSON.stringify(users));
-  }
-}
-
-// Merge Supabase cms_users into local store
-// Supabase users are added, but L1 admin from DEFAULT_USERS is always protected
-// Actual columns: username, password_manual, full_name, user_level, assigned_project
-export function mergeSupabaseUsers(supabaseUsers: { username: string; password_manual: string; full_name: string; user_level: string; assigned_project: string }[]): StoredUser[] {
-  if (supabaseUsers.length === 0) return getAllUsers();
-
-  // Convert Supabase column names to StoredUser format
-  const sbUsers: StoredUser[] = supabaseUsers.map(u => ({
-    username: u.username.toLowerCase(),
-    password: u.password_manual,
-    fullName: u.full_name,
-    role: u.user_level as UserRole,
-    defaultProject: (u.assigned_project || "PCSB") as ProjectKey,
-  }));
-
-  // Start with DEFAULT_USERS as base, then overlay Supabase users
-  // EXCEPT: never let Supabase overwrite the hardcoded "admin" L1 account
-  const merged = new Map<string, StoredUser>();
-  for (const u of DEFAULT_USERS) merged.set(u.username.toLowerCase(), u);
-  for (const u of sbUsers) {
-    if (u.username.toLowerCase() === "admin") continue; // protect L1 admin
-    merged.set(u.username.toLowerCase(), u);
-  }
-
-  const result = Array.from(merged.values());
-  saveUsers(result);
-  return result;
+  email?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -248,26 +193,23 @@ export function setSelectedProject(project: ProjectKey): void {
 const SESSION_TIMEOUT = 5 * 60 * 1000;
 const LAST_ACTIVITY_KEY = "cms_last_activity";
 
-export function login(username: string, password: string): AuthUser | null {
-  const users = getAllUsers();
-  const found = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
-  if (found) {
-    const authUser: AuthUser = {
-      username: found.username.toLowerCase(),
-      fullName: found.fullName,
-      role: found.role,
-      defaultProject: found.defaultProject,
-    };
-    if (typeof window !== "undefined") {
-      safeSetSession("cms_auth_user", JSON.stringify(authUser));
-      safeSetSession(LAST_ACTIVITY_KEY, Date.now().toString());
-      if (found.defaultProject) {
-        setSelectedProject(found.defaultProject);
-      }
+// Called after successful Supabase Auth signInWithPassword.
+// Stores the user profile in sessionStorage for client-side access checks.
+export function setSession(profile: { username: string; fullName: string; role: string; defaultProject: string }): AuthUser {
+  const authUser: AuthUser = {
+    username: profile.username.toLowerCase(),
+    fullName: profile.fullName,
+    role: profile.role as UserRole,
+    defaultProject: (profile.defaultProject || "PCSB") as ProjectKey,
+  };
+  if (typeof window !== "undefined") {
+    safeSetSession("cms_auth_user", JSON.stringify(authUser));
+    safeSetSession(LAST_ACTIVITY_KEY, Date.now().toString());
+    if (authUser.defaultProject) {
+      setSelectedProject(authUser.defaultProject);
     }
-    return authUser;
   }
-  return null;
+  return authUser;
 }
 
 export function logout(): void {
