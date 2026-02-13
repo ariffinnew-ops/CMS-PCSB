@@ -125,7 +125,6 @@ export default function StatementPage() {
     const monthEndDate = new Date(selectedYear, selectedMonthNum, 0); // last day of month
     const monthStartDay = Math.round(monthStartDate.getTime() / 86400000);
     const monthEndDay = Math.round(monthEndDate.getTime() / 86400000);
-    const OA_RATE = 200;
     const MEDEVAC_RATE = 500;
     // Keep ms values for medevac date filtering
     const monthStartTime = monthStartDate.getTime();
@@ -203,7 +202,8 @@ export default function StatementPage() {
 
       if (cycleDetails.length === 0) continue;
 
-      const offshoreTotal = isOM ? totalOffshoreDays * OA_RATE : 0;
+      const crewOARate = master?.offshore_rate || 0;
+      const offshoreTotal = isOM ? totalOffshoreDays * crewOARate : 0;
       const medevacTotal = isEM ? totalMedevacDays * MEDEVAC_RATE : 0;
       const grandTotal = offshoreTotal + totalReliefAmount + totalStandbyAmount + medevacTotal;
 

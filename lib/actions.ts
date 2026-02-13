@@ -346,6 +346,7 @@ export interface CrewMasterRecord {
   location: string;
   basic: number;
   fixed_all: number;
+  offshore_rate: number;
 }
 
 export async function getCrewMasterData(): Promise<CrewMasterRecord[]> {
@@ -354,7 +355,7 @@ export async function getCrewMasterData(): Promise<CrewMasterRecord[]> {
   // Try with basic & fixed_all columns first; fall back without them if columns don't exist yet
   let { data, error } = await supabase
     .from(MASTER_TABLE)
-    .select('id, crew_name, post, client, location, basic, fixed_all, project')
+    .select('id, crew_name, post, client, location, basic, fixed_all, offshore_rate, project')
     .order('crew_name', { ascending: true })
 
   if (error?.code === '42703') {
@@ -380,6 +381,7 @@ export async function getCrewMasterData(): Promise<CrewMasterRecord[]> {
     location: String(d.location || ''),
     basic: Number(d.basic) || 0,
     fixed_all: Number(d.fixed_all) || 0,
+    offshore_rate: Number(d.offshore_rate) || 0,
   }))
 }
 
@@ -521,8 +523,6 @@ export async function getCrewList(project?: string): Promise<{ success: boolean;
   let q = supabase.from(MASTER_TABLE).select('id, crew_name, clean_name, post, client, location, status');
   if (project) q = q.eq('project', project);
   const { data, error } = await q.order('crew_name', { ascending: true })
-
-  console.log('[v0] getCrewList project:', project, 'table:', MASTER_TABLE, 'rows:', data?.length, 'error:', error?.message || 'none')
 
   if (error) {
     console.error('Error fetching crew list:', error)

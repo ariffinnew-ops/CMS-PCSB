@@ -67,7 +67,7 @@ function calcMonthCosts(rosterData: PivotedCrewRow[], masterData: CrewMasterReco
   const monthEndDay = Math.round(monthEndDate.getTime() / 86400000);
   const monthStartTime = monthStartDate.getTime();
   const monthEndTime = monthEndDate.getTime();
-  const oaRate = 200, medevacRate = 500;
+  const medevacRate = 500;
   const basicCounted = new Set<string>();
   const results: CrewMonthCost[] = [];
 
@@ -94,11 +94,12 @@ function calcMonthCosts(rosterData: PivotedCrewRow[], masterData: CrewMasterReco
         return md && md.getTime() >= monthStartTime && md.getTime() <= monthEndTime;
       }).length;
     }
-    const offshoreAmt = isOM ? offDays * oaRate : 0;
+    const master = masterMap.get((crew.crew_name || "").toUpperCase().trim());
+    const crewOARate = master?.offshore_rate || 0;
+    const offshoreAmt = isOM ? offDays * crewOARate : 0;
     const medevacAmt = isEM ? medevac * medevacRate : 0;
     let basicAmt = 0, fixedAllAmt = 0;
     if (crew.crew_id && !basicCounted.has(crew.crew_id)) {
-      const master = masterMap.get((crew.crew_name || "").toUpperCase().trim());
       if (master) { basicAmt = master.basic || 0; fixedAllAmt = master.fixed_all || 0; }
       basicCounted.add(crew.crew_id);
     }

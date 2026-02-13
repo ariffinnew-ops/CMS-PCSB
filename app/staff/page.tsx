@@ -45,9 +45,9 @@ function daysUntil(d: string | null | undefined): number | null {
 }
 
 // ─── Movement Grid (Section C) - Mini roster with colored bars per month ───
-function MovementGrid({ rosterRows }: { rosterRows: Record<string, unknown>[] }) {
+function MovementGrid({ rosterRows, offshoreRate = 0 }: { rosterRows: Record<string, unknown>[]; offshoreRate?: number }) {
   const MO = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const OA_RATE = 200;
+  const OA_RATE = offshoreRate;
   const MEDEVAC_RATE = 500;
 
   const cycles = useMemo(() => {
@@ -504,11 +504,8 @@ export default function StaffDetailPage() {
     setMatrix([]);
     setRosterRows([]);
     setSelectedId("");
-    console.log("[v0] Staff page fetching crew list for project:", project);
     getCrewList(project).then((res) => {
-      console.log("[v0] Staff page crew list result:", res.success, "rows:", res.data?.length, "project:", project);
       if (res.success && res.data) {
-        console.log("[v0] First 3 crew names:", res.data.slice(0, 3).map(c => c.crew_name));
         setCrewList(res.data);
         if (res.data.length > 0) setSelectedId(res.data[0].id);
       }
@@ -857,7 +854,7 @@ export default function StaffDetailPage() {
               </div>
             </div>
             <div className="flex-1 overflow-auto p-2">
-              <MovementGrid rosterRows={rosterRows} />
+              <MovementGrid rosterRows={rosterRows} offshoreRate={Number(detail?.offshore_rate) || 0} />
             </div>
           </div>
         </div>
