@@ -504,7 +504,9 @@ export default function StaffDetailPage() {
     setMatrix([]);
     setRosterRows([]);
     setSelectedId("");
+    console.log("[v0] Staff page fetching crew list for project:", project);
     getCrewList(project).then((res) => {
+      console.log("[v0] Staff page crew list result:", res.success, "rows:", res.data?.length, "project:", project);
       if (res.success && res.data) {
         setCrewList(res.data);
         if (res.data.length > 0) setSelectedId(res.data[0].id);

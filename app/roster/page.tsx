@@ -284,7 +284,7 @@ export default function RosterPage() {
     return currentStatus !== "OFF" && prevStatus !== "OFF";
   };
 
-  if (rosterUnavailable) {
+  if (project === "OTHERS" || rosterUnavailable) {
     return <AppShell><SyncingPlaceholder project={project} label="Roster" /></AppShell>;
   }
 

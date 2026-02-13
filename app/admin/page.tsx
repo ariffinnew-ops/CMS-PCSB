@@ -519,7 +519,7 @@ export default function AdminPage() {
     });
   }, [addModal, staffSearchQuery, crewList]);
 
-  if (rosterUnavailable)
+  if (project === "OTHERS" || rosterUnavailable)
     return <AppShell><SyncingPlaceholder project={project} label="Data Manager" /></AppShell>;
 
   if (loading)
