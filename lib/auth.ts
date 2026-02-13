@@ -51,7 +51,7 @@ export const ROLE_LEVELS: Record<UserRole, number> = {
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
-  L1: "Super Admin",
+  L1: "System Administrator",
   L2A: "Data Lodger (PCSB)",
   L2B: "Data Lodger (Others)",
   L4: "PMT",
@@ -154,11 +154,12 @@ export function getFirstAccessiblePage(role: UserRole): string {
 // No longer used for login or localStorage credential storage.
 // ---------------------------------------------------------------------------
 export interface StoredUser {
-  username: string;
-  fullName: string;
+  email: string;
+  crewName: string;
+  staffId?: string;
   role: UserRole;
-  defaultProject?: ProjectKey;
-  email?: string;
+  phone?: string;
+  status?: string;
 }
 
 // ---------------------------------------------------------------------------
