@@ -29,9 +29,6 @@ function safeRemoveLocal(key: string): void {
 // ---------------------------------------------------------------------------
 export type UserRole = "L1" | "L2A" | "L2B" | "L4" | "L5A" | "L5B" | "L6" | "L7";
 
-// Keep legacy aliases so existing code that checks "admin" / "datalogger" still compiles
-export type LegacyRole = "admin" | "datalogger" | "guest";
-
 export type ProjectKey = "PCSB" | "OTHERS";
 
 export interface AuthUser {
@@ -39,15 +36,6 @@ export interface AuthUser {
   fullName: string;
   role: UserRole;
   defaultProject?: ProjectKey;
-}
-
-// Legacy type kept for backward compat -- actual logging uses cms_login_logs via actions.ts
-export interface LoginLog {
-  id?: number;
-  username: string;
-  role: string;
-  timestamp: string;
-  success: boolean;
 }
 
 // Role hierarchy level (lower = higher privilege)
@@ -162,70 +150,15 @@ export function getFirstAccessiblePage(role: UserRole): string {
 }
 
 // ---------------------------------------------------------------------------
-// User store (client-side, will be replaced by DB later)
+// StoredUser type -- kept for User Mgmt display compatibility
+// No longer used for login or localStorage credential storage.
 // ---------------------------------------------------------------------------
-const STORAGE_KEY = "cms_users_store";
-
 export interface StoredUser {
   username: string;
-  password: string;
   fullName: string;
   role: UserRole;
   defaultProject?: ProjectKey;
-}
-
-// Default seed users (fallback when Supabase is unavailable)
-const DEFAULT_USERS: StoredUser[] = [
-  { username: "admin", password: "admin009", fullName: "System Administrator", role: "L1", defaultProject: "PCSB" },
-];
-
-function getAllUsers(): StoredUser[] {
-  if (typeof window === "undefined") return DEFAULT_USERS;
-  const stored = safeGetLocal(STORAGE_KEY);
-  if (!stored) {
-    safeSetLocal(STORAGE_KEY, JSON.stringify(DEFAULT_USERS));
-    return DEFAULT_USERS;
-  }
-  try { return JSON.parse(stored) as StoredUser[]; } catch { return DEFAULT_USERS; }
-}
-
-export function getStoredUsers(): StoredUser[] {
-  return getAllUsers();
-}
-
-export function saveUsers(users: StoredUser[]): void {
-  if (typeof window !== "undefined") {
-    safeSetLocal(STORAGE_KEY, JSON.stringify(users));
-  }
-}
-
-// Merge Supabase cms_users into local store
-// Supabase users are added, but L1 admin from DEFAULT_USERS is always protected
-// Actual columns: username, password_manual, full_name, user_level, assigned_project
-export function mergeSupabaseUsers(supabaseUsers: { username: string; password_manual: string; full_name: string; user_level: string; assigned_project: string }[]): StoredUser[] {
-  if (supabaseUsers.length === 0) return getAllUsers();
-
-  // Convert Supabase column names to StoredUser format
-  const sbUsers: StoredUser[] = supabaseUsers.map(u => ({
-    username: u.username.toLowerCase(),
-    password: u.password_manual,
-    fullName: u.full_name,
-    role: u.user_level as UserRole,
-    defaultProject: (u.assigned_project || "PCSB") as ProjectKey,
-  }));
-
-  // Start with DEFAULT_USERS as base, then overlay Supabase users
-  // EXCEPT: never let Supabase overwrite the hardcoded "admin" L1 account
-  const merged = new Map<string, StoredUser>();
-  for (const u of DEFAULT_USERS) merged.set(u.username.toLowerCase(), u);
-  for (const u of sbUsers) {
-    if (u.username.toLowerCase() === "admin") continue; // protect L1 admin
-    merged.set(u.username.toLowerCase(), u);
-  }
-
-  const result = Array.from(merged.values());
-  saveUsers(result);
-  return result;
+  email?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -248,46 +181,42 @@ export function setSelectedProject(project: ProjectKey): void {
 const SESSION_TIMEOUT = 5 * 60 * 1000;
 const LAST_ACTIVITY_KEY = "cms_last_activity";
 
-export function login(username: string, password: string): AuthUser | null {
-  const users = getAllUsers();
-  const found = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
-  if (found) {
-    const authUser: AuthUser = {
-      username: found.username.toLowerCase(),
-      fullName: found.fullName,
-      role: found.role,
-      defaultProject: found.defaultProject,
-    };
-    if (typeof window !== "undefined") {
-      safeSetSession("cms_auth_user", JSON.stringify(authUser));
-      safeSetSession(LAST_ACTIVITY_KEY, Date.now().toString());
-      if (found.defaultProject) {
-        setSelectedProject(found.defaultProject);
-      }
+// Called after successful Supabase Auth signInWithPassword.
+// Stores the user profile in sessionStorage for client-side access checks.
+export function setSession(profile: { username: string; fullName: string; role: string; defaultProject: string }): AuthUser {
+  const authUser: AuthUser = {
+    username: profile.username.toLowerCase(),
+    fullName: profile.fullName,
+    role: profile.role as UserRole,
+    defaultProject: (profile.defaultProject || "PCSB") as ProjectKey,
+  };
+  if (typeof window !== "undefined") {
+    safeSetSession("cms_auth_user", JSON.stringify(authUser));
+    safeSetSession(LAST_ACTIVITY_KEY, Date.now().toString());
+    if (authUser.defaultProject) {
+      setSelectedProject(authUser.defaultProject);
     }
-    return authUser;
   }
-  return null;
+  return authUser;
 }
 
 export function logout(): void {
   if (typeof window !== "undefined") {
     safeRemoveSession("cms_auth_user");
     safeRemoveSession(LAST_ACTIVITY_KEY);
+    safeRemoveSession(PROJECT_KEY);
+    // Clear all Supabase auth cookies client-side
+    document.cookie.split(";").forEach((c) => {
+      const name = c.trim().split("=")[0];
+      if (name.startsWith("sb-")) {
+        document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+      }
+    });
   }
-}
-
-// Preview bypass: in-memory flag for v0 embedded preview where sessionStorage is blocked
-const PREVIEW_USER: AuthUser = { username: "admin", fullName: "Preview Admin", role: "L1", defaultProject: "PCSB" };
-function isV0Preview(): boolean {
-  return typeof window !== "undefined" && window.location.hostname.includes("vusercontent.net");
 }
 
 export function getUser(): AuthUser | null {
   if (typeof window === "undefined") return null;
-  
-  // Preview bypass: skip storage entirely in embedded v0 preview
-  if (isV0Preview()) return PREVIEW_USER;
 
   // Check for session timeout
   const lastActivity = safeGetSession(LAST_ACTIVITY_KEY);

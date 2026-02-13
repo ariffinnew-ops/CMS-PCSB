@@ -3,6 +3,64 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import type { RosterRow, PivotedCrewRow, MatrixRecord } from './types'
 
+// ─── Supabase Auth: sign in with email/password ───
+
+export async function signInWithEmail(email: string, password: string): Promise<{
+  success: boolean;
+  error?: string;
+  user?: { username: string; fullName: string; role: string; defaultProject: string };
+}> {
+  const supabase = await createClient()
+
+  // Step 1: Authenticate via Supabase Auth
+  const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
+
+  if (authError || !authData.user) {
+    return { success: false, error: authError?.message || 'Authentication failed' }
+  }
+
+  // Step 2: Fetch user profile from cms_users using the auth user's ID
+  const { data: profile, error: profileError } = await supabase
+    .from('cms_users')
+    .select('username, full_name, user_level, assigned_project')
+    .eq('id', authData.user.id)
+    .single()
+
+  if (profileError || !profile) {
+    // Auth succeeded but no cms_users profile -- still allow with metadata fallback
+    const meta = authData.user.user_metadata || {}
+    return {
+      success: true,
+      user: {
+        username: meta.username || authData.user.email?.split('@')[0] || 'user',
+        fullName: meta.full_name || 'Unknown User',
+        role: meta.user_level || 'L7',
+        defaultProject: meta.assigned_project || 'PCSB',
+      },
+    }
+  }
+
+  return {
+    success: true,
+    user: {
+      username: profile.username,
+      fullName: profile.full_name,
+      role: profile.user_level,
+      defaultProject: profile.assigned_project || 'PCSB',
+    },
+  }
+}
+
+// ─── Supabase Auth: sign out (server-side cookie cleanup) ───
+
+export async function signOutServer(): Promise<void> {
+  const supabase = await createClient()
+  await supabase.auth.signOut()
+}
+
 // ─── Helpers: table routing by project ───
 
 // Master is now a single combined table with a `project_code` column
@@ -246,20 +304,20 @@ export async function getLoginLogs(): Promise<LoginLogEntry[]> {
   return (data as LoginLogEntry[]) || []
 }
 
-// ─── CMS Users (Supabase cms_users) ───
-// Actual table columns: username, password_manual, full_name, user_level,
-//                        assigned_project, is_first_login, created_at
-
-export interface CmsUser {
-  id?: number;
+  // ─── CMS Users (Supabase cms_users) ───
+  // Actual table columns: id (uuid), username, email, full_name, user_level,
+  //                        assigned_project, is_first_login, created_at
+  
+  export interface CmsUser {
+  id?: string;
   username: string;
-  password_manual: string;
+  email?: string;
   full_name: string;
   user_level: string;
   assigned_project: string;
   is_first_login?: boolean;
   created_at?: string;
-}
+  }
 
 export async function getSupabaseUsers(): Promise<CmsUser[]> {
   const supabase = await createClient()
@@ -278,7 +336,7 @@ export async function getSupabaseUsers(): Promise<CmsUser[]> {
 export async function insertCmsUser(params: {
   username: string;
   email: string;
-  password_manual: string;
+  password: string;
   full_name: string;
   user_level: string;
   assigned_project: string;
@@ -289,7 +347,7 @@ export async function insertCmsUser(params: {
   // Step 1: Create user in Supabase Auth to get a real UUID
   const { data: authData, error: authError } = await admin.auth.admin.createUser({
     email,
-    password: params.password_manual,
+    password: params.password,
     email_confirm: true,
     user_metadata: { username: params.username.toLowerCase(), full_name: params.full_name },
   })
@@ -301,13 +359,13 @@ export async function insertCmsUser(params: {
 
   const authUserId = authData.user.id
 
-  // Step 2: Insert into cms_users using the auth user's real UUID
+  // Step 2: Insert into cms_users using the auth user's real UUID (no password column)
   const { error } = await admin
     .from('cms_users')
     .insert([{
       id: authUserId,
       username: params.username.toLowerCase(),
-      password_manual: params.password_manual,
+      email,
       full_name: params.full_name,
       user_level: params.user_level,
       assigned_project: params.assigned_project,
@@ -326,28 +384,46 @@ export async function insertCmsUser(params: {
 
 export async function updateCmsUser(params: {
   username: string;
-  password_manual: string;
   full_name: string;
   user_level: string;
   assigned_project: string;
+  password?: string; // optional: if provided, update auth password too
 }): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
+  const admin = createAdminClient()
+
+  // Update cms_users profile
+  const { error } = await admin
     .from('cms_users')
     .update({
-      password_manual: params.password_manual,
       full_name: params.full_name,
       user_level: params.user_level,
       assigned_project: params.assigned_project,
     })
     .eq('username', params.username.toLowerCase())
-    .select()
 
   if (error) {
     console.error('cms_users UPDATE error:', error.message)
     return { success: false, error: error.message }
   }
-  console.log('cms_users UPDATE success:', data)
+
+  // If password provided, update in Supabase Auth
+  if (params.password) {
+    const { data: row } = await admin
+      .from('cms_users')
+      .select('id')
+      .eq('username', params.username.toLowerCase())
+      .single()
+
+    if (row?.id) {
+      const { error: authErr } = await admin.auth.admin.updateUserById(row.id, {
+        password: params.password,
+      })
+      if (authErr) {
+        console.warn('auth password update warning:', authErr.message)
+      }
+    }
+  }
+
   return { success: true }
 }
 

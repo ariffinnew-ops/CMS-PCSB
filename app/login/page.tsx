@@ -4,8 +4,8 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { login, isAuthenticated, mergeSupabaseUsers, getFirstAccessiblePage } from "@/lib/auth";
-import { recordLoginLog, getSupabaseUsers, getMaintenanceMode } from "@/lib/actions";
+import { setSession, isAuthenticated, getFirstAccessiblePage } from "@/lib/auth";
+import { signInWithEmail, recordLoginLog, getMaintenanceMode } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -28,11 +28,6 @@ export default function LoginPage() {
       router.push("/dashboard");
       return;
     }
-    // Sync users from Supabase (source of truth) into local cache for login()
-    // Hardcoded admin is always preserved by mergeSupabaseUsers
-    getSupabaseUsers().then(sbUsers => {
-      mergeSupabaseUsers(sbUsers);
-    }).catch(() => { /* Supabase unavailable, local cache still works */ });
     // Check maintenance mode
     getMaintenanceMode().then(setMaintenanceModeState).catch(() => {});
   }, [router]);
@@ -42,53 +37,49 @@ export default function LoginPage() {
     setIsLoading(true);
     setNotification(null);
 
-    // Ensure latest Supabase users are synced before login attempt
-    try {
-      const sbUsers = await getSupabaseUsers();
-      if (sbUsers.length > 0) mergeSupabaseUsers(sbUsers);
-    } catch { /* fallback to local */ }
+    // Call Supabase Auth via server action
+    const result = await signInWithEmail(email.trim().toLowerCase(), password);
 
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    const user = login(username, password);
-
-    // Record login log to cms_login_logs (non-blocking)
-    try {
-      if (user) {
+    if (!result.success || !result.user) {
+      // Record failed login
+      try {
         await recordLoginLog({
-          username_attempt: username.toLowerCase(),
-          login_status: "SUCCESS",
-          user_level: user.role,
-          project_scope: user.defaultProject || "PCSB",
-        });
-      } else {
-        await recordLoginLog({
-          username_attempt: username.toLowerCase(),
+          username_attempt: email.trim().toLowerCase(),
           login_status: "FAILED",
           user_level: "unknown",
           project_scope: "-",
-          error_message: "Invalid username or password",
+          error_message: result.error || "Invalid credentials",
         });
-      }
-    } catch (error) {
-      // Silently fail - login logging is optional
-      console.warn("Login logging failed:", error);
+      } catch { /* logging is optional */ }
+
+      setNotification({ type: "error", message: result.error || "Login unsuccessful. Please check your email and password." });
+      setIsLoading(false);
+      return;
     }
 
-    if (user) {
-      // Block non-L1 users during maintenance
-      if (maintenanceMode && user.role !== "L1") {
-        setNotification({ type: "error", message: "System is under maintenance. Please try again later." });
-        setIsLoading(false);
-        return;
-      }
-      const landingPage = getFirstAccessiblePage(user.role);
-      setNotification({ type: "success", message: `Login successful. Welcome back, ${user.username}!` });
-      setTimeout(() => router.push(landingPage), 800);
-    } else {
-      setNotification({ type: "error", message: "Login unsuccessful. Please check your username and password." });
+    // Store user profile in session
+    const user = setSession(result.user);
+
+    // Block non-L1 users during maintenance
+    if (maintenanceMode && user.role !== "L1") {
+      setNotification({ type: "error", message: "System is under maintenance. Please try again later." });
+      setIsLoading(false);
+      return;
     }
 
+    // Record successful login
+    try {
+      await recordLoginLog({
+        username_attempt: user.username,
+        login_status: "SUCCESS",
+        user_level: user.role,
+        project_scope: user.defaultProject || "PCSB",
+      });
+    } catch { /* logging is optional */ }
+
+    const landingPage = getFirstAccessiblePage(user.role);
+    setNotification({ type: "success", message: `Login successful. Welcome back, ${user.username}!` });
+    setTimeout(() => router.push(landingPage), 800);
     setIsLoading(false);
   };
 
@@ -172,18 +163,19 @@ export default function LoginPage() {
         <CardContent className="pt-4 pb-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-slate-300 text-sm font-medium">
-                Username
+              <Label htmlFor="email" className="text-slate-300 text-sm font-medium">
+                Email
               </Label>
               <Input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="user@company.com"
                 className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500/20 h-11"
                 required
                 disabled={isLoading}
-                autoComplete="username"
+                autoComplete="email"
               />
             </div>
             

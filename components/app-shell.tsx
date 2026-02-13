@@ -8,7 +8,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { getUser, logout, canAccessPage, getFirstAccessiblePage, getPermission, setupIdleTimeout, getSelectedProject, setSelectedProject, ROLE_LABELS, type AuthUser, type UserRole, type ProjectKey } from "@/lib/auth";
-import { getMaintenanceMode, setMaintenanceMode } from "@/lib/actions";
+import { getMaintenanceMode, setMaintenanceMode, signOutServer } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -133,8 +133,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return pcsbPerm !== "NONE" || othersPerm !== "NONE";
   }) : [];
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    logout(); // clear client session + cookies
+    try { await signOutServer(); } catch { /* server sign-out best-effort */ }
     router.push("/login");
   };
 
