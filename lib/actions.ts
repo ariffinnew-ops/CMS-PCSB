@@ -854,16 +854,21 @@ export async function upsertApproval(record: ApprovalRecord): Promise<{ success:
 // ─── Maintenance Mode ───
 
 export async function getMaintenanceMode(): Promise<boolean> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('cms_settings')
-    .select('value')
-    .eq('key', 'maintenance_mode')
-    .limit(1)
-    .single()
+  try {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+      .from('cms_settings')
+      .select('value')
+      .eq('key', 'maintenance_mode')
+      .limit(1)
+      .single()
 
-  if (error || !data) return false
-  return data.value === 'true'
+    if (error || !data) return false
+    return data.value === 'true'
+  } catch {
+    // Table may not exist yet -- default to not in maintenance
+    return false
+  }
 }
 
 export async function setMaintenanceMode(enabled: boolean): Promise<{ success: boolean; error?: string }> {
