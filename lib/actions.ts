@@ -5,7 +5,7 @@ import type { RosterRow, PivotedCrewRow, MatrixRecord } from './types'
 
 // ─── Helpers: table routing by project ───
 
-// Master is now a single combined table with a `project` column
+// Master is now a single combined table with a `project_code` column
 const MASTER_TABLE = "cms_master_crew";
 
 // Roster remains separate tables per project
@@ -363,7 +363,7 @@ export async function getCrewMasterData(project?: string): Promise<CrewMasterRec
   const supabase = await createClient()
 
   let q = supabase.from(MASTER_TABLE).select('*');
-  if (project) q = q.eq('project', project);
+  if (project) q = q.eq('project_code', project);
   const { data, error } = await q.order('crew_name', { ascending: true })
 
   if (error) {
@@ -511,7 +511,7 @@ export async function getCrewList(project?: string): Promise<{ success: boolean;
 
   // Use select('*') to avoid column-not-found errors, then map to expected shape
   let q = supabase.from(MASTER_TABLE).select('*');
-  if (project) q = q.eq('project', project);
+  if (project) q = q.eq('project_code', project);
   const { data, error } = await q.order('crew_name', { ascending: true })
 
   if (error) {
@@ -620,7 +620,7 @@ export async function deleteCrewDocument(crewId: string, fileName: string): Prom
 
 export async function createCrewMember(crewData: Record<string, unknown>, project?: string): Promise<{ success: boolean; id?: string; error?: string }> {
   const supabase = await createClient()
-  const payload = { ...crewData, project: project || "PCSB" };
+  const payload = { ...crewData, project_code: project || "PCSB" };
   const { data, error } = await supabase
   .from(MASTER_TABLE)
   .insert(payload)
