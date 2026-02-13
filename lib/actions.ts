@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import type { RosterRow, PivotedCrewRow, MatrixRecord } from './types'
 
 // ─── Helpers: table routing by project ───
@@ -277,31 +277,50 @@ export async function getSupabaseUsers(): Promise<CmsUser[]> {
 
 export async function insertCmsUser(params: {
   username: string;
+  email: string;
   password_manual: string;
   full_name: string;
   user_level: string;
   assigned_project: string;
 }): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
+  const admin = createAdminClient()
+  const email = params.email.trim().toLowerCase()
+
+  // Step 1: Create user in Supabase Auth to get a real UUID
+  const { data: authData, error: authError } = await admin.auth.admin.createUser({
+    email,
+    password: params.password_manual,
+    email_confirm: true,
+    user_metadata: { username: params.username.toLowerCase(), full_name: params.full_name },
+  })
+
+  if (authError) {
+    console.error('auth.admin.createUser error:', authError.message)
+    return { success: false, error: authError.message }
+  }
+
+  const authUserId = authData.user.id
+
+  // Step 2: Insert into cms_users using the auth user's real UUID
+  const { error } = await admin
     .from('cms_users')
-    .insert([
-      {
-        username: params.username.toLowerCase(),
-        password_manual: params.password_manual,
-        full_name: params.full_name,
-        user_level: params.user_level,
-        assigned_project: params.assigned_project,
-        is_first_login: true,
-      }
-    ])
-    .select()
+    .insert([{
+      id: authUserId,
+      username: params.username.toLowerCase(),
+      password_manual: params.password_manual,
+      full_name: params.full_name,
+      user_level: params.user_level,
+      assigned_project: params.assigned_project,
+      is_first_login: true,
+    }])
 
   if (error) {
+    // Rollback: delete the auth user if cms_users insert fails
+    await admin.auth.admin.deleteUser(authUserId)
     console.error('cms_users INSERT error:', error.message)
     return { success: false, error: error.message }
   }
-  console.log('cms_users INSERT success:', data)
+
   return { success: true }
 }
 
@@ -333,8 +352,22 @@ export async function updateCmsUser(params: {
 }
 
 export async function deleteCmsUser(username: string): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const { error } = await supabase
+  const admin = createAdminClient()
+
+  // Step 1: Get the user's auth UUID from cms_users
+  const { data: row, error: fetchErr } = await admin
+    .from('cms_users')
+    .select('id')
+    .eq('username', username.toLowerCase())
+    .single()
+
+  if (fetchErr || !row) {
+    console.error('cms_users lookup error:', fetchErr?.message)
+    return { success: false, error: fetchErr?.message || 'User not found' }
+  }
+
+  // Step 2: Delete from cms_users first (FK constraint)
+  const { error } = await admin
     .from('cms_users')
     .delete()
     .eq('username', username.toLowerCase())
@@ -343,6 +376,14 @@ export async function deleteCmsUser(username: string): Promise<{ success: boolea
     console.error('cms_users DELETE error:', error.message)
     return { success: false, error: error.message }
   }
+
+  // Step 3: Delete from auth.users
+  const { error: authErr } = await admin.auth.admin.deleteUser(row.id)
+  if (authErr) {
+    console.warn('auth.users DELETE warning:', authErr.message)
+    // cms_users row is already deleted, log but don't fail
+  }
+
   return { success: true }
 }
 
