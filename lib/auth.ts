@@ -1,6 +1,30 @@
 "use client";
 
 // ---------------------------------------------------------------------------
+// Safe storage wrappers -- the v0 embedded preview iframe blocks
+// sessionStorage / localStorage.  Every access goes through these helpers
+// so the rest of the file never touches storage directly.
+// ---------------------------------------------------------------------------
+function safeGetSession(key: string): string | null {
+  try { return sessionStorage.getItem(key); } catch { return null; }
+}
+function safeSetSession(key: string, value: string): void {
+  try { sessionStorage.setItem(key, value); } catch { /* blocked */ }
+}
+function safeRemoveSession(key: string): void {
+  try { sessionStorage.removeItem(key); } catch { /* blocked */ }
+}
+function safeGetLocal(key: string): string | null {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function safeSetLocal(key: string, value: string): void {
+  try { localStorage.setItem(key, value); } catch { /* blocked */ }
+}
+function safeRemoveLocal(key: string): void {
+  try { localStorage.removeItem(key); } catch { /* blocked */ }
+}
+
+// ---------------------------------------------------------------------------
 // Role system: L1 (Super Admin) through L7
 // ---------------------------------------------------------------------------
 export type UserRole = "L1" | "L2A" | "L2B" | "L4" | "L5A" | "L5B" | "L6" | "L7";
@@ -80,14 +104,13 @@ const MATRIX_STORAGE_KEY = "cms_permission_matrix";
 
 function loadMatrix(): Record<string, PagePermission> {
   if (typeof window === "undefined") return DEFAULT_PERMISSION_MATRIX;
-  const stored = localStorage.getItem(MATRIX_STORAGE_KEY);
+  const stored = safeGetLocal(MATRIX_STORAGE_KEY);
   if (!stored) return DEFAULT_PERMISSION_MATRIX;
   try {
     const parsed = JSON.parse(stored) as Record<string, PagePermission>;
-    // Detect old format (has L5 instead of L5A/L5B) and reset to defaults
     const firstPage = Object.values(parsed)[0];
     if (firstPage && firstPage.PCSB && ("L5" in firstPage.PCSB) && !("L5A" in firstPage.PCSB)) {
-      localStorage.removeItem(MATRIX_STORAGE_KEY);
+      safeRemoveLocal(MATRIX_STORAGE_KEY);
       return DEFAULT_PERMISSION_MATRIX;
     }
     return parsed;
@@ -100,7 +123,7 @@ export function getPermissionMatrix(): Record<string, PagePermission> {
 
 export function savePermissionMatrix(matrix: Record<string, PagePermission>): void {
   if (typeof window !== "undefined") {
-    localStorage.setItem(MATRIX_STORAGE_KEY, JSON.stringify(matrix));
+    safeSetLocal(MATRIX_STORAGE_KEY, JSON.stringify(matrix));
   }
 }
 
@@ -147,9 +170,9 @@ const DEFAULT_USERS: StoredUser[] = [
 
 function getAllUsers(): StoredUser[] {
   if (typeof window === "undefined") return DEFAULT_USERS;
-  const stored = localStorage.getItem(STORAGE_KEY);
+  const stored = safeGetLocal(STORAGE_KEY);
   if (!stored) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_USERS));
+    safeSetLocal(STORAGE_KEY, JSON.stringify(DEFAULT_USERS));
     return DEFAULT_USERS;
   }
   try { return JSON.parse(stored) as StoredUser[]; } catch { return DEFAULT_USERS; }
@@ -161,7 +184,7 @@ export function getStoredUsers(): StoredUser[] {
 
 export function saveUsers(users: StoredUser[]): void {
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
+    safeSetLocal(STORAGE_KEY, JSON.stringify(users));
   }
 }
 
@@ -201,12 +224,12 @@ const PROJECT_KEY = "cms_selected_project";
 
 export function getSelectedProject(): ProjectKey {
   if (typeof window === "undefined") return "PCSB";
-  return (sessionStorage.getItem(PROJECT_KEY) as ProjectKey) || "PCSB";
+  return (safeGetSession(PROJECT_KEY) as ProjectKey) || "PCSB";
 }
 
 export function setSelectedProject(project: ProjectKey): void {
   if (typeof window !== "undefined") {
-    sessionStorage.setItem(PROJECT_KEY, project);
+    safeSetSession(PROJECT_KEY, project);
   }
 }
 
@@ -225,9 +248,8 @@ export function login(username: string, password: string): AuthUser | null {
       defaultProject: found.defaultProject,
     };
     if (typeof window !== "undefined") {
-      sessionStorage.setItem("cms_auth_user", JSON.stringify(authUser));
-      sessionStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
-      // Set default project on login
+      safeSetSession("cms_auth_user", JSON.stringify(authUser));
+      safeSetSession(LAST_ACTIVITY_KEY, Date.now().toString());
       if (found.defaultProject) {
         setSelectedProject(found.defaultProject);
       }
@@ -239,26 +261,34 @@ export function login(username: string, password: string): AuthUser | null {
 
 export function logout(): void {
   if (typeof window !== "undefined") {
-    sessionStorage.removeItem("cms_auth_user");
-    sessionStorage.removeItem(LAST_ACTIVITY_KEY);
+    safeRemoveSession("cms_auth_user");
+    safeRemoveSession(LAST_ACTIVITY_KEY);
   }
+}
+
+// Preview bypass: in-memory flag for v0 embedded preview where sessionStorage is blocked
+const PREVIEW_USER: AuthUser = { username: "admin", fullName: "Preview Admin", role: "L1", defaultProject: "PCSB" };
+function isV0Preview(): boolean {
+  return typeof window !== "undefined" && window.location.hostname.includes("vusercontent.net");
 }
 
 export function getUser(): AuthUser | null {
   if (typeof window === "undefined") return null;
   
+  // Preview bypass: skip storage entirely in embedded v0 preview
+  if (isV0Preview()) return PREVIEW_USER;
+
   // Check for session timeout
-  const lastActivity = sessionStorage.getItem(LAST_ACTIVITY_KEY);
+  const lastActivity = safeGetSession(LAST_ACTIVITY_KEY);
   if (lastActivity) {
     const elapsed = Date.now() - parseInt(lastActivity, 10);
     if (elapsed > SESSION_TIMEOUT) {
-      // Session expired due to inactivity
       logout();
       return null;
     }
   }
   
-  const stored = sessionStorage.getItem("cms_auth_user");
+  const stored = safeGetSession("cms_auth_user");
   if (stored) {
     try {
       const parsed = JSON.parse(stored) as AuthUser;
@@ -283,7 +313,7 @@ export function isAuthenticated(): boolean {
 // Update last activity timestamp
 export function updateActivity(): void {
   if (typeof window !== "undefined" && isAuthenticated()) {
-    sessionStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+    safeSetSession(LAST_ACTIVITY_KEY, Date.now().toString());
   }
 }
 
