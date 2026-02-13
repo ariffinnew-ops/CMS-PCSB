@@ -82,8 +82,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
 
     // Check maintenance mode -- kick non-L1 users back to login
+    // Use a timeout so the page doesn't hang if cms_settings table is missing
     if (currentUser.role !== "L1") {
+      const maintenanceTimeout = setTimeout(() => {
+        // Fallback: if check takes too long, allow access
+        setUser(currentUser);
+        setIsLoading(false);
+      }, 3000);
+
       getMaintenanceMode().then((isMaintenance) => {
+        clearTimeout(maintenanceTimeout);
         if (isMaintenance) {
           logout();
           router.push("/login");
@@ -92,6 +100,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         setUser(currentUser);
         setIsLoading(false);
       }).catch(() => {
+        clearTimeout(maintenanceTimeout);
         setUser(currentUser);
         setIsLoading(false);
       });
