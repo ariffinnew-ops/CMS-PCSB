@@ -12,7 +12,6 @@ import {
   updateCrewDetail,
   createCrewMember,
   listCrewDocuments,
-  debugCrewCount,
 } from "@/lib/actions";
 import { createClient } from "@/lib/supabase/client";
 import { getClients, getPostsForClient, getLocationsForClientPost } from "@/lib/client-location-map";
@@ -505,11 +504,7 @@ export default function StaffDetailPage() {
     setMatrix([]);
     setRosterRows([]);
     setSelectedId("");
-    // Debug: check what project values exist in the table
-    debugCrewCount().then((r) => console.log("[v0] debugCrewCount result:", r));
-    console.log("[v0] Staff init, project from useProject():", project);
     getCrewList(project).then((res) => {
-      console.log("[v0] getCrewList result:", res.success, "rows:", res.data?.length);
       if (res.success && res.data) {
         setCrewList(res.data);
         if (res.data.length > 0) setSelectedId(res.data[0].id);

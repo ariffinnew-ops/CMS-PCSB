@@ -202,7 +202,7 @@ export default function StatementPage() {
 
       if (cycleDetails.length === 0) continue;
 
-      const crewOARate = master?.offshore_rate || 0;
+      const crewOARate = master?.offshore_rate || (isOM ? 200 : 0);
       const offshoreTotal = isOM ? totalOffshoreDays * crewOARate : 0;
       const medevacTotal = isEM ? totalMedevacDays * MEDEVAC_RATE : 0;
       const grandTotal = offshoreTotal + totalReliefAmount + totalStandbyAmount + medevacTotal;

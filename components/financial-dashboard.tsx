@@ -95,7 +95,7 @@ function calcMonthCosts(rosterData: PivotedCrewRow[], masterData: CrewMasterReco
       }).length;
     }
     const master = masterMap.get((crew.crew_name || "").toUpperCase().trim());
-    const crewOARate = master?.offshore_rate || 0;
+    const crewOARate = master?.offshore_rate || (isOM ? 200 : 0);
     const offshoreAmt = isOM ? offDays * crewOARate : 0;
     const medevacAmt = isEM ? medevac * medevacRate : 0;
     let basicAmt = 0, fixedAllAmt = 0;

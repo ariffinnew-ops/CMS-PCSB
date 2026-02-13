@@ -520,31 +520,35 @@ function rosterTable(project?: string): string {
 
 export async function getCrewList(project?: string): Promise<{ success: boolean; data?: { id: string; crew_name: string; clean_name: string; post: string; client: string; location: string; status?: string }[]; error?: string }> {
   const supabase = await createClient()
+
+  // Try full select first
   let q = supabase.from(MASTER_TABLE).select('id, crew_name, clean_name, post, client, location, status');
   if (project) q = q.eq('project', project);
   const { data, error } = await q.order('crew_name', { ascending: true })
 
-  console.log('[v0] getCrewList table:', MASTER_TABLE, 'project filter:', project, 'rows:', data?.length, 'error:', error)
-
-  if (error) {
-    console.error('Error fetching crew list:', error)
-    return { success: false, error: error.message }
+  if (!error) {
+    return { success: true, data: data || [] }
   }
-  return { success: true, data: data || [] }
+
+  // If column doesn't exist (42703), fall back to minimal columns
+  if (error.code === '42703') {
+    console.log('[v0] getCrewList fallback: missing column, trying minimal select')
+    let q2 = supabase.from(MASTER_TABLE).select('id, crew_name, post, client, location');
+    if (project) q2 = q2.eq('project', project);
+    const { data: d2, error: e2 } = await q2.order('crew_name', { ascending: true })
+    if (e2) {
+      console.error('Error fetching crew list (fallback):', e2)
+      return { success: false, error: e2.message }
+    }
+    // Map to expected shape with defaults for missing columns
+    return { success: true, data: (d2 || []).map((r: Record<string, unknown>) => ({ id: r.id as string, crew_name: r.crew_name as string, clean_name: (r.crew_name as string || '').replace(/\s*\(R\)\s*/g, '').trim(), post: r.post as string, client: r.client as string, location: r.location as string, status: 'active' })) }
+  }
+
+  console.error('Error fetching crew list:', error)
+  return { success: false, error: error.message }
 }
 
-// Debug: test raw query without project filter
-export async function debugCrewCount(): Promise<{ total: number; projects: Record<string, number> }> {
-  const supabase = await createClient()
-  const { data } = await supabase.from(MASTER_TABLE).select('project')
-  const projects: Record<string, number> = {};
-  for (const row of data || []) {
-    const p = String(row.project || 'NULL');
-    projects[p] = (projects[p] || 0) + 1;
-  }
-  console.log('[v0] debugCrewCount total:', data?.length, 'by project:', projects)
-  return { total: data?.length || 0, projects };
-}
+
 
 export async function getCrewDetail(crewId: string, project?: string): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
   const supabase = await createClient()
