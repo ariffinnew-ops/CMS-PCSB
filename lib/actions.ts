@@ -22,21 +22,81 @@ export async function signInWithEmail(email: string, password: string): Promise<
     return { success: false, error: authError?.message || 'Authentication failed' }
   }
 
+  console.log('[v0] signInWithEmail: auth user id =', authData.user.id, 'email =', authData.user.email)
+
   // Step 2: Fetch user profile from cms_users using admin client (bypasses RLS)
   const admin = createAdminClient()
   const { data: profile, error: profileError } = await admin
     .from('cms_users')
-    .select('username, full_name, user_level, assigned_project')
+    .select('id, username, full_name, user_level, assigned_project')
     .eq('id', authData.user.id)
     .single()
 
+  console.log('[v0] signInWithEmail: profile =', JSON.stringify(profile), 'profileError =', profileError?.message)
+
+  // If no cms_users row matched by id, try by email as fallback
   if (profileError || !profile) {
-    // Auth succeeded but no cms_users profile -- still allow with metadata fallback
+    const { data: profileByEmail, error: emailErr } = await admin
+      .from('cms_users')
+      .select('id, username, full_name, user_level, assigned_project')
+      .eq('email', authData.user.email)
+      .single()
+
+    console.log('[v0] signInWithEmail: profileByEmail =', JSON.stringify(profileByEmail), 'emailErr =', emailErr?.message)
+
+    if (!emailErr && profileByEmail) {
+      // Fix the id mismatch: update cms_users.id to match auth.users.id
+      await admin
+        .from('cms_users')
+        .update({ id: authData.user.id })
+        .eq('email', authData.user.email)
+
+      return {
+        success: true,
+        user: {
+          username: profileByEmail.username,
+          fullName: profileByEmail.full_name,
+          role: profileByEmail.user_level,
+          defaultProject: profileByEmail.assigned_project || 'PCSB',
+        },
+      }
+    }
+
+    // Also try by username (for users created before email field existed)
+    const emailPrefix = authData.user.email?.split('@')[0]
+    const { data: profileByUsername } = await admin
+      .from('cms_users')
+      .select('id, username, full_name, user_level, assigned_project')
+      .eq('username', emailPrefix)
+      .single()
+
+    console.log('[v0] signInWithEmail: profileByUsername =', JSON.stringify(profileByUsername))
+
+    if (profileByUsername) {
+      // Fix the id: update cms_users.id to match auth.users.id
+      await admin
+        .from('cms_users')
+        .update({ id: authData.user.id })
+        .eq('username', emailPrefix)
+
+      return {
+        success: true,
+        user: {
+          username: profileByUsername.username,
+          fullName: profileByUsername.full_name,
+          role: profileByUsername.user_level,
+          defaultProject: profileByUsername.assigned_project || 'PCSB',
+        },
+      }
+    }
+
+    // Absolute fallback
     const meta = authData.user.user_metadata || {}
+    console.log('[v0] signInWithEmail: FALLBACK to metadata, meta =', JSON.stringify(meta))
     return {
       success: true,
       user: {
-        username: meta.username || authData.user.email?.split('@')[0] || 'user',
+        username: meta.username || emailPrefix || 'user',
         fullName: meta.full_name || 'Unknown User',
         role: meta.user_level || 'L7',
         defaultProject: meta.assigned_project || 'PCSB',
@@ -328,9 +388,10 @@ export async function getLoginLogs(): Promise<LoginLogEntry[]> {
   .order('created_at', { ascending: true })
 
   if (error) {
-    console.warn('cms_users fetch error:', error.message)
+    console.warn('[v0] cms_users fetch error:', error.message)
     return []
   }
+  console.log('[v0] getSupabaseUsers: returned', data?.length, 'rows, first row keys:', data?.[0] ? Object.keys(data[0]) : 'none')
   return (data as CmsUser[]) || []
 }
 
