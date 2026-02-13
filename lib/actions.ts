@@ -502,12 +502,16 @@ export async function createMatrixRecord(
   return { success: true, id: data?.id }
 }
 
-// ─── Staff Detail Actions (cms_pcsb_master) ───
+// ─── Staff Detail Actions (dynamic table: cms_pcsb_master | cms_others_master) ───
 
-export async function getCrewList(): Promise<{ success: boolean; data?: { id: string; crew_name: string; clean_name: string; post: string; client: string; location: string; status?: string }[]; error?: string }> {
+function masterTable(project?: string): string {
+  return project === "OTHERS" ? "cms_others_master" : "cms_pcsb_master";
+}
+
+export async function getCrewList(project?: string): Promise<{ success: boolean; data?: { id: string; crew_name: string; clean_name: string; post: string; client: string; location: string; status?: string }[]; error?: string }> {
   const supabase = await createClient()
   const { data, error } = await supabase
-    .from('cms_pcsb_master')
+    .from(masterTable(project))
     .select('id, crew_name, clean_name, post, client, location, status')
     .order('crew_name', { ascending: true })
 
@@ -518,10 +522,10 @@ export async function getCrewList(): Promise<{ success: boolean; data?: { id: st
   return { success: true, data: data || [] }
 }
 
-export async function getCrewDetail(crewId: string): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
+export async function getCrewDetail(crewId: string, project?: string): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
   const supabase = await createClient()
   const { data, error } = await supabase
-    .from('cms_pcsb_master')
+    .from(masterTable(project))
     .select('*')
     .eq('id', crewId)
     .single()
@@ -533,10 +537,10 @@ export async function getCrewDetail(crewId: string): Promise<{ success: boolean;
   return { success: true, data: data || {} }
 }
 
-export async function updateCrewDetail(crewId: string, updates: Record<string, unknown>): Promise<{ success: boolean; error?: string }> {
+export async function updateCrewDetail(crewId: string, updates: Record<string, unknown>, project?: string): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
   const { error } = await supabase
-    .from('cms_pcsb_master')
+    .from(masterTable(project))
     .update(updates)
     .eq('id', crewId)
 
@@ -603,11 +607,11 @@ export async function deleteCrewDocument(crewId: string, fileName: string): Prom
   return { success: true }
 }
 
-export async function createCrewMember(crewData: Record<string, unknown>): Promise<{ success: boolean; id?: string; error?: string }> {
+export async function createCrewMember(crewData: Record<string, unknown>, project?: string): Promise<{ success: boolean; id?: string; error?: string }> {
   const supabase = await createClient()
   const { data, error } = await supabase
-    .from('cms_pcsb_master')
-    .insert(crewData)
+  .from(masterTable(project))
+  .insert(crewData)
     .select('id')
     .single()
 

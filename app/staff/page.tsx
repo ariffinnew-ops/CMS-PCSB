@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { AppShell } from "@/components/app-shell";
-import { getUser, ROLE_LEVELS, type AuthUser } from "@/lib/auth";
+import { getUser, ROLE_LEVELS, getSelectedProject, type AuthUser, type ProjectKey } from "@/lib/auth";
 import {
   getCrewList,
   getCrewDetail,
@@ -368,7 +368,7 @@ function DetailOverlay({ detail, onClose, canEdit, onSave }: { detail: Record<st
 }
 
 // ─── Add Staff Overlay (covers Section B + C area) ───
-function AddStaffOverlay({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+function AddStaffOverlay({ onClose, onCreated, project }: { onClose: () => void; onCreated: (id: string) => void; project?: string }) {
   const [form, setForm] = useState<Record<string, string>>({
     crew_name: "", nric_passport: "", address: "", phone: "", email1: "", email2: "",
     post: "", client: "", location: "", hire_date: "", resign_date: "", exp_date: "", status: "Active",
@@ -381,7 +381,7 @@ function AddStaffOverlay({ onClose, onCreated }: { onClose: () => void; onCreate
     setSaving(true);
     const payload: Record<string, string> = {};
     for (const [k, v] of Object.entries(form)) { if (v.trim()) payload[k] = v.trim(); }
-    const res = await createCrewMember(payload);
+    const res = await createCrewMember(payload, project);
     setSaving(false);
     if (res.success && res.id) onCreated(res.id);
     else alert(res.error || "Failed to create");
@@ -465,6 +465,7 @@ function AddStaffOverlay({ onClose, onCreated }: { onClose: () => void; onCreate
 // ════════════════════════════════════��══
 export default function StaffDetailPage() {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [project, setProject] = useState<ProjectKey>(getSelectedProject());
   const [crewList, setCrewList] = useState<CrewListItem[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
@@ -479,6 +480,15 @@ export default function StaffDetailPage() {
   const [uploading, setUploading] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
+  // Sync project selection from AppShell (uses sessionStorage events)
+  useEffect(() => {
+    const sync = () => setProject(getSelectedProject());
+    window.addEventListener("storage", sync);
+    // Also poll for same-tab changes (sessionStorage doesn't fire storage event in same tab)
+    const interval = setInterval(sync, 300);
+    return () => { window.removeEventListener("storage", sync); clearInterval(interval); };
+  }, []);
+
   const lvl = roleLevel(user);
   const isL1L2 = lvl <= 2;
 
@@ -491,31 +501,36 @@ export default function StaffDetailPage() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Init
+  // Init + re-fetch on project switch
   useEffect(() => {
     const u = getUser();
     setUser(u);
-    getCrewList().then((res) => {
+    setLoading(true);
+    setDetail(null);
+    setMatrix([]);
+    setRosterRows([]);
+    setSelectedId("");
+    getCrewList(project).then((res) => {
       if (res.success && res.data) {
         setCrewList(res.data);
         if (res.data.length > 0) setSelectedId(res.data[0].id);
       }
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, []);
+  }, [project]);
 
   // Load detail
   const loadDetail = useCallback(async (id: string) => {
     if (!id) return;
     const [detRes, matRes, rosRes] = await Promise.all([
-      getCrewDetail(id),
+      getCrewDetail(id, project),
       getCrewMatrix(id),
       getCrewRoster(id),
     ]);
     if (detRes.success && detRes.data) setDetail(detRes.data);
     if (matRes.success && matRes.data) setMatrix(matRes.data);
     if (rosRes.success && rosRes.data) setRosterRows(rosRes.data as Record<string, unknown>[]);
-  }, []);
+  }, [project]);
 
   useEffect(() => { if (selectedId) { setShowDetailOverlay(false); loadDetail(selectedId); } }, [selectedId, loadDetail]);
 
@@ -533,7 +548,7 @@ export default function StaffDetailPage() {
   const handleStatusSave = async (newStatus: string) => {
     if (!selectedId) return;
     setShowStatusDialog(false);
-    const res = await updateCrewDetail(selectedId, { status: newStatus });
+    const res = await updateCrewDetail(selectedId, { status: newStatus }, project);
     if (res.success) {
       setDetail((prev) => prev ? { ...prev, status: newStatus } : prev);
       setCrewList((prev) => prev.map((c) => c.id === selectedId ? { ...c, status: newStatus } : c));
@@ -562,11 +577,11 @@ export default function StaffDetailPage() {
     for (const [k, v] of Object.entries(fields)) {
       payload[k] = v.trim() || null;
     }
-    const res = await updateCrewDetail(selectedId, payload);
+    const res = await updateCrewDetail(selectedId, payload, project);
     if (res.success) {
       await loadDetail(selectedId);
       // Refresh list in case name/post/client/location changed
-      const listRes = await getCrewList();
+      const listRes = await getCrewList(project);
       if (listRes.success && listRes.data) setCrewList(listRes.data);
     }
   };
@@ -591,7 +606,7 @@ export default function StaffDetailPage() {
     // Get public URL and save to avatar_url column
     const { data: urlData } = supabase.storage.from("profile_pic").getPublicUrl(path);
     if (urlData?.publicUrl) {
-      const res = await updateCrewDetail(selectedId, { avatar_url: urlData.publicUrl });
+      const res = await updateCrewDetail(selectedId, { avatar_url: urlData.publicUrl }, project);
       if (res.success) {
         setDetail((prev) => prev ? { ...prev, avatar_url: urlData.publicUrl } : prev);
       }
@@ -602,7 +617,7 @@ export default function StaffDetailPage() {
   // Add staff
   const handleCreated = (id: string) => {
     setShowAdd(false);
-    getCrewList().then((res) => {
+    getCrewList(project).then((res) => {
       if (res.success && res.data) { setCrewList(res.data); setSelectedId(id); }
     });
   };
@@ -789,7 +804,7 @@ export default function StaffDetailPage() {
 
           {/* Add Staff Overlay (covers B+C) */}
           {showAdd && (
-            <AddStaffOverlay onClose={() => setShowAdd(false)} onCreated={handleCreated} />
+            <AddStaffOverlay onClose={() => setShowAdd(false)} onCreated={handleCreated} project={project} />
           )}
 
           {/* ═══ SECTION B: CERTIFICATES (Top - auto fit, no scroll) ═══ */}
