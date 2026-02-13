@@ -21,7 +21,11 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [maintenanceMode, setMaintenanceModeState] = useState(false);
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [adminAuthed, setAdminAuthed] = useState(false);
+  const [adminUser, setAdminUser] = useState("");
+  const [adminPass, setAdminPass] = useState("");
+  const [adminError, setAdminError] = useState("");
   const [togglingMaintenance, setTogglingMaintenance] = useState(false);
 
   useEffect(() => {
@@ -96,6 +100,18 @@ export default function LoginPage() {
     setIsLoading(false);
   };
 
+  const handleAdminLogin = () => {
+    setAdminError("");
+    const user = login(adminUser, adminPass);
+    if (user && user.role === "L1") {
+      setAdminAuthed(true);
+      // Don't persist this login to session -- immediately logout so it doesn't carry over
+      logout();
+    } else {
+      setAdminError(user ? "Access denied. L1 only." : "Invalid credentials.");
+    }
+  };
+
   const handleToggleMaintenance = async () => {
     setTogglingMaintenance(true);
     const newValue = !maintenanceMode;
@@ -104,6 +120,14 @@ export default function LoginPage() {
       setMaintenanceModeState(newValue);
     }
     setTogglingMaintenance(false);
+  };
+
+  const handleCloseAdminPanel = () => {
+    setShowAdminPanel(false);
+    setAdminAuthed(false);
+    setAdminUser("");
+    setAdminPass("");
+    setAdminError("");
   };
 
   if (!mounted) {
@@ -240,41 +264,72 @@ export default function LoginPage() {
       </Card>
 
       {/* Admin Panel Popup */}
-      {showAdminLogin && (
+      {showAdminPanel && (
         <div className="absolute bottom-20 right-4 z-30 w-64 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wide">Admin Panel</h3>
-            <button type="button" onClick={() => setShowAdminLogin(false)} className="text-slate-500 hover:text-white">
+            <button type="button" onClick={handleCloseAdminPanel} className="text-slate-500 hover:text-white">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
-          <p className="text-[10px] text-slate-500 mb-3">L1 admin login required to toggle.</p>
-          <div className="flex items-center justify-between bg-slate-800 rounded-lg px-3 py-2.5">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${maintenanceMode ? "bg-amber-400 animate-pulse" : "bg-emerald-400"}`} />
-              <span className="text-xs font-medium text-slate-300">
-                {maintenanceMode ? "Maintenance ON" : "System Active"}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={handleToggleMaintenance}
-              disabled={togglingMaintenance}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
-                maintenanceMode ? "bg-amber-500" : "bg-slate-600"
-              }`}
-            >
-              <span
-                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-sm ${
-                  maintenanceMode ? "translate-x-4" : "translate-x-0.5"
-                }`}
+
+          {!adminAuthed ? (
+            <>
+              <p className="text-[10px] text-slate-500 mb-2">Enter L1 credentials to proceed.</p>
+              <input
+                type="text"
+                placeholder="Username"
+                value={adminUser}
+                onChange={(e) => setAdminUser(e.target.value)}
+                className="w-full mb-1.5 px-2 py-1.5 text-xs bg-slate-800 border border-slate-700 rounded text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
               />
-            </button>
-          </div>
-          {maintenanceMode && (
-            <p className="text-[10px] text-amber-400/80 mt-2 text-center">All non-L1 users are blocked</p>
+              <input
+                type="password"
+                placeholder="Password"
+                value={adminPass}
+                onChange={(e) => setAdminPass(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAdminLogin()}
+                className="w-full mb-2 px-2 py-1.5 text-xs bg-slate-800 border border-slate-700 rounded text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              />
+              {adminError && <p className="text-[10px] text-red-400 mb-2">{adminError}</p>}
+              <button
+                type="button"
+                onClick={handleAdminLogin}
+                className="w-full py-1.5 text-xs font-medium bg-cyan-600 hover:bg-cyan-500 text-white rounded transition-colors"
+              >
+                Verify
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between bg-slate-800 rounded-lg px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${maintenanceMode ? "bg-amber-400 animate-pulse" : "bg-emerald-400"}`} />
+                  <span className="text-xs font-medium text-slate-300">
+                    {maintenanceMode ? "Maintenance ON" : "System Active"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleMaintenance}
+                  disabled={togglingMaintenance}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                    maintenanceMode ? "bg-amber-500" : "bg-slate-600"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-sm ${
+                      maintenanceMode ? "translate-x-4" : "translate-x-0.5"
+                    }`}
+                  />
+                </button>
+              </div>
+              {maintenanceMode && (
+                <p className="text-[10px] text-amber-400/80 mt-2 text-center">All non-L1 users are blocked</p>
+              )}
+            </>
           )}
         </div>
       )}
@@ -290,7 +345,7 @@ export default function LoginPage() {
           </p>
           <button
             type="button"
-            onClick={() => setShowAdminLogin(!showAdminLogin)}
+            onClick={() => showAdminPanel ? handleCloseAdminPanel() : setShowAdminPanel(true)}
             className="inline-flex items-center justify-center w-5 h-5 rounded text-slate-400 hover:text-cyan-400 transition-colors"
             title="Admin"
           >
