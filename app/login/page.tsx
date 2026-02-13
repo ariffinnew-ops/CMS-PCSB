@@ -4,7 +4,7 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { login, isAuthenticated, mergeSupabaseUsers } from "@/lib/auth";
+import { login, isAuthenticated, mergeSupabaseUsers, getFirstAccessiblePage } from "@/lib/auth";
 import { recordLoginLog, getSupabaseUsers, getMaintenanceMode } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,14 +28,11 @@ export default function LoginPage() {
       router.push("/dashboard");
       return;
     }
-    // Clear stale localStorage users so DEFAULT_USERS with admin009 takes effect
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("cms_users_store");
-    }
-    // Then sync from Supabase (Supabase users overlay DEFAULT_USERS)
+    // Sync users from Supabase (source of truth) into local cache for login()
+    // Hardcoded admin is always preserved by mergeSupabaseUsers
     getSupabaseUsers().then(sbUsers => {
-      if (sbUsers.length > 0) mergeSupabaseUsers(sbUsers);
-    }).catch(() => { /* Supabase unavailable, DEFAULT_USERS still work */ });
+      mergeSupabaseUsers(sbUsers);
+    }).catch(() => { /* Supabase unavailable, local cache still works */ });
     // Check maintenance mode
     getMaintenanceMode().then(setMaintenanceModeState).catch(() => {});
   }, [router]);
@@ -85,8 +82,9 @@ export default function LoginPage() {
         setIsLoading(false);
         return;
       }
+      const landingPage = getFirstAccessiblePage(user.role);
       setNotification({ type: "success", message: `Login successful. Welcome back, ${user.username}!` });
-      setTimeout(() => router.push("/dashboard"), 800);
+      setTimeout(() => router.push(landingPage), 800);
     } else {
       setNotification({ type: "error", message: "Login unsuccessful. Please check your username and password." });
     }
