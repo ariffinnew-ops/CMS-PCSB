@@ -54,6 +54,13 @@ export async function signInWithEmail(email: string, password: string): Promise<
   }
 }
 
+// ─── Supabase Auth: sign out (server-side cookie cleanup) ───
+
+export async function signOutServer(): Promise<void> {
+  const supabase = await createClient()
+  await supabase.auth.signOut()
+}
+
 // ─── Helpers: table routing by project ───
 
 // Master is now a single combined table with a `project_code` column

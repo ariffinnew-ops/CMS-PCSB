@@ -29,9 +29,6 @@ function safeRemoveLocal(key: string): void {
 // ---------------------------------------------------------------------------
 export type UserRole = "L1" | "L2A" | "L2B" | "L4" | "L5A" | "L5B" | "L6" | "L7";
 
-// Keep legacy aliases so existing code that checks "admin" / "datalogger" still compiles
-export type LegacyRole = "admin" | "datalogger" | "guest";
-
 export type ProjectKey = "PCSB" | "OTHERS";
 
 export interface AuthUser {
@@ -39,15 +36,6 @@ export interface AuthUser {
   fullName: string;
   role: UserRole;
   defaultProject?: ProjectKey;
-}
-
-// Legacy type kept for backward compat -- actual logging uses cms_login_logs via actions.ts
-export interface LoginLog {
-  id?: number;
-  username: string;
-  role: string;
-  timestamp: string;
-  success: boolean;
 }
 
 // Role hierarchy level (lower = higher privilege)
@@ -216,20 +204,19 @@ export function logout(): void {
   if (typeof window !== "undefined") {
     safeRemoveSession("cms_auth_user");
     safeRemoveSession(LAST_ACTIVITY_KEY);
+    safeRemoveSession(PROJECT_KEY);
+    // Clear all Supabase auth cookies client-side
+    document.cookie.split(";").forEach((c) => {
+      const name = c.trim().split("=")[0];
+      if (name.startsWith("sb-")) {
+        document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+      }
+    });
   }
-}
-
-// Preview bypass: in-memory flag for v0 embedded preview where sessionStorage is blocked
-const PREVIEW_USER: AuthUser = { username: "admin", fullName: "Preview Admin", role: "L1", defaultProject: "PCSB" };
-function isV0Preview(): boolean {
-  return typeof window !== "undefined" && window.location.hostname.includes("vusercontent.net");
 }
 
 export function getUser(): AuthUser | null {
   if (typeof window === "undefined") return null;
-  
-  // Preview bypass: skip storage entirely in embedded v0 preview
-  if (isV0Preview()) return PREVIEW_USER;
 
   // Check for session timeout
   const lastActivity = safeGetSession(LAST_ACTIVITY_KEY);
