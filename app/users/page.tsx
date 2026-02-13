@@ -22,6 +22,8 @@ import {
   insertCmsUser,
   updateCmsUser,
   deleteCmsUser,
+  getAccessMatrixAsAppFormat,
+  saveAccessMatrixBulk,
   type LoginLogEntry,
 } from "@/lib/actions";
 import { mergeSupabaseUsers } from "@/lib/auth";
@@ -51,8 +53,10 @@ export default function UsersPage() {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [matrixProject, setMatrixProject] = useState<ProjectKey>("PCSB");
-  const [matrix, setMatrix] = useState(() => getPermissionMatrix());
+  const [matrix, setMatrix] = useState<Record<string, { PCSB: Record<string, string>; OTHERS: Record<string, string> }>>(() => getPermissionMatrix());
   const [matrixDirty, setMatrixDirty] = useState(false);
+  const [matrixLoading, setMatrixLoading] = useState(true);
+  const [matrixSaving, setMatrixSaving] = useState(false);
   const [loginLogs, setLoginLogs] = useState<LoginLogEntry[]>([]);
   const [logsLoading, setLogsLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -94,6 +98,19 @@ export default function UsersPage() {
     getLoginLogs().then(logs => {
       setLoginLogs(logs);
       setLogsLoading(false);
+    });
+
+    // Load access matrix from Supabase
+    setMatrixLoading(true);
+    getAccessMatrixAsAppFormat().then(dbMatrix => {
+      if (Object.keys(dbMatrix).length > 0) {
+        setMatrix(dbMatrix);
+        // Also sync to local for canAccessPage / getPermission to use
+        savePermissionMatrix(dbMatrix as Record<string, import("@/lib/auth").PagePermission>);
+      }
+      setMatrixLoading(false);
+    }).catch(() => {
+      setMatrixLoading(false);
     });
   }, [router]);
 
@@ -267,16 +284,30 @@ export default function UsersPage() {
     setMatrixDirty(true);
   };
 
-  const handleSaveMatrix = () => {
-    savePermissionMatrix(matrix);
-    setMatrixDirty(false);
-    showNotif("Access matrix saved successfully.", "success");
+  const handleSaveMatrix = async () => {
+    setMatrixSaving(true);
+    const result = await saveAccessMatrixBulk(matrix);
+    if (result.success) {
+      // Also sync to localStorage for runtime permission checks
+      savePermissionMatrix(matrix as Record<string, import("@/lib/auth").PagePermission>);
+      setMatrixDirty(false);
+      showNotif("Access matrix saved to database successfully.", "success");
+    } else {
+      showNotif("Failed to save matrix: " + (result.error || "Unknown error"), "error");
+    }
+    setMatrixSaving(false);
   };
 
-  const handleResetMatrix = () => {
-    const fresh = getPermissionMatrix();
-    setMatrix(fresh);
+  const handleResetMatrix = async () => {
+    setMatrixLoading(true);
+    const dbMatrix = await getAccessMatrixAsAppFormat();
+    if (Object.keys(dbMatrix).length > 0) {
+      setMatrix(dbMatrix);
+    } else {
+      setMatrix(getPermissionMatrix());
+    }
     setMatrixDirty(false);
+    setMatrixLoading(false);
   };
 
   const getRoleBadge = (role: UserRole) => {
@@ -637,6 +668,11 @@ export default function UsersPage() {
               <span className="text-[8px] font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded">
                 Source: Supabase / cms_access_matrix
               </span>
+              {matrixLoading && (
+                <span className="text-[8px] font-bold text-cyan-400 bg-cyan-500/15 px-2 py-0.5 rounded border border-cyan-500/30">
+                  LOADING...
+                </span>
+              )}
               {matrixDirty && (
                 <span className="text-[8px] font-black text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30 animate-pulse">
                   UNSAVED
@@ -656,9 +692,10 @@ export default function UsersPage() {
                   <button
                     type="button"
                     onClick={handleSaveMatrix}
-                    className="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/30"
+                    disabled={matrixSaving}
+                    className="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/30"
                   >
-                    Save Changes
+                    {matrixSaving ? "Saving..." : "Save Changes"}
                   </button>
                 </div>
               )}
@@ -725,9 +762,9 @@ export default function UsersPage() {
                             className={`inline-block px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-wider min-w-[42px] transition-all ${
                               isLocked ? "cursor-default opacity-70" : "cursor-pointer hover:ring-2 hover:ring-blue-400/50 active:scale-95"
                             } ${getPermBadge(level)}`}
-                            title={isLocked ? "L1 always has EDIT access" : `Click to change: ${level}`}
+                            title={isLocked ? "L1 always has E (Edit) access" : `Click to cycle: ${level === "EDIT" ? "E" : level === "VIEW" ? "V" : "NO"}`}
                           >
-                            {level === "NONE" ? "--" : level}
+                            {level === "EDIT" ? "E" : level === "VIEW" ? "V" : "NO"}
                           </button>
                         </td>
                       );
@@ -741,19 +778,19 @@ export default function UsersPage() {
             <div className="flex items-center gap-5">
               <div className="flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded bg-emerald-600" />
-                <span className="text-[10px] font-bold text-muted-foreground">EDIT</span>
+                <span className="text-[10px] font-bold text-muted-foreground">E = Edit</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded bg-blue-600/80" />
-                <span className="text-[10px] font-bold text-muted-foreground">VIEW</span>
+                <span className="text-[10px] font-bold text-muted-foreground">V = View</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded bg-slate-800" />
-                <span className="text-[10px] font-bold text-muted-foreground">NO ACCESS</span>
+                <span className="text-[10px] font-bold text-muted-foreground">NO = No Access</span>
               </div>
             </div>
             <span className="text-[9px] text-muted-foreground font-semibold">
-              Click any cell to cycle permissions (L1 is locked to EDIT)
+              Click any cell to cycle: E &rarr; V &rarr; NO &rarr; E (L1 is locked)
             </span>
           </div>
         </div>

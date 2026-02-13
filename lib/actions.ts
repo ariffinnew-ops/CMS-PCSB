@@ -879,6 +879,139 @@ export async function setMaintenanceMode(enabled: boolean): Promise<{ success: b
   return { success: true }
 }
 
+// ─── Access Matrix (cms_access_matrix) ───
+
+// DB row shape
+interface AccessMatrixRow {
+  id: string;
+  page_code: string;
+  project_scope: string;
+  page_name: string;
+  description: string;
+  l1_access: string;
+  l2a_access: string;
+  l2b_access: string;
+  l4_access: string;
+  l5_access: string;
+  l6_access: string;
+  l7_access: string;
+}
+
+// Map page_code (P1-P8) -> route pathname used in the app
+const PAGE_CODE_TO_ROUTE: Record<string, string> = {
+  P1: "/dashboard", P2: "/roster", P3: "/training", P4: "/staff",
+  P5: "/statement", P6: "/financial", P7: "/admin", P8: "/users",
+};
+const ROUTE_TO_PAGE_CODE: Record<string, string> = Object.fromEntries(
+  Object.entries(PAGE_CODE_TO_ROUTE).map(([k, v]) => [v, k])
+);
+
+// DB uses E/V/NO, app uses EDIT/VIEW/NONE
+function dbToApp(v: string): string {
+  if (v === "E") return "EDIT";
+  if (v === "V") return "VIEW";
+  return "NONE";
+}
+function appToDb(v: string): string {
+  if (v === "EDIT") return "E";
+  if (v === "VIEW") return "V";
+  return "NO";
+}
+
+export async function getAccessMatrix(): Promise<{ success: boolean; data?: AccessMatrixRow[]; error?: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('cms_access_matrix')
+    .select('*')
+    .order('page_code', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching access matrix:', error)
+    return { success: false, error: error.message }
+  }
+  return { success: true, data: data || [] }
+}
+
+// Convert DB rows -> app format: Record<route, { PCSB: Record<role, level>, OTHERS: Record<role, level> }>
+export async function getAccessMatrixAsAppFormat(): Promise<Record<string, { PCSB: Record<string, string>; OTHERS: Record<string, string> }>> {
+  const result = await getAccessMatrix()
+  if (!result.success || !result.data) return {}
+
+  const matrix: Record<string, { PCSB: Record<string, string>; OTHERS: Record<string, string> }> = {}
+
+  for (const row of result.data) {
+    const route = PAGE_CODE_TO_ROUTE[row.page_code]
+    if (!route) continue
+    if (!matrix[route]) {
+      matrix[route] = {
+        PCSB: { L1: "EDIT", L2A: "NONE", L2B: "NONE", L4: "NONE", L5A: "NONE", L5B: "NONE", L6: "NONE", L7: "NONE" },
+        OTHERS: { L1: "EDIT", L2A: "NONE", L2B: "NONE", L4: "NONE", L5A: "NONE", L5B: "NONE", L6: "NONE", L7: "NONE" },
+      }
+    }
+    const scope = row.project_scope as "PCSB" | "OTHERS"
+    matrix[route][scope] = {
+      L1: dbToApp(row.l1_access),
+      L2A: dbToApp(row.l2a_access),
+      L2B: dbToApp(row.l2b_access),
+      L4: dbToApp(row.l4_access),
+      // DB has single l5_access -> map to L5A for PCSB, L5B for OTHERS
+      L5A: scope === "PCSB" ? dbToApp(row.l5_access) : "NONE",
+      L5B: scope === "OTHERS" ? dbToApp(row.l5_access) : "NONE",
+      L6: dbToApp(row.l6_access),
+      L7: dbToApp(row.l7_access),
+    }
+  }
+  return matrix
+}
+
+export async function updateAccessMatrixRow(
+  route: string,
+  projectScope: string,
+  permissions: Record<string, string>
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const pageCode = ROUTE_TO_PAGE_CODE[route]
+  if (!pageCode) return { success: false, error: "Unknown route: " + route }
+
+  // Map app roles back to DB columns; L5A/L5B -> l5_access based on project
+  const l5Val = projectScope === "PCSB" ? (permissions.L5A || "NONE") : (permissions.L5B || "NONE")
+
+  const updatePayload = {
+    l1_access: appToDb(permissions.L1 || "EDIT"),
+    l2a_access: appToDb(permissions.L2A || "NONE"),
+    l2b_access: appToDb(permissions.L2B || "NONE"),
+    l4_access: appToDb(permissions.L4 || "NONE"),
+    l5_access: appToDb(l5Val),
+    l6_access: appToDb(permissions.L6 || "NONE"),
+    l7_access: appToDb(permissions.L7 || "NONE"),
+  }
+
+  const { error } = await supabase
+    .from('cms_access_matrix')
+    .update(updatePayload)
+    .eq('page_code', pageCode)
+    .eq('project_scope', projectScope)
+
+  if (error) {
+    console.error('Error updating access matrix:', error)
+    return { success: false, error: error.message }
+  }
+  return { success: true }
+}
+
+// Bulk save: update all rows for the entire matrix
+export async function saveAccessMatrixBulk(
+  matrix: Record<string, { PCSB: Record<string, string>; OTHERS: Record<string, string> }>
+): Promise<{ success: boolean; error?: string }> {
+  for (const [route, scopes] of Object.entries(matrix)) {
+    for (const [scope, perms] of Object.entries(scopes)) {
+      const result = await updateAccessMatrixRow(route, scope, perms)
+      if (!result.success) return result
+    }
+  }
+  return { success: true }
+}
+
 // Bulk update for Save Changes
 export async function bulkUpdateRosterRows(updates: { id: number; updates: Partial<RosterRow> }[], project?: string): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
