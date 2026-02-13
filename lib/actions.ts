@@ -3,6 +3,16 @@
 import { createClient } from '@/lib/supabase/server'
 import type { RosterRow, PivotedCrewRow, MatrixRecord } from './types'
 
+// ─── Helpers: table routing by project ───
+
+// Master is now a single combined table with a `project` column
+const MASTER_TABLE = "cms_master_crew";
+
+// Roster remains separate tables per project
+function rosterTable(project?: string): string {
+  return project === "OTHERS" ? "cms_others_roster" : "cms_pcsb_roster";
+}
+
 // ─── Roster Actions (normalized: one row per crew per cycle) ───
 
 export async function getRosterData(project?: string): Promise<RosterRow[]> {
@@ -492,16 +502,6 @@ export async function createMatrixRecord(
   }
 
   return { success: true, id: data?.id }
-}
-
-// ─── Helpers: table routing by project ───
-
-// Master is now a single combined table with a `project` column
-const MASTER_TABLE = "cms_master_crew";
-
-// Roster remains separate tables per project
-function rosterTable(project?: string): string {
-  return project === "OTHERS" ? "cms_others_roster" : "cms_pcsb_roster";
 }
 
 // ─── Staff Detail Actions (cms_master_crew filtered by project) ───
