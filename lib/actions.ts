@@ -277,13 +277,14 @@ export async function getSupabaseUsers(): Promise<CmsUser[]> {
 
 export async function insertCmsUser(params: {
   username: string;
+  email: string;
   password_manual: string;
   full_name: string;
   user_level: string;
   assigned_project: string;
 }): Promise<{ success: boolean; error?: string }> {
   const admin = createAdminClient()
-  const email = `${params.username.toLowerCase()}@cms.local`
+  const email = params.email.trim().toLowerCase()
 
   // Step 1: Create user in Supabase Auth to get a real UUID
   const { data: authData, error: authError } = await admin.auth.admin.createUser({

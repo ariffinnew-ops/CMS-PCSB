@@ -65,6 +65,7 @@ export default function UsersPage() {
 
   // Form state
   const [formUsername, setFormUsername] = useState("");
+  const [formEmail, setFormEmail] = useState("");
   const [formPassword, setFormPassword] = useState("");
   const [formFullName, setFormFullName] = useState("");
   const [formRole, setFormRole] = useState<UserRole>("L2A");
@@ -117,6 +118,7 @@ export default function UsersPage() {
 
   const resetForm = () => {
     setFormUsername("");
+    setFormEmail("");
     setFormPassword("");
     setFormFullName("");
     setFormRole("L2A");
@@ -130,8 +132,22 @@ export default function UsersPage() {
     const trimUser = formUsername.trim().toLowerCase();
     const trimName = formFullName.trim();
 
+    const trimEmail = formEmail.trim().toLowerCase();
+
     if (!trimUser || !formPassword || !trimName) {
       showNotif("All fields are required.", "error");
+      return;
+    }
+
+    // Email is required for new users (Supabase Auth needs it)
+    if (editingIdx === null && !trimEmail) {
+      showNotif("Email is required for new users.", "error");
+      return;
+    }
+
+    // Validate email format
+    if (trimEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimEmail)) {
+      showNotif("Please enter a valid email address.", "error");
       return;
     }
 
@@ -167,6 +183,7 @@ export default function UsersPage() {
 
       const result = await insertCmsUser({
         username: trimUser,
+        email: trimEmail,
         password_manual: formPassword,
         full_name: trimName,
         user_level: formRole,
@@ -404,6 +421,21 @@ export default function UsersPage() {
                       required
                     />
                   </div>
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
+                    Email {editingIdx === null && <span className="text-red-400">*</span>}
+                  </label>
+                  <input
+                    type="email"
+                    value={formEmail}
+                    onChange={(e) => setFormEmail(e.target.value)}
+                    className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                    placeholder="user@company.com"
+                    required={editingIdx === null}
+                  />
                 </div>
 
                 {/* Full Name */}
