@@ -296,7 +296,7 @@ export default function UsersPage() {
 
   return (
     <AppShell>
-      <div className="space-y-6">
+      <div className="space-y-3">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -316,7 +316,7 @@ export default function UsersPage() {
           <button
             type="button"
             onClick={() => { resetForm(); setShowForm(true); }}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-all shadow-lg hover:shadow-blue-500/30"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-[10px] font-bold uppercase tracking-wider transition-all shadow-lg hover:shadow-blue-500/30"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -373,18 +373,18 @@ export default function UsersPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
+              <form onSubmit={handleSubmit} className="px-5 py-3 space-y-3">
                 <div className="grid grid-cols-2 gap-4">
                   {/* Username */}
                   <div>
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
                       Username
                     </label>
                     <input
                       type="text"
                       value={formUsername}
                       onChange={(e) => setFormUsername(e.target.value)}
-                      className="w-full bg-muted border border-border rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                      className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
                       placeholder="e.g. john.doe"
                       required
                     />
@@ -392,14 +392,14 @@ export default function UsersPage() {
 
                   {/* Password */}
                   <div>
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
                       Password
                     </label>
                     <input
                       type="text"
                       value={formPassword}
                       onChange={(e) => setFormPassword(e.target.value)}
-                      className="w-full bg-muted border border-border rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                      className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
                       placeholder="Initial password"
                       required
                     />
@@ -408,29 +408,29 @@ export default function UsersPage() {
 
                 {/* Full Name */}
                 <div>
-                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">
+                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
                     Full Name
                   </label>
                   <input
                     type="text"
                     value={formFullName}
                     onChange={(e) => setFormFullName(e.target.value)}
-                    className="w-full bg-muted border border-border rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                    className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
                     placeholder="Full display name"
                     required
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   {/* Role */}
                   <div>
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
                       User Role
                     </label>
                     <select
                       value={formRole}
                       onChange={(e) => setFormRole(e.target.value as UserRole)}
-                      className="w-full bg-muted border border-border rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                      className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
                     >
                       {ALL_ROLES.map((r) => (
                         <option key={r} value={r}>
@@ -442,13 +442,13 @@ export default function UsersPage() {
 
                   {/* Default Project */}
                   <div>
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5 block">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 block">
                       Default Project
                     </label>
                     <select
                       value={formProject}
                       onChange={(e) => setFormProject(e.target.value as ProjectKey)}
-                      className="w-full bg-muted border border-border rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                      className="w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
                     >
                       {ALL_PROJECTS.map((p) => (
                         <option key={p} value={p}>{p}</option>
@@ -457,17 +457,17 @@ export default function UsersPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-3 border-t border-border">
+                <div className="flex justify-end gap-2 pt-2 border-t border-border">
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="px-5 py-2.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold text-xs uppercase tracking-wider transition-all border border-border"
+                    className="px-4 py-1.5 rounded-md bg-muted hover:bg-muted/80 text-foreground font-bold text-[10px] uppercase tracking-wider transition-all border border-border"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-wider transition-all shadow-lg hover:shadow-blue-500/30"
+                    className="px-5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white font-black text-[10px] uppercase tracking-wider transition-all shadow-lg hover:shadow-blue-500/30"
                   >
                     {editingIdx !== null ? "Update" : "Create"}
                   </button>
@@ -497,12 +497,12 @@ export default function UsersPage() {
             <table className="w-full">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-900/50 border-b-2 border-border">
-                  <th className="px-5 py-3.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground w-12">#</th>
-                  <th className="px-5 py-3.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Username</th>
-                  <th className="px-5 py-3.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Full Name</th>
-                  <th className="px-5 py-3.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Role</th>
-                  <th className="px-5 py-3.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Project</th>
-                  <th className="px-5 py-3.5 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground w-40">Actions</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground w-10">#</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Username</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Full Name</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Role</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Project</th>
+                  <th className="px-3 py-2 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground w-36">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -511,27 +511,27 @@ export default function UsersPage() {
                     key={u.username}
                     className="hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-colors group"
                   >
-                    <td className="px-5 py-4 text-sm font-bold text-muted-foreground tabular-nums">
+                    <td className="px-3 py-1.5 text-xs font-bold text-muted-foreground tabular-nums">
                       {i + 1}
                     </td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold text-xs uppercase shrink-0">
+                    <td className="px-3 py-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-bold text-[9px] uppercase shrink-0">
                           {u.username.charAt(0)}
                         </div>
-                        <span className="text-sm font-bold text-foreground">{u.username}</span>
+                        <span className="text-xs font-bold text-foreground">{u.username}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-sm font-semibold text-foreground">
+                    <td className="px-3 py-1.5 text-xs font-semibold text-foreground">
                       {u.fullName}
                     </td>
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider border ${getRoleBadge(u.role)}`}>
+                    <td className="px-3 py-1.5">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border ${getRoleBadge(u.role)}`}>
                         {u.role} &middot; {ROLE_LABELS[u.role]}
                       </span>
                     </td>
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                    <td className="px-3 py-1.5">
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
                         u.defaultProject === "PCSB"
                           ? "bg-blue-600/15 text-blue-500 border border-blue-500/30"
                           : "bg-orange-500/15 text-orange-500 border border-orange-500/30"
@@ -539,12 +539,12 @@ export default function UsersPage() {
                         {u.defaultProject || "PCSB"}
                       </span>
                     </td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center justify-center gap-2">
+                    <td className="px-3 py-1.5">
+                      <div className="flex items-center justify-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => handleEdit(i)}
-                          className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-sm hover:shadow-blue-500/20"
+                          className="px-2.5 py-1 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-[9px] font-black uppercase tracking-wider transition-all shadow-sm hover:shadow-blue-500/20"
                         >
                           Edit
                         </button>
@@ -552,7 +552,7 @@ export default function UsersPage() {
                           type="button"
                           onClick={() => handleDeleteRequest(i)}
                           disabled={u.username === user?.username}
-                          className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${
+                          className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all ${
                             u.username === user?.username
                               ? "bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed"
                               : "bg-red-600 hover:bg-red-500 text-white shadow-sm hover:shadow-red-500/20"
@@ -566,7 +566,7 @@ export default function UsersPage() {
                 ))}
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-5 py-12 text-center text-sm text-muted-foreground">
+                    <td colSpan={6} className="px-3 py-8 text-center text-xs text-muted-foreground">
                       No users found. Click "Add User" to create one.
                     </td>
                   </tr>
@@ -697,11 +697,11 @@ export default function UsersPage() {
             <table className="w-full">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-900/50 border-b-2 border-border">
-                  <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground sticky left-0 bg-slate-50 dark:bg-slate-900/50 z-10 min-w-[180px]">
+                  <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground sticky left-0 bg-slate-50 dark:bg-slate-900/50 z-10 min-w-[160px]">
                     Role
                   </th>
                   {PAGES.map((page) => (
-                    <th key={page} className="px-3 py-3 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground min-w-[80px]">
+                    <th key={page} className="px-2 py-2 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground min-w-[65px]">
                       {PAGE_LABELS[page]}
                     </th>
                   ))}
@@ -710,11 +710,11 @@ export default function UsersPage() {
               <tbody className="divide-y divide-border">
                 {ALL_ROLES.map((role) => (
                   <tr key={role} className="hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-colors">
-                    <td className="px-4 py-3 sticky left-0 bg-card z-10 border-r border-border">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${getRoleBadge(role)}`}>
+                    <td className="px-3 py-1.5 sticky left-0 bg-card z-10 border-r border-border">
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border ${getRoleBadge(role)}`}>
                         {role}
                       </span>
-                      <span className="ml-2 text-xs font-semibold text-muted-foreground">
+                      <span className="ml-1.5 text-[10px] font-semibold text-muted-foreground">
                         {ROLE_LABELS[role]}
                       </span>
                     </td>
@@ -722,12 +722,12 @@ export default function UsersPage() {
                       const level = matrix[page]?.[matrixProject]?.[role] ?? "NONE";
                       const isLocked = role === "L1"; // L1 always EDIT
                       return (
-                        <td key={page} className="px-3 py-3 text-center">
+                        <td key={page} className="px-2 py-1.5 text-center">
                           <button
                             type="button"
                             onClick={() => cyclePermission(page, role)}
                             disabled={isLocked}
-                            className={`inline-block px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-wider min-w-[42px] transition-all ${
+                            className={`inline-block px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider min-w-[36px] transition-all ${
                               isLocked ? "cursor-default opacity-70" : "cursor-pointer hover:ring-2 hover:ring-blue-400/50 active:scale-95"
                             } ${getPermBadge(level)}`}
                             title={isLocked ? "L1 always has E (Edit) access" : `Click to cycle: ${level === "EDIT" ? "E" : level === "VIEW" ? "V" : "NO"}`}
@@ -742,22 +742,22 @@ export default function UsersPage() {
               </tbody>
             </table>
           </div>
-          <div className="px-5 py-3 bg-slate-50 dark:bg-slate-900/30 border-t border-border flex items-center justify-between">
-            <div className="flex items-center gap-5">
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-emerald-600" />
-                <span className="text-[10px] font-bold text-muted-foreground">E = Edit</span>
+          <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-900/30 border-t border-border flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1">
+                <span className="w-2.5 h-2.5 rounded bg-emerald-600" />
+                <span className="text-[9px] font-bold text-muted-foreground">E = Edit</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-blue-600/80" />
-                <span className="text-[10px] font-bold text-muted-foreground">V = View</span>
+              <div className="flex items-center gap-1">
+                <span className="w-2.5 h-2.5 rounded bg-blue-600/80" />
+                <span className="text-[9px] font-bold text-muted-foreground">V = View</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-slate-800" />
-                <span className="text-[10px] font-bold text-muted-foreground">NO = No Access</span>
+              <div className="flex items-center gap-1">
+                <span className="w-2.5 h-2.5 rounded bg-slate-800" />
+                <span className="text-[9px] font-bold text-muted-foreground">NO = No Access</span>
               </div>
             </div>
-            <span className="text-[9px] text-muted-foreground font-semibold">
+            <span className="text-[8px] text-muted-foreground font-semibold">
               Click any cell to cycle: E &rarr; V &rarr; NO &rarr; E (L1 is locked)
             </span>
           </div>
@@ -791,16 +791,16 @@ export default function UsersPage() {
               <p className="text-xs text-muted-foreground mt-1">Login activity will appear here after users sign in.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto max-h-[400px]">
+            <div className="overflow-x-auto max-h-[300px]">
               <table className="w-full">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-slate-50 dark:bg-slate-900/50 border-b-2 border-border">
-                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Time</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Username</th>
-                    <th className="px-4 py-2.5 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Level</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Project</th>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Error</th>
+                    <th className="px-3 py-1.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Time</th>
+                    <th className="px-3 py-1.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Username</th>
+                    <th className="px-3 py-1.5 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</th>
+                    <th className="px-3 py-1.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Level</th>
+                    <th className="px-3 py-1.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Project</th>
+                    <th className="px-3 py-1.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Error</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -816,13 +816,13 @@ export default function UsersPage() {
                       timeStr = `${dd}/${mm} ${hh}:${min}`;
                     }
                     const isSuccess = log.login_status === "SUCCESS";
-                    return (
+                      return (
                       <tr key={log.id ?? idx} className="hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-colors">
-                        <td className="px-4 py-2.5 text-xs font-mono text-muted-foreground whitespace-nowrap">{timeStr}</td>
-                        <td className="px-4 py-2.5">
-                          <span className="text-xs font-bold text-foreground">{log.username_attempt}</span>
+                        <td className="px-3 py-1 text-[10px] font-mono text-muted-foreground whitespace-nowrap">{timeStr}</td>
+                        <td className="px-3 py-1">
+                          <span className="text-[10px] font-bold text-foreground">{log.username_attempt}</span>
                         </td>
-                        <td className="px-4 py-2.5 text-center">
+                        <td className="px-3 py-1 text-center">
                           {isSuccess ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-black text-emerald-600">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -835,7 +835,7 @@ export default function UsersPage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-2.5">
+                        <td className="px-3 py-1">
                           {log.user_level && log.user_level !== "unknown" ? (
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${getRoleBadge(log.user_level as UserRole)}`}>
                               {log.user_level}
@@ -844,9 +844,9 @@ export default function UsersPage() {
                             <span className="text-[10px] font-bold text-muted-foreground">-</span>
                           )}
                         </td>
-                        <td className="px-4 py-2.5">
+                        <td className="px-3 py-1">
                           {log.project_scope && log.project_scope !== "-" ? (
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
                               log.project_scope === "PCSB"
                                 ? "bg-blue-600/15 text-blue-500 border border-blue-500/30"
                                 : "bg-orange-500/15 text-orange-500 border border-orange-500/30"
@@ -854,14 +854,14 @@ export default function UsersPage() {
                               {log.project_scope}
                             </span>
                           ) : (
-                            <span className="text-[10px] font-bold text-muted-foreground">-</span>
+                            <span className="text-[9px] font-bold text-muted-foreground">-</span>
                           )}
                         </td>
-                        <td className="px-4 py-2.5">
+                        <td className="px-3 py-1">
                           {log.error_message ? (
-                            <span className="text-[10px] font-semibold text-red-400">{log.error_message}</span>
+                            <span className="text-[9px] font-semibold text-red-400">{log.error_message}</span>
                           ) : (
-                            <span className="text-[10px] font-bold text-muted-foreground">-</span>
+                            <span className="text-[9px] font-bold text-muted-foreground">-</span>
                           )}
                         </td>
                       </tr>
