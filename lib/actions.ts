@@ -892,7 +892,8 @@ interface AccessMatrixRow {
   l2a_access: string;
   l2b_access: string;
   l4_access: string;
-  l5_access: string;
+  l5a_access: string;
+  l5b_access: string;
   l6_access: string;
   l7_access: string;
 }
@@ -906,12 +907,15 @@ const ROUTE_TO_PAGE_CODE: Record<string, string> = Object.fromEntries(
   Object.entries(PAGE_CODE_TO_ROUTE).map(([k, v]) => [v, k])
 );
 
-// DB uses E/V/NO, app uses EDIT/VIEW/NONE
-function dbToApp(v: string): string {
-  if (v === "E") return "EDIT";
-  if (v === "V") return "VIEW";
+// DB uses mixed formats: E/EDIT, V/VIEW, NO/NONE -- normalize to app format EDIT/VIEW/NONE
+function dbToApp(v: string | null | undefined): string {
+  if (!v) return "NONE";
+  const upper = v.toUpperCase().trim();
+  if (upper === "E" || upper === "EDIT") return "EDIT";
+  if (upper === "V" || upper === "VIEW") return "VIEW";
   return "NONE";
 }
+// App -> DB: store as E/V/NO (short format)
 function appToDb(v: string): string {
   if (v === "EDIT") return "E";
   if (v === "VIEW") return "V";
@@ -954,9 +958,8 @@ export async function getAccessMatrixAsAppFormat(): Promise<Record<string, { PCS
       L2A: dbToApp(row.l2a_access),
       L2B: dbToApp(row.l2b_access),
       L4: dbToApp(row.l4_access),
-      // DB has single l5_access -> map to L5A for PCSB, L5B for OTHERS
-      L5A: scope === "PCSB" ? dbToApp(row.l5_access) : "NONE",
-      L5B: scope === "OTHERS" ? dbToApp(row.l5_access) : "NONE",
+      L5A: dbToApp(row.l5a_access),
+      L5B: dbToApp(row.l5b_access),
       L6: dbToApp(row.l6_access),
       L7: dbToApp(row.l7_access),
     }
@@ -973,15 +976,13 @@ export async function updateAccessMatrixRow(
   const pageCode = ROUTE_TO_PAGE_CODE[route]
   if (!pageCode) return { success: false, error: "Unknown route: " + route }
 
-  // Map app roles back to DB columns; L5A/L5B -> l5_access based on project
-  const l5Val = projectScope === "PCSB" ? (permissions.L5A || "NONE") : (permissions.L5B || "NONE")
-
   const updatePayload = {
     l1_access: appToDb(permissions.L1 || "EDIT"),
     l2a_access: appToDb(permissions.L2A || "NONE"),
     l2b_access: appToDb(permissions.L2B || "NONE"),
     l4_access: appToDb(permissions.L4 || "NONE"),
-    l5_access: appToDb(l5Val),
+    l5a_access: appToDb(permissions.L5A || "NONE"),
+    l5b_access: appToDb(permissions.L5B || "NONE"),
     l6_access: appToDb(permissions.L6 || "NONE"),
     l7_access: appToDb(permissions.L7 || "NONE"),
   }
