@@ -851,6 +851,34 @@ export async function upsertApproval(record: ApprovalRecord): Promise<{ success:
   return { success: true }
 }
 
+// ─── Maintenance Mode ───
+
+export async function getMaintenanceMode(): Promise<boolean> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('cms_settings')
+    .select('value')
+    .eq('key', 'maintenance_mode')
+    .limit(1)
+    .single()
+
+  if (error || !data) return false
+  return data.value === 'true'
+}
+
+export async function setMaintenanceMode(enabled: boolean): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('cms_settings')
+    .upsert({ key: 'maintenance_mode', value: String(enabled), updated_at: new Date().toISOString() }, { onConflict: 'key' })
+
+  if (error) {
+    console.error('Error setting maintenance mode:', error)
+    return { success: false, error: error.message }
+  }
+  return { success: true }
+}
+
 // Bulk update for Save Changes
 export async function bulkUpdateRosterRows(updates: { id: number; updates: Partial<RosterRow> }[], project?: string): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()

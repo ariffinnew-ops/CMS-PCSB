@@ -8,6 +8,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { getUser, logout, canAccessPage, getPermission, setupIdleTimeout, getSelectedProject, setSelectedProject, ROLE_LABELS, type AuthUser, type UserRole, type ProjectKey } from "@/lib/auth";
+import { getMaintenanceMode } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,9 +68,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       router.push("/dashboard");
       return;
     }
-    
-    setUser(currentUser);
-    setIsLoading(false);
+
+    // Check maintenance mode -- kick non-L1 users back to login
+    if (currentUser.role !== "L1") {
+      getMaintenanceMode().then((isMaintenance) => {
+        if (isMaintenance) {
+          logout();
+          router.push("/login");
+          return;
+        }
+        setUser(currentUser);
+        setIsLoading(false);
+      }).catch(() => {
+        setUser(currentUser);
+        setIsLoading(false);
+      });
+    } else {
+      setUser(currentUser);
+      setIsLoading(false);
+    }
   }, [router, pathname]);
 
   useEffect(() => {

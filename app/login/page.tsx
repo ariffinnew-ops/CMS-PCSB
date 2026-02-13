@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { login, isAuthenticated, mergeSupabaseUsers } from "@/lib/auth";
-import { recordLoginLog, getSupabaseUsers } from "@/lib/actions";
+import { recordLoginLog, getSupabaseUsers, getMaintenanceMode, setMaintenanceMode } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,9 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [maintenanceMode, setMaintenanceModeState] = useState(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [togglingMaintenance, setTogglingMaintenance] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -35,6 +38,8 @@ export default function LoginPage() {
     getSupabaseUsers().then(sbUsers => {
       if (sbUsers.length > 0) mergeSupabaseUsers(sbUsers);
     }).catch(() => { /* Supabase unavailable, DEFAULT_USERS still work */ });
+    // Check maintenance mode
+    getMaintenanceMode().then(setMaintenanceModeState).catch(() => {});
   }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -76,6 +81,12 @@ export default function LoginPage() {
     }
 
     if (user) {
+      // Block non-L1 users during maintenance
+      if (maintenanceMode && user.role !== "L1") {
+        setNotification({ type: "error", message: "System is under maintenance. Please try again later." });
+        setIsLoading(false);
+        return;
+      }
       setNotification({ type: "success", message: `Login successful. Welcome back, ${user.username}!` });
       setTimeout(() => router.push("/dashboard"), 800);
     } else {
@@ -83,6 +94,16 @@ export default function LoginPage() {
     }
 
     setIsLoading(false);
+  };
+
+  const handleToggleMaintenance = async () => {
+    setTogglingMaintenance(true);
+    const newValue = !maintenanceMode;
+    const result = await setMaintenanceMode(newValue);
+    if (result.success) {
+      setMaintenanceModeState(newValue);
+    }
+    setTogglingMaintenance(false);
   };
 
   if (!mounted) {
@@ -116,6 +137,21 @@ export default function LoginPage() {
         }}
       />
       
+      {/* Maintenance Mode Banner */}
+      {maintenanceMode && (
+        <div className="absolute top-6 left-0 right-0 z-20 flex justify-center px-4">
+          <div className="bg-amber-500/90 backdrop-blur-sm border border-amber-400 rounded-lg px-6 py-3 shadow-xl max-w-md w-full text-center">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <svg className="w-5 h-5 text-amber-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <span className="font-bold text-amber-900 text-sm uppercase tracking-wide">System Under Maintenance</span>
+            </div>
+            <p className="text-amber-950 text-xs">Access is temporarily restricted. Please try again later.</p>
+          </div>
+        </div>
+      )}
+
       <Card className="relative z-10 w-full max-w-md border-slate-800 bg-slate-900/90 backdrop-blur-sm shadow-2xl">
         <CardHeader className="text-center pb-2 pt-6">
           <div className="mx-auto mb-4 bg-white px-8 py-4 rounded-xl shadow-lg inline-block">
@@ -202,6 +238,59 @@ export default function LoginPage() {
 
         </CardContent>
       </Card>
+
+      {/* Admin Maintenance Toggle - subtle button bottom-right */}
+      <button
+        type="button"
+        onClick={() => setShowAdminLogin(!showAdminLogin)}
+        className="absolute bottom-14 right-4 z-20 w-8 h-8 rounded-full flex items-center justify-center text-slate-600 hover:text-slate-400 hover:bg-slate-800/50 transition-all"
+        title="Admin"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      </button>
+
+      {/* Admin Panel Popup */}
+      {showAdminLogin && (
+        <div className="absolute bottom-24 right-4 z-30 w-64 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wide">Admin Panel</h3>
+            <button type="button" onClick={() => setShowAdminLogin(false)} className="text-slate-500 hover:text-white">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <p className="text-[10px] text-slate-500 mb-3">L1 admin login required to toggle.</p>
+          <div className="flex items-center justify-between bg-slate-800 rounded-lg px-3 py-2.5">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${maintenanceMode ? "bg-amber-400 animate-pulse" : "bg-emerald-400"}`} />
+              <span className="text-xs font-medium text-slate-300">
+                {maintenanceMode ? "Maintenance ON" : "System Active"}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleToggleMaintenance}
+              disabled={togglingMaintenance}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                maintenanceMode ? "bg-amber-500" : "bg-slate-600"
+              }`}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-sm ${
+                  maintenanceMode ? "translate-x-4" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+          </div>
+          {maintenanceMode && (
+            <p className="text-[10px] text-amber-400/80 mt-2 text-center">All non-L1 users are blocked</p>
+          )}
+        </div>
+      )}
 
       {/* Footer */}
       <div className="absolute bottom-0 left-0 right-0 z-10 py-3 text-center">
