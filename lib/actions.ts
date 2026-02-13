@@ -518,9 +518,34 @@ function rosterTable(project?: string): string {
 
 export async function getCrewList(project?: string): Promise<{ success: boolean; data?: { id: string; crew_name: string; clean_name: string; post: string; client: string; location: string; status?: string }[]; error?: string }> {
   const supabase = await createClient()
-  let q = supabase.from(MASTER_TABLE).select('id, crew_name, clean_name, post, client, location, status');
-  if (project) q = q.eq('project', project);
-  const { data, error } = await q.order('crew_name', { ascending: true })
+
+  // Try with project filter first
+  if (project) {
+    const { data, error } = await supabase
+      .from(MASTER_TABLE)
+      .select('id, crew_name, clean_name, post, client, location, status')
+      .eq('project', project)
+      .order('crew_name', { ascending: true })
+
+    console.log('[v0] getCrewList project filter:', project, 'rows:', data?.length, 'error:', error?.message || 'none')
+
+    // If project column doesn't exist (42703) or other schema error, fall through to unfiltered
+    if (!error && data && data.length > 0) {
+      return { success: true, data }
+    }
+    // If we got rows=0 but no error, the filter worked but project has no crew -- return empty
+    if (!error && data && data.length === 0 && project === "OTHERS") {
+      return { success: true, data: [] }
+    }
+  }
+
+  // Fallback: no filter (handles missing project column or PCSB with no project values set)
+  const { data, error } = await supabase
+    .from(MASTER_TABLE)
+    .select('id, crew_name, clean_name, post, client, location, status')
+    .order('crew_name', { ascending: true })
+
+  console.log('[v0] getCrewList fallback (no filter) rows:', data?.length, 'error:', error?.message || 'none')
 
   if (error) {
     console.error('Error fetching crew list:', error)

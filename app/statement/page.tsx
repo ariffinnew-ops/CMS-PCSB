@@ -6,6 +6,8 @@ import { PivotedCrewRow, TradeType } from "@/lib/types";
 import { getPivotedRosterData, getCrewMasterData, getCrewList, type CrewMasterRecord, getApproval, submitForApproval, approveStatement, rejectApproval, type ApprovalRecord } from "@/lib/actions";
 import { getUser, getSelectedProject, type UserRole } from "@/lib/auth";
 import { safeParseDate, shortenPost, getTradeRank, formatDate } from "@/lib/logic";
+import { useProject } from "@/hooks/use-project";
+import { SyncingPlaceholder } from "@/components/syncing-placeholder";
 
 const MONTH_NAMES = [
   "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
@@ -47,6 +49,7 @@ interface StatementRow {
 }
 
 export default function StatementPage() {
+  const project = useProject();
   const [data, setData] = useState<PivotedCrewRow[]>([]);
   const [masterData, setMasterData] = useState<CrewMasterRecord[]>([]);
   const [crewList, setCrewList] = useState<{ id: string; crew_name: string; clean_name: string }[]>([]);
@@ -68,13 +71,14 @@ export default function StatementPage() {
   const user = typeof window !== "undefined" ? getUser() : null;
 
   useEffect(() => {
-    Promise.all([getPivotedRosterData(), getCrewMasterData(), getCrewList()]).then(([pivotedData, master, crewResult]) => {
+    setLoading(true);
+    Promise.all([getPivotedRosterData(project), getCrewMasterData(), getCrewList(project)]).then(([pivotedData, master, crewResult]) => {
       setData(pivotedData);
       setMasterData(master);
       if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
       setLoading(false);
     });
-  }, []);
+  }, [project]);
 
   const masterMap = useMemo(() => {
     const map = new Map<string, CrewMasterRecord>();
@@ -376,10 +380,14 @@ export default function StatementPage() {
     setSearch("");
   };
 
+  if (project === "OTHERS") {
+    return <AppShell><SyncingPlaceholder project={project} label="Statement" /></AppShell>;
+  }
+
   return (
-    <AppShell>
-      {/* Print-only header */}
-      <div className="print-header hidden items-center justify-between px-2 py-2 border-b border-slate-300 mb-2">
+  <AppShell>
+  {/* Print-only header */}
+  <div className="print-header hidden items-center justify-between px-2 py-2 border-b border-slate-300 mb-2">
         <div>
           <span className="text-sm font-black uppercase tracking-wider">Monthly Allowance Statement</span>
           <span className="text-xs font-bold text-slate-600 ml-3">{MONTH_NAMES[selectedMonthNum - 1]} {selectedYear}</span>
