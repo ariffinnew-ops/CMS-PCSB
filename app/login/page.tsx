@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { login, isAuthenticated, mergeSupabaseUsers } from "@/lib/auth";
-import { recordLoginLog, getSupabaseUsers } from "@/lib/actions";
+import { recordLoginLog, getSupabaseUsers, getMaintenanceMode } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [maintenanceMode, setMaintenanceModeState] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -35,6 +36,8 @@ export default function LoginPage() {
     getSupabaseUsers().then(sbUsers => {
       if (sbUsers.length > 0) mergeSupabaseUsers(sbUsers);
     }).catch(() => { /* Supabase unavailable, DEFAULT_USERS still work */ });
+    // Check maintenance mode
+    getMaintenanceMode().then(setMaintenanceModeState).catch(() => {});
   }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -76,6 +79,12 @@ export default function LoginPage() {
     }
 
     if (user) {
+      // Block non-L1 users during maintenance
+      if (maintenanceMode && user.role !== "L1") {
+        setNotification({ type: "error", message: "System is under maintenance. Please try again later." });
+        setIsLoading(false);
+        return;
+      }
       setNotification({ type: "success", message: `Login successful. Welcome back, ${user.username}!` });
       setTimeout(() => router.push("/dashboard"), 800);
     } else {
@@ -116,6 +125,21 @@ export default function LoginPage() {
         }}
       />
       
+      {/* Maintenance Mode Banner */}
+      {maintenanceMode && (
+        <div className="absolute top-6 left-0 right-0 z-20 flex justify-center px-4">
+          <div className="bg-amber-500/90 backdrop-blur-sm border border-amber-400 rounded-lg px-6 py-3 shadow-xl max-w-md w-full text-center">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <svg className="w-5 h-5 text-amber-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <span className="font-bold text-amber-900 text-sm uppercase tracking-wide">System Under Maintenance</span>
+            </div>
+            <p className="text-amber-950 text-xs">Access is temporarily restricted. Please try again later.</p>
+          </div>
+        </div>
+      )}
+
       <Card className="relative z-10 w-full max-w-md border-slate-800 bg-slate-900/90 backdrop-blur-sm shadow-2xl">
         <CardHeader className="text-center pb-2 pt-6">
           <div className="mx-auto mb-4 bg-white px-8 py-4 rounded-xl shadow-lg inline-block">

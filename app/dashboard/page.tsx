@@ -280,7 +280,7 @@ function NameListPopover({
 
             return (
               <div
-                key={person.id}
+                key={`${person.id}-${idx}`}
                 className={`flex items-center gap-2 ${fontSize} ${pySize} px-1 rounded hover:bg-slate-800/50 transition-colors`}
               >
                 <span className="font-semibold text-white truncate w-[130px]">
@@ -676,7 +676,6 @@ export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<"hud" | "list">("hud");
   const [hoveredSegment, setHoveredSegment] = useState<"SKA" | "SBA" | null>(null);
   const [hoveredTrade, setHoveredTrade] = useState<string | null>(null);
-
   // Live clock - updates every second
   useEffect(() => {
     const timer = setInterval(() => {
