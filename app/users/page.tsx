@@ -79,18 +79,14 @@ export default function UsersPage() {
     }
     setUser(currentUser);
 
-    // Fetch users from Supabase and merge (Supabase is source of truth)
+    // Fetch users from Supabase (source of truth) + keep hardcoded admin
     setSyncing(true);
     getSupabaseUsers().then(sbUsers => {
-      if (sbUsers.length > 0) {
-        const merged = mergeSupabaseUsers(sbUsers);
-        setUsers(merged);
-      } else {
-        // Supabase empty or unavailable -- fall back to local
-        setUsers(getStoredUsers());
-      }
+      const merged = mergeSupabaseUsers(sbUsers);
+      setUsers(merged);
       setSyncing(false);
     }).catch(() => {
+      // Supabase unavailable -- fall back to local cache
       setUsers(getStoredUsers());
       setSyncing(false);
     });
@@ -156,26 +152,12 @@ export default function UsersPage() {
         return;
       }
 
-      // Update local state
-      existing[editingIdx] = {
-        ...existing[editingIdx],
-        username: trimUser,
-        password: formPassword,
-        fullName: trimName,
-        role: formRole,
-        defaultProject: formProject,
-      };
-      saveUsers(existing);
-      setUsers(existing);
-
-      // Re-fetch to confirm
+      // Re-fetch from Supabase to get fresh list and sync to local cache for login
       const sbUsers = await getSupabaseUsers();
-      if (sbUsers.length > 0) {
-        const merged = mergeSupabaseUsers(sbUsers);
-        setUsers(merged);
-      }
+      const merged = mergeSupabaseUsers(sbUsers);
+      setUsers(merged);
 
-      showNotif(`User "${trimUser}" has been updated successfully.`, "success");
+      showNotif(`User "${trimUser}" has been updated.`, "success");
     } else {
       // --- CREATE new user ---
       if (existing.some((u) => u.username.toLowerCase() === trimUser)) {
@@ -196,26 +178,12 @@ export default function UsersPage() {
         return;
       }
 
-      // Update local state
-      const newUser: StoredUser = {
-        username: trimUser,
-        password: formPassword,
-        fullName: trimName,
-        role: formRole,
-        defaultProject: formProject,
-      };
-      const updated = [...existing, newUser];
-      saveUsers(updated);
-      setUsers(updated);
-
-      // Re-fetch to confirm
+      // Re-fetch from Supabase to get fresh list and sync to local cache for login
       const sbUsers = await getSupabaseUsers();
-      if (sbUsers.length > 0) {
-        const merged = mergeSupabaseUsers(sbUsers);
-        setUsers(merged);
-      }
+      const merged = mergeSupabaseUsers(sbUsers);
+      setUsers(merged);
 
-      showNotif(`User "${trimUser}" has been created and synced to the database.`, "success");
+      showNotif(`User "${trimUser}" has been created.`, "success");
     }
     resetForm();
   };
@@ -245,7 +213,7 @@ export default function UsersPage() {
     setDeleting(true);
     const { idx, username } = deleteConfirm;
 
-    // Delete from Supabase first
+    // Delete from Supabase
     const result = await deleteCmsUser(username);
     if (result.error) {
       showNotif(`Failed to remove "${username}" from database: ${result.error}`, "error");
@@ -254,10 +222,10 @@ export default function UsersPage() {
       return;
     }
 
-    // Update local state
-    const updated = users.filter((_, i) => i !== idx);
-    saveUsers(updated);
-    setUsers(updated);
+    // Re-fetch from Supabase to get fresh list and sync to local cache for login
+    const sbUsers = await getSupabaseUsers();
+    const merged = mergeSupabaseUsers(sbUsers);
+    setUsers(merged);
 
     showNotif(`User "${username}" has been permanently removed.`, "success");
     setDeleting(false);

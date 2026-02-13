@@ -28,14 +28,11 @@ export default function LoginPage() {
       router.push("/dashboard");
       return;
     }
-    // Clear stale localStorage users so DEFAULT_USERS with admin009 takes effect
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("cms_users_store");
-    }
-    // Then sync from Supabase (Supabase users overlay DEFAULT_USERS)
+    // Sync users from Supabase (source of truth) into local cache for login()
+    // Hardcoded admin is always preserved by mergeSupabaseUsers
     getSupabaseUsers().then(sbUsers => {
-      if (sbUsers.length > 0) mergeSupabaseUsers(sbUsers);
-    }).catch(() => { /* Supabase unavailable, DEFAULT_USERS still work */ });
+      mergeSupabaseUsers(sbUsers);
+    }).catch(() => { /* Supabase unavailable, local cache still works */ });
     // Check maintenance mode
     getMaintenanceMode().then(setMaintenanceModeState).catch(() => {});
   }, [router]);
