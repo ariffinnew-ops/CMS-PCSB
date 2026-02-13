@@ -239,22 +239,9 @@ export default function LoginPage() {
         </CardContent>
       </Card>
 
-      {/* Admin Maintenance Toggle - subtle button bottom-right */}
-      <button
-        type="button"
-        onClick={() => setShowAdminLogin(!showAdminLogin)}
-        className="absolute bottom-14 right-4 z-20 w-8 h-8 rounded-full flex items-center justify-center text-slate-600 hover:text-slate-400 hover:bg-slate-800/50 transition-all"
-        title="Admin"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      </button>
-
       {/* Admin Panel Popup */}
       {showAdminLogin && (
-        <div className="absolute bottom-24 right-4 z-30 w-64 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-4">
+        <div className="absolute bottom-20 right-4 z-30 w-64 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wide">Admin Panel</h3>
             <button type="button" onClick={() => setShowAdminLogin(false)} className="text-slate-500 hover:text-white">
@@ -292,14 +279,27 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* Footer */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 py-3 text-center">
-        <p className="text-[11px] text-white font-normal tracking-wide">
+      {/* Footer with Admin gear button */}
+      <div className="absolute bottom-0 left-0 right-0 z-10 py-3">
+        <p className="text-[11px] text-white font-normal tracking-wide text-center">
           &copy; {new Date().getFullYear()} kawie - Crewing Management System. All Rights Reserved.
         </p>
-        <p className="text-[10px] text-white font-normal tracking-wide mt-0.5 italic">
-          version : v2-080226
-        </p>
+        <div className="flex items-center justify-center gap-2 mt-0.5">
+          <p className="text-[10px] text-white font-normal tracking-wide italic">
+            version : v2-080226
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowAdminLogin(!showAdminLogin)}
+            className="inline-flex items-center justify-center w-5 h-5 rounded text-slate-400 hover:text-cyan-400 transition-colors"
+            title="Admin"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   );
