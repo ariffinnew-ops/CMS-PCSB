@@ -8,6 +8,8 @@ import type { MatrixRecord } from "@/lib/types";
 import type { AuthUser } from "@/lib/auth";
 import { X } from "lucide-react";
 import { PieChart, Pie, Cell } from "recharts";
+import { useProject } from "@/hooks/use-project";
+import { SyncingPlaceholder } from "@/components/syncing-placeholder";
 
 // ─── Course Configuration ───
 interface CourseConfig {
@@ -365,10 +367,11 @@ function EditableCell({
   );
 }
 
-// ═══════════════════════════════════���������������������═══
+// ═══════════════════════════════════�����������������������═══
 // MAIN PAGE
 // ════════════════════════════���══════════
 export default function TrainingMatrixPage() {
+  const project = useProject();
   const [rawData, setRawData] = useState<MatrixRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [clientFilter, setClientFilter] = useState("ALL");
@@ -383,10 +386,16 @@ export default function TrainingMatrixPage() {
   const canEdit = user?.role === "L1" || user?.role === "L2A" || user?.role === "L2B";
 
   const loadData = useCallback(async () => {
+    setLoading(true);
+    if (project === "OTHERS") {
+      setRawData([]);
+      setLoading(false);
+      return;
+    }
     const result = await getMatrixData();
     if (result.success && result.data) setRawData(result.data);
     setLoading(false);
-  }, []);
+  }, [project]);
 
   useEffect(() => {
     setUser(getUser());
@@ -491,9 +500,13 @@ export default function TrainingMatrixPage() {
   const totalSubCols = visibleCourses.reduce((acc, c) => acc + c.colCount, 0);
   const totalCols = FIXED_COLS + totalSubCols;
 
+  if (project === "OTHERS") {
+    return <AppShell><SyncingPlaceholder project={project} label="Training Matrix" /></AppShell>;
+  }
+  
   return (
-    <AppShell>
-      {/* Print-only header */}
+  <AppShell>
+  {/* Print-only header */}
       <div className="print-header hidden items-center justify-between px-2 py-2 border-b border-slate-300 mb-2">
         <div>
           <span className="text-sm font-black uppercase tracking-wider">Training Matrix</span>

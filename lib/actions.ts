@@ -3,18 +3,30 @@
 import { createClient } from '@/lib/supabase/server'
 import type { RosterRow, PivotedCrewRow, MatrixRecord } from './types'
 
+// ─── Helpers: table routing by project ───
+
+// Master is now a single combined table with a `project_code` column
+const MASTER_TABLE = "cms_master_crew";
+
+// Roster remains separate tables per project
+function rosterTable(project?: string): string {
+  return project === "OTHERS" ? "cms_others_roster" : "cms_pcsb_roster";
+}
+
 // ─── Roster Actions (normalized: one row per crew per cycle) ───
 
-export async function getRosterData(): Promise<RosterRow[]> {
+export async function getRosterData(project?: string): Promise<RosterRow[]> {
   const supabase = await createClient()
 
   const { data: rosterData, error: rosterError } = await supabase
-    .from('cms_pcsb_roster')
+    .from(rosterTable(project))
     .select('*')
     .order('crew_name', { ascending: true })
     .order('cycle_number', { ascending: true })
 
   if (rosterError) {
+    // Table may not exist yet (e.g. cms_others_roster)
+    if (rosterError.code === '42P01') return []
     console.error('Error fetching roster data:', rosterError)
     return []
   }
@@ -25,8 +37,8 @@ export async function getRosterData(): Promise<RosterRow[]> {
 // Pivot roster rows into one entry per crew with all cycles grouped
 // Fetches ONLY from cms_pcsb_roster
 // Key uses crew_id + crew_name so suffixed duplicates (e.g. "JOHN (R1)") get their own row
-export async function getPivotedRosterData(): Promise<PivotedCrewRow[]> {
-  const rows = await getRosterData()
+export async function getPivotedRosterData(project?: string): Promise<PivotedCrewRow[]> {
+  const rows = await getRosterData(project)
   const map = new Map<string, PivotedCrewRow>()
 
   for (const row of rows) {
@@ -64,11 +76,11 @@ export async function getPivotedRosterData(): Promise<PivotedCrewRow[]> {
   return Array.from(map.values())
 }
 
-export async function updateRosterRow(id: number, updates: Partial<RosterRow>): Promise<{ success: boolean; error?: string }> {
+export async function updateRosterRow(id: number, updates: Partial<RosterRow>, project?: string): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
   const { error } = await supabase
-    .from('cms_pcsb_roster')
+    .from(rosterTable(project))
     .update(updates)
     .eq('id', id)
     .select()
@@ -90,11 +102,11 @@ export async function createRosterRow(row: {
   cycle_number?: number;
   sign_on?: string | null;
   sign_off?: string | null;
-}): Promise<{ success: boolean; data?: RosterRow; error?: string }> {
+}, project?: string): Promise<{ success: boolean; data?: RosterRow; error?: string }> {
   const supabase = await createClient()
 
   const { data: insertedRow, error } = await supabase
-    .from('cms_pcsb_roster')
+    .from(rosterTable(project))
     .insert({
       crew_id: row.crew_id,
       crew_name: row.crew_name,
@@ -116,11 +128,11 @@ export async function createRosterRow(row: {
   return { success: true, data: insertedRow as RosterRow }
 }
 
-export async function deleteRosterRow(id: number): Promise<{ success: boolean; error?: string }> {
+export async function deleteRosterRow(id: number, project?: string): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
   const { error } = await supabase
-    .from('cms_pcsb_roster')
+    .from(rosterTable(project))
     .delete()
     .eq('id', id)
 
@@ -133,11 +145,11 @@ export async function deleteRosterRow(id: number): Promise<{ success: boolean; e
 }
 
 // Delete all roster rows for a crew_id
-export async function deleteCrewFromRoster(crewId: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteCrewFromRoster(crewId: string, project?: string): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
   
   const { error } = await supabase
-  .from('cms_pcsb_roster')
+  .from(rosterTable(project))
   .delete()
   .eq('crew_id', crewId)
   
@@ -150,11 +162,11 @@ export async function deleteCrewFromRoster(crewId: string): Promise<{ success: b
   }
 
 // Delete roster rows for a specific crew_id + crew_name combo (for suffixed entries)
-export async function deleteCrewByName(crewId: string, crewName: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteCrewByName(crewId: string, crewName: string, project?: string): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
   
   const { error } = await supabase
-  .from('cms_pcsb_roster')
+  .from(rosterTable(project))
   .delete()
   .eq('crew_id', crewId)
   .eq('crew_name', crewName)
@@ -344,26 +356,15 @@ export interface CrewMasterRecord {
   location: string;
   basic: number;
   fixed_all: number;
+  offshore_rate: number;
 }
 
-export async function getCrewMasterData(): Promise<CrewMasterRecord[]> {
+export async function getCrewMasterData(project?: string): Promise<CrewMasterRecord[]> {
   const supabase = await createClient()
 
-  // Try with basic & fixed_all columns first; fall back without them if columns don't exist yet
-  let { data, error } = await supabase
-    .from('cms_pcsb_master')
-    .select('id, crew_name, post, client, location, basic, fixed_all')
-    .order('crew_name', { ascending: true })
-
-  if (error?.code === '42703') {
-    // Column doesn't exist yet -- fall back to base columns
-    const fallback = await supabase
-      .from('cms_pcsb_master')
-      .select('id, crew_name, post, client, location')
-      .order('crew_name', { ascending: true })
-    data = fallback.data
-    error = fallback.error
-  }
+  let q = supabase.from(MASTER_TABLE).select('*');
+  if (project) q = q.eq('project_code', project);
+  const { data, error } = await q.order('crew_name', { ascending: true })
 
   if (error) {
     console.error('Error fetching crew master data:', error)
@@ -378,6 +379,7 @@ export async function getCrewMasterData(): Promise<CrewMasterRecord[]> {
     location: String(d.location || ''),
     basic: Number(d.basic) || 0,
     fixed_all: Number(d.fixed_all) || 0,
+    offshore_rate: Number(d.offshore_rate) || 0,
   }))
 }
 
@@ -388,7 +390,7 @@ export async function getMatrixData(): Promise<{ success: boolean; data?: Matrix
 
   // Fetch crew details from master table
   const { data: crewData, error: crewError } = await supabase
-    .from('cms_pcsb_master')
+    .from(MASTER_TABLE)
     .select('id, crew_name, post, client, location')
 
   if (crewError) {
@@ -502,30 +504,39 @@ export async function createMatrixRecord(
   return { success: true, id: data?.id }
 }
 
-// ─── Staff Detail Actions (dynamic table: cms_pcsb_master | cms_others_master) ───
-
-function masterTable(project?: string): string {
-  return project === "OTHERS" ? "cms_others_master" : "cms_pcsb_master";
-}
+// ─── Staff Detail Actions (cms_master_crew filtered by project) ───
 
 export async function getCrewList(project?: string): Promise<{ success: boolean; data?: { id: string; crew_name: string; clean_name: string; post: string; client: string; location: string; status?: string }[]; error?: string }> {
   const supabase = await createClient()
-  const { data, error } = await supabase
-    .from(masterTable(project))
-    .select('id, crew_name, clean_name, post, client, location, status')
-    .order('crew_name', { ascending: true })
+
+  // Use select('*') to avoid column-not-found errors, then map to expected shape
+  let q = supabase.from(MASTER_TABLE).select('*');
+  if (project) q = q.eq('project_code', project);
+  const { data, error } = await q.order('crew_name', { ascending: true })
 
   if (error) {
     console.error('Error fetching crew list:', error)
     return { success: false, error: error.message }
   }
-  return { success: true, data: data || [] }
+
+  const mapped = (data || []).map((r: Record<string, unknown>) => ({
+    id: r.id as string,
+    crew_name: (r.crew_name as string) || '',
+    clean_name: (r.clean_name as string) || (r.crew_name as string || '').replace(/\s*\(R\)\s*/g, '').trim(),
+    post: (r.post as string) || '',
+    client: (r.client as string) || '',
+    location: (r.location as string) || '',
+    status: (r.status as string) || 'active',
+  }));
+  return { success: true, data: mapped }
 }
+
+
 
 export async function getCrewDetail(crewId: string, project?: string): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
   const supabase = await createClient()
   const { data, error } = await supabase
-    .from(masterTable(project))
+    .from(MASTER_TABLE)
     .select('*')
     .eq('id', crewId)
     .single()
@@ -540,7 +551,7 @@ export async function getCrewDetail(crewId: string, project?: string): Promise<{
 export async function updateCrewDetail(crewId: string, updates: Record<string, unknown>, project?: string): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
   const { error } = await supabase
-    .from(masterTable(project))
+    .from(MASTER_TABLE)
     .update(updates)
     .eq('id', crewId)
 
@@ -566,10 +577,10 @@ export async function getCrewMatrix(crewId: string): Promise<{ success: boolean;
   return { success: true, data: data || [] }
 }
 
-export async function getCrewRoster(crewId: string): Promise<{ success: boolean; data?: RosterRow[]; error?: string }> {
+export async function getCrewRoster(crewId: string, project?: string): Promise<{ success: boolean; data?: RosterRow[]; error?: string }> {
   const supabase = await createClient()
   const { data, error } = await supabase
-    .from('cms_pcsb_roster')
+    .from(rosterTable(project))
     .select('*')
     .eq('crew_id', crewId)
     .order('cycle_number', { ascending: true })
@@ -609,9 +620,10 @@ export async function deleteCrewDocument(crewId: string, fileName: string): Prom
 
 export async function createCrewMember(crewData: Record<string, unknown>, project?: string): Promise<{ success: boolean; id?: string; error?: string }> {
   const supabase = await createClient()
+  const payload = { ...crewData, project_code: project || "PCSB" };
   const { data, error } = await supabase
-  .from(masterTable(project))
-  .insert(crewData)
+  .from(MASTER_TABLE)
+  .insert(payload)
     .select('id')
     .single()
 
@@ -623,10 +635,10 @@ export async function createCrewMember(crewData: Record<string, unknown>, projec
 }
 
 // Get total cycle count per crew_id from roster (for dynamic relief labeling)
-export async function getCrewCycleCounts(): Promise<Map<string, number>> {
+export async function getCrewCycleCounts(project?: string): Promise<Map<string, number>> {
   const supabase = await createClient()
   const { data } = await supabase
-    .from('cms_pcsb_roster')
+    .from(rosterTable(project))
     .select('crew_id, cycle_number')
     .order('crew_id')
 
@@ -652,7 +664,7 @@ export async function getCrewCycleCountsJSON(): Promise<Record<string, number>> 
 export async function getOHNStaffFromMaster(): Promise<PivotedCrewRow[]> {
   const supabase = await createClient()
   const { data: ohnData } = await supabase
-    .from('cms_pcsb_master')
+    .from(MASTER_TABLE)
     .select('id, crew_name, post, client, location')
     .or('post.ilike.%IM%,post.ilike.%OHN%')
     .order('crew_name', { ascending: true })
@@ -840,12 +852,12 @@ export async function upsertApproval(record: ApprovalRecord): Promise<{ success:
 }
 
 // Bulk update for Save Changes
-export async function bulkUpdateRosterRows(updates: { id: number; updates: Partial<RosterRow> }[]): Promise<{ success: boolean; error?: string }> {
+export async function bulkUpdateRosterRows(updates: { id: number; updates: Partial<RosterRow> }[], project?: string): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
   for (const item of updates) {
     const { error } = await supabase
-      .from('cms_pcsb_roster')
+      .from(rosterTable(project))
       .update(item.updates)
       .eq('id', item.id)
 

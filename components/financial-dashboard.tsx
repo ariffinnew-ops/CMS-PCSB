@@ -5,6 +5,8 @@ import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow } from "@/lib/types";
 import { getPivotedRosterData, getCrewMasterData, getCrewList, type CrewMasterRecord } from "@/lib/actions";
 import { safeParseDate, shortenPost } from "@/lib/logic";
+import { useProject } from "@/hooks/use-project";
+import { SyncingPlaceholder } from "@/components/syncing-placeholder";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, CartesianGrid, Area, AreaChart, Legend,
@@ -65,7 +67,7 @@ function calcMonthCosts(rosterData: PivotedCrewRow[], masterData: CrewMasterReco
   const monthEndDay = Math.round(monthEndDate.getTime() / 86400000);
   const monthStartTime = monthStartDate.getTime();
   const monthEndTime = monthEndDate.getTime();
-  const oaRate = 200, medevacRate = 500;
+  const medevacRate = 500;
   const basicCounted = new Set<string>();
   const results: CrewMonthCost[] = [];
 
@@ -92,11 +94,12 @@ function calcMonthCosts(rosterData: PivotedCrewRow[], masterData: CrewMasterReco
         return md && md.getTime() >= monthStartTime && md.getTime() <= monthEndTime;
       }).length;
     }
-    const offshoreAmt = isOM ? offDays * oaRate : 0;
+    const master = masterMap.get((crew.crew_name || "").toUpperCase().trim());
+    const crewOARate = master?.offshore_rate || (isOM ? 200 : 0);
+    const offshoreAmt = isOM ? offDays * crewOARate : 0;
     const medevacAmt = isEM ? medevac * medevacRate : 0;
     let basicAmt = 0, fixedAllAmt = 0;
     if (crew.crew_id && !basicCounted.has(crew.crew_id)) {
-      const master = masterMap.get((crew.crew_name || "").toUpperCase().trim());
       if (master) { basicAmt = master.basic || 0; fixedAllAmt = master.fixed_all || 0; }
       basicCounted.add(crew.crew_id);
     }
@@ -193,6 +196,7 @@ function HBar3D(props: Record<string, unknown>) {
 
 // ─── Main Component ───
 export default function FinancialDashboardPage() {
+  const project = useProject();
   const [data, setData] = useState<PivotedCrewRow[]>([]);
   const [masterData, setMasterData] = useState<CrewMasterRecord[]>([]);
   const [crewList, setCrewList] = useState<{ id: string; crew_name: string; clean_name: string }[]>([]);
@@ -206,12 +210,13 @@ export default function FinancialDashboardPage() {
   const [budgetBuffer, setBudgetBuffer] = useState(10);
 
   useEffect(() => {
-    Promise.all([getPivotedRosterData(), getCrewMasterData(), getCrewList()]).then(([p, m, crewResult]) => {
-      setData(p); setMasterData(m);
-      if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
-      setLoading(false);
-    });
-  }, []);
+  setLoading(true);
+  Promise.all([getPivotedRosterData(project), getCrewMasterData(project), getCrewList(project)]).then(([p, m, crewResult]) => {
+  setData(p); setMasterData(m);
+  if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
+  setLoading(false);
+  });
+  }, [project]);
 
   const masterMap = useMemo(() => {
     const map = new Map<string, CrewMasterRecord>();
@@ -380,12 +385,16 @@ export default function FinancialDashboardPage() {
     return { barData, clientTotals, grandTotal, ska, sba };
   }, [data, masterData, masterMap, budgetBuffer, budgetPeriod]);
 
+  if (project === "OTHERS") return (
+  <AppShell><SyncingPlaceholder project={project} label="Financial" /></AppShell>
+  );
+
   if (loading) return (
-    <AppShell>
-      <div className="flex items-center justify-center h-48">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500" />
-      </div>
-    </AppShell>
+  <AppShell>
+  <div className="flex items-center justify-center h-48">
+  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500" />
+  </div>
+  </AppShell>
   );
 
   // ─── Tab definitions ───

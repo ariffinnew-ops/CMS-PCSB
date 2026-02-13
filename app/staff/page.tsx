@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { AppShell } from "@/components/app-shell";
-import { getUser, ROLE_LEVELS, getSelectedProject, type AuthUser, type ProjectKey } from "@/lib/auth";
+import { getUser, ROLE_LEVELS, type AuthUser } from "@/lib/auth";
+import { useProject } from "@/hooks/use-project";
 import {
   getCrewList,
   getCrewDetail,
@@ -44,9 +45,9 @@ function daysUntil(d: string | null | undefined): number | null {
 }
 
 // ─── Movement Grid (Section C) - Mini roster with colored bars per month ───
-function MovementGrid({ rosterRows }: { rosterRows: Record<string, unknown>[] }) {
+function MovementGrid({ rosterRows, offshoreRate = 0 }: { rosterRows: Record<string, unknown>[]; offshoreRate?: number }) {
   const MO = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const OA_RATE = 200;
+  const OA_RATE = offshoreRate;
   const MEDEVAC_RATE = 500;
 
   const cycles = useMemo(() => {
@@ -465,7 +466,7 @@ function AddStaffOverlay({ onClose, onCreated, project }: { onClose: () => void;
 // ════════════════════════════════════��══
 export default function StaffDetailPage() {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [project, setProject] = useState<ProjectKey>(getSelectedProject());
+  const project = useProject();
   const [crewList, setCrewList] = useState<CrewListItem[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
@@ -480,14 +481,7 @@ export default function StaffDetailPage() {
   const [uploading, setUploading] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  // Sync project selection from AppShell (uses sessionStorage events)
-  useEffect(() => {
-    const sync = () => setProject(getSelectedProject());
-    window.addEventListener("storage", sync);
-    // Also poll for same-tab changes (sessionStorage doesn't fire storage event in same tab)
-    const interval = setInterval(sync, 300);
-    return () => { window.removeEventListener("storage", sync); clearInterval(interval); };
-  }, []);
+
 
   const lvl = roleLevel(user);
   const isL1L2 = lvl <= 2;
@@ -525,7 +519,7 @@ export default function StaffDetailPage() {
     const [detRes, matRes, rosRes] = await Promise.all([
       getCrewDetail(id, project),
       getCrewMatrix(id),
-      getCrewRoster(id),
+      getCrewRoster(id, project),
     ]);
     if (detRes.success && detRes.data) setDetail(detRes.data);
     if (matRes.success && matRes.data) setMatrix(matRes.data);
@@ -860,7 +854,7 @@ export default function StaffDetailPage() {
               </div>
             </div>
             <div className="flex-1 overflow-auto p-2">
-              <MovementGrid rosterRows={rosterRows} />
+              <MovementGrid rosterRows={rosterRows} offshoreRate={Number(detail?.offshore_rate) || 0} />
             </div>
           </div>
         </div>

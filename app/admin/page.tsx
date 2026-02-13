@@ -9,12 +9,16 @@ import { getPivotedRosterData, updateRosterRow, createRosterRow, deleteRosterRow
 import { safeParseDate, getTradeRank, shortenPost, formatDate, getFullTradeName } from "@/lib/logic";
 import { getClients, getPostsForClient, getLocationsForClientPost } from "@/lib/client-location-map";
 import { getUser } from "@/lib/auth";
+import { useProject } from "@/hooks/use-project";
+import { SyncingPlaceholder } from "@/components/syncing-placeholder";
 
 interface CrewListItem { id: string; crew_name: string; clean_name: string; post: string; client: string; location: string; status?: string }
 
 export default function AdminPage() {
+  const project = useProject();
   const [data, setData] = useState<PivotedCrewRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rosterUnavailable, setRosterUnavailable] = useState(false);
   const [search, setSearch] = useState("");
   const [tradeFilter, setTradeFilter] = useState<TradeType | "ALL">("ALL");
   const [locationFilter, setLocationFilter] = useState<string>("ALL");
@@ -86,8 +90,16 @@ export default function AdminPage() {
 
   const fetchData = async () => {
     setLoading(true);
+    setRosterUnavailable(false);
     try {
-      const [pivotedData, crewResult] = await Promise.all([getPivotedRosterData(), getCrewList()]);
+      const [pivotedData, crewResult] = await Promise.all([getPivotedRosterData(project), getCrewList(project)]);
+      if (project === "OTHERS" && pivotedData.length === 0 && (!crewResult.data || crewResult.data.length === 0)) {
+        setRosterUnavailable(true);
+        setData([]);
+        setCrewList([]);
+        setLoading(false);
+        return;
+      }
       setData(pivotedData);
       if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
     } catch (err) {
@@ -129,7 +141,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [project]);
 
   useEffect(() => {
     const updateMax = () => {
@@ -230,7 +242,7 @@ export default function AdminPage() {
 
     if (cycle?.id) {
       // Update existing cycle row
-      const result = await updateRosterRow(cycle.id, { [field]: finalValue });
+      const result = await updateRosterRow(cycle.id, { [field]: finalValue }, project);
       setIsSyncing(false);
       if (result.success) {
         setLastSynced(new Date());
@@ -258,7 +270,7 @@ export default function AdminPage() {
         location: crewRow.location,
         cycle_number: cycleNum,
         [field]: finalValue,
-      });
+      }, project);
       setIsSyncing(false);
       if (result.success && result.data) {
         setLastSynced(new Date());
@@ -310,7 +322,7 @@ export default function AdminPage() {
       };
 
       if (activeNote.cycleRowId) {
-        await updateRosterRow(activeNote.cycleRowId, updates);
+        await updateRosterRow(activeNote.cycleRowId, updates, project);
       } else {
         // Create cycle row with all fields
         const result = await createRosterRow({
@@ -320,9 +332,9 @@ export default function AdminPage() {
           client: '',
           location: '',
           cycle_number: activeNote.rotationIdx,
-        });
+        }, project);
         if (result.success && result.data) {
-          await updateRosterRow(result.data.id, updates);
+          await updateRosterRow(result.data.id, updates, project);
         }
       }
       showNotification("Saved", "success");
@@ -333,7 +345,7 @@ export default function AdminPage() {
 
   const deleteNote = async () => {
     if (activeNote && activeNote.cycleRowId) {
-      await updateRosterRow(activeNote.cycleRowId, { notes: null });
+      await updateRosterRow(activeNote.cycleRowId, { notes: null }, project);
       showNotification("Note Deleted", "error");
       setActiveNote(null);
       fetchData();
@@ -435,7 +447,7 @@ export default function AdminPage() {
     };
 
     try {
-      const result = await createRosterRow(payload);
+      const result = await createRosterRow(payload, project);
 
       setIsSyncing(false);
 
@@ -480,7 +492,7 @@ export default function AdminPage() {
     
     setIsSyncing(true);
     // Use name-specific delete so suffixed entries don't wipe the original
-    const result = await deleteCrewByName(crewId, name);
+    const result = await deleteCrewByName(crewId, name, project);
     setIsSyncing(false);
     
     if (result.success) {
@@ -507,13 +519,16 @@ export default function AdminPage() {
     });
   }, [addModal, staffSearchQuery, crewList]);
 
+  if (project === "OTHERS" || rosterUnavailable)
+    return <AppShell><SyncingPlaceholder project={project} label="Data Manager" /></AppShell>;
+
   if (loading)
     return (
-      <AppShell>
-        <div className="flex items-center justify-center h-96">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-foreground" />
-        </div>
-      </AppShell>
+    <AppShell>
+    <div className="flex items-center justify-center h-96">
+    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-foreground" />
+    </div>
+    </AppShell>
     );
 
   return (

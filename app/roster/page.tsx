@@ -5,6 +5,8 @@ import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow, ClientType, TradeType } from "@/lib/types";
 import { getPivotedRosterData, getCrewList, getOHNStaffFromMaster } from "@/lib/actions";
 import { safeParseDate, getTradeRank, getFullTradeName } from "@/lib/logic";
+import { useProject } from "@/hooks/use-project";
+import { SyncingPlaceholder } from "@/components/syncing-placeholder";
 
 // Generate months from Sep 2025 to Dec 2026
 const generateMonthRange = () => {
@@ -37,6 +39,7 @@ function saveFilters(f: { viewYear: number; viewMonth: number; client: string; t
 }
 
 export default function RosterPage() {
+  const project = useProject();
   const saved = loadFilters();
   const [viewDate, setViewDate] = useState(() => {
     if (saved) return new Date(saved.viewYear, saved.viewMonth, 1);
@@ -45,6 +48,7 @@ export default function RosterPage() {
   const [data, setData] = useState<PivotedCrewRow[]>([]);
   const [crewList, setCrewList] = useState<{ id: string; crew_name: string; clean_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rosterUnavailable, setRosterUnavailable] = useState(false);
   const [clientFilter, setClientFilter] = useState<ClientType | "ALL">(saved?.client || "ALL");
   const [tradeFilter, setTradeFilter] = useState<TradeType | "ALL">(saved?.trade || "ALL");
   const [search, setSearch] = useState(saved?.search || "");
@@ -61,7 +65,17 @@ export default function RosterPage() {
   }, [viewDate, clientFilter, tradeFilter, search]);
 
   useEffect(() => {
-    Promise.all([getPivotedRosterData(), getCrewList(), getOHNStaffFromMaster()]).then(([pivotedData, crewResult, ohnStaff]) => {
+    setLoading(true);
+    setRosterUnavailable(false);
+    Promise.all([getPivotedRosterData(project), getCrewList(project), getOHNStaffFromMaster()]).then(([pivotedData, crewResult, ohnStaff]) => {
+      // If OTHERS project returns empty with no crew, roster table may not exist
+      if (project === "OTHERS" && pivotedData.length === 0 && (!crewResult.data || crewResult.data.length === 0)) {
+        setRosterUnavailable(true);
+        setData([]);
+        setCrewList([]);
+        setLoading(false);
+        return;
+      }
       // Merge OHN/IM staff from master into roster data, avoiding duplicates
       const rosterIds = new Set(pivotedData.map((r) => r.crew_id));
       const merged = [...pivotedData];
@@ -72,9 +86,10 @@ export default function RosterPage() {
       }
       setData(merged);
       if (crewResult.success && crewResult.data) setCrewList(crewResult.data);
+      setRosterUnavailable(false);
       setLoading(false);
     });
-  }, []);
+  }, [project]);
 
   const daysInMonth = useMemo(() => {
     const year = viewDate.getFullYear();
@@ -269,10 +284,14 @@ export default function RosterPage() {
     return currentStatus !== "OFF" && prevStatus !== "OFF";
   };
 
+  if (project === "OTHERS" || rosterUnavailable) {
+    return <AppShell><SyncingPlaceholder project={project} label="Roster" /></AppShell>;
+  }
+
   return (
-    <AppShell>
-      <style jsx>{`
-        @keyframes barSlideIn {
+  <AppShell>
+  <style jsx>{`
+  @keyframes barSlideIn {
           from {
             transform: scaleX(0);
             transform-origin: left center;
