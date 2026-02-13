@@ -150,6 +150,17 @@ export function canEdit(pathname: string, project: ProjectKey, role: UserRole): 
   return getPermission(pathname, project, role) === "EDIT";
 }
 
+// Page priority order for redirect when user can't access their target page
+const PAGE_PRIORITY = ["/dashboard", "/roster", "/training", "/staff", "/statement", "/financial", "/admin", "/users"];
+
+// Get the first page the user can access
+export function getFirstAccessiblePage(role: UserRole): string {
+  for (const page of PAGE_PRIORITY) {
+    if (canAccessPage(role, page)) return page;
+  }
+  return "/login"; // No pages accessible -- send back to login
+}
+
 // ---------------------------------------------------------------------------
 // User store (client-side, will be replaced by DB later)
 // ---------------------------------------------------------------------------

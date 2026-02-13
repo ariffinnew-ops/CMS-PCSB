@@ -4,7 +4,7 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { login, isAuthenticated, mergeSupabaseUsers } from "@/lib/auth";
+import { login, isAuthenticated, mergeSupabaseUsers, getFirstAccessiblePage } from "@/lib/auth";
 import { recordLoginLog, getSupabaseUsers, getMaintenanceMode } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,8 +85,9 @@ export default function LoginPage() {
         setIsLoading(false);
         return;
       }
+      const landingPage = getFirstAccessiblePage(user.role);
       setNotification({ type: "success", message: `Login successful. Welcome back, ${user.username}!` });
-      setTimeout(() => router.push("/dashboard"), 800);
+      setTimeout(() => router.push(landingPage), 800);
     } else {
       setNotification({ type: "error", message: "Login unsuccessful. Please check your username and password." });
     }

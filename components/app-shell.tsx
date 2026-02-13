@@ -7,7 +7,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { getUser, logout, canAccessPage, getPermission, setupIdleTimeout, getSelectedProject, setSelectedProject, ROLE_LABELS, type AuthUser, type UserRole, type ProjectKey } from "@/lib/auth";
+import { getUser, logout, canAccessPage, getFirstAccessiblePage, getPermission, setupIdleTimeout, getSelectedProject, setSelectedProject, ROLE_LABELS, type AuthUser, type UserRole, type ProjectKey } from "@/lib/auth";
 import { getMaintenanceMode, setMaintenanceMode } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -77,7 +77,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
     
     if (!canAccessPage(currentUser.role, pathname)) {
-      router.push("/dashboard");
+      const fallback = getFirstAccessiblePage(currentUser.role);
+      router.push(fallback);
       return;
     }
 

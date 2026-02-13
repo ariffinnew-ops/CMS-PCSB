@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { isAuthenticated } from "@/lib/auth";
+import { isAuthenticated, getUser, getFirstAccessiblePage } from "@/lib/auth";
 
 export default function RootPage() {
   const router = useRouter();
@@ -15,7 +15,9 @@ export default function RootPage() {
   useEffect(() => {
     if (mounted) {
       if (isAuthenticated()) {
-        router.push("/dashboard");
+        const user = getUser();
+        const landing = user ? getFirstAccessiblePage(user.role) : "/dashboard";
+        router.push(landing);
       } else {
         router.push("/login");
       }
