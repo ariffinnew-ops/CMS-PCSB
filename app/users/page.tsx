@@ -48,13 +48,15 @@ export default function UsersPage() {
   // Helper: fetch users from Supabase and map to StoredUser
   const refreshUsers = async () => {
     const sbUsers = await getSupabaseUsers();
-    return sbUsers.map(u => ({
-      username: u.username,
-      fullName: u.full_name,
-      role: u.user_level as UserRole,
-      defaultProject: (u.assigned_project || "PCSB") as ProjectKey,
-      email: u.email,
-    })) as StoredUser[];
+    return sbUsers
+      .filter(u => u.username) // skip any rows with missing username
+      .map(u => ({
+        username: u.username,
+        fullName: u.full_name || "",
+        role: (u.user_level || "L7") as UserRole,
+        defaultProject: (u.assigned_project || "PCSB") as ProjectKey,
+        email: u.email || "",
+      })) as StoredUser[];
   };
   const [user, setUser] = useState<AuthUser | null>(null);
   const [users, setUsers] = useState<StoredUser[]>([]);

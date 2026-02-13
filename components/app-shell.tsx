@@ -7,8 +7,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { getUser, logout, canAccessPage, getFirstAccessiblePage, getPermission, setupIdleTimeout, getSelectedProject, setSelectedProject, ROLE_LABELS, type AuthUser, type UserRole, type ProjectKey } from "@/lib/auth";
-import { getMaintenanceMode, setMaintenanceMode, signOutServer } from "@/lib/actions";
+import { getUser, logout, canAccessPage, getFirstAccessiblePage, getPermission, setupIdleTimeout, getSelectedProject, setSelectedProject, savePermissionMatrix, ROLE_LABELS, type AuthUser, type UserRole, type ProjectKey } from "@/lib/auth";
+import { getMaintenanceMode, setMaintenanceMode, signOutServer, getAccessMatrixAsAppFormat } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -75,40 +75,47 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       router.push("/login");
       return;
     }
-    
-    if (!canAccessPage(currentUser.role, pathname)) {
-      const fallback = getFirstAccessiblePage(currentUser.role);
-      router.push(fallback);
-      return;
-    }
 
-    // Check maintenance mode -- kick non-L1 users back to login
-    // Use a timeout so the page doesn't hang if cms_settings table is missing
-    if (currentUser.role !== "L1") {
-      const maintenanceTimeout = setTimeout(() => {
-        // Fallback: if check takes too long, allow access
-        setUser(currentUser);
-        setIsLoading(false);
-      }, 3000);
-
-      getMaintenanceMode().then((isMaintenance) => {
-        clearTimeout(maintenanceTimeout);
-        if (isMaintenance) {
-          logout();
-          router.push("/login");
-          return;
+    // Fetch access matrix from Supabase, sync to localStorage, then check access
+    const initSession = async () => {
+      try {
+        const dbMatrix = await getAccessMatrixAsAppFormat();
+        if (dbMatrix && Object.keys(dbMatrix).length > 0) {
+          // Sync Supabase matrix -> localStorage so canAccessPage / getPermission use it
+          savePermissionMatrix(dbMatrix as any);
         }
-        setUser(currentUser);
-        setIsLoading(false);
-      }).catch(() => {
-        clearTimeout(maintenanceTimeout);
-        setUser(currentUser);
-        setIsLoading(false);
-      });
-    } else {
+      } catch {
+        // Supabase unavailable -- fall through to DEFAULT_PERMISSION_MATRIX
+      }
+
+      if (!canAccessPage(currentUser.role, pathname)) {
+        const fallback = getFirstAccessiblePage(currentUser.role);
+        router.push(fallback);
+        return;
+      }
+
+      // Check maintenance mode -- kick non-L1 users back to login
+      if (currentUser.role !== "L1") {
+        try {
+          const isMaintenance = await Promise.race([
+            getMaintenanceMode(),
+            new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000)),
+          ]);
+          if (isMaintenance) {
+            logout();
+            router.push("/login");
+            return;
+          }
+        } catch {
+          // Allow access if maintenance check fails
+        }
+      }
+
       setUser(currentUser);
       setIsLoading(false);
-    }
+    };
+
+    initSession();
   }, [router, pathname]);
 
   useEffect(() => {

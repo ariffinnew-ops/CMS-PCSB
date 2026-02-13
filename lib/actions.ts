@@ -22,8 +22,9 @@ export async function signInWithEmail(email: string, password: string): Promise<
     return { success: false, error: authError?.message || 'Authentication failed' }
   }
 
-  // Step 2: Fetch user profile from cms_users using the auth user's ID
-  const { data: profile, error: profileError } = await supabase
+  // Step 2: Fetch user profile from cms_users using admin client (bypasses RLS)
+  const admin = createAdminClient()
+  const { data: profile, error: profileError } = await admin
     .from('cms_users')
     .select('username, full_name, user_level, assigned_project')
     .eq('id', authData.user.id)
@@ -263,9 +264,9 @@ export interface RecordLoginLogParams {
 
 export async function recordLoginLog(params: RecordLoginLogParams): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createClient()
+    const admin = createAdminClient()
 
-    const { error } = await supabase
+    const { error } = await admin
       .from('cms_login_logs')
       .insert({
         username_attempt: params.username_attempt,
@@ -288,9 +289,9 @@ export async function recordLoginLog(params: RecordLoginLogParams): Promise<{ su
 }
 
 export async function getLoginLogs(): Promise<LoginLogEntry[]> {
-  const supabase = await createClient()
+  const admin = createAdminClient()
 
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from('cms_login_logs')
     .select('*')
     .order('created_at', { ascending: false })
@@ -319,12 +320,12 @@ export async function getLoginLogs(): Promise<LoginLogEntry[]> {
   created_at?: string;
   }
 
-export async function getSupabaseUsers(): Promise<CmsUser[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('cms_users')
-    .select('*')
-    .order('created_at', { ascending: true })
+  export async function getSupabaseUsers(): Promise<CmsUser[]> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+  .from('cms_users')
+  .select('*')
+  .order('created_at', { ascending: true })
 
   if (error) {
     console.warn('cms_users fetch error:', error.message)
@@ -972,8 +973,8 @@ export async function upsertApproval(record: ApprovalRecord): Promise<{ success:
 
 export async function getMaintenanceMode(): Promise<boolean> {
   try {
-    const supabase = await createClient()
-    const { data, error } = await supabase
+    const admin = createAdminClient()
+    const { data, error } = await admin
       .from('cms_settings')
       .select('value')
       .eq('key', 'maintenance_mode')
@@ -989,8 +990,8 @@ export async function getMaintenanceMode(): Promise<boolean> {
 }
 
 export async function setMaintenanceMode(enabled: boolean): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const { error } = await supabase
+  const admin = createAdminClient()
+  const { error } = await admin
     .from('cms_settings')
     .upsert({ key: 'maintenance_mode', value: String(enabled), updated_at: new Date().toISOString() }, { onConflict: 'key' })
 
@@ -1045,8 +1046,8 @@ function appToDb(v: string): string {
 }
 
 export async function getAccessMatrix(): Promise<{ success: boolean; data?: AccessMatrixRow[]; error?: string }> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
+  const admin = createAdminClient()
+  const { data, error } = await admin
     .from('cms_access_matrix')
     .select('*')
     .order('page_code', { ascending: true })
@@ -1094,7 +1095,7 @@ export async function updateAccessMatrixRow(
   projectScope: string,
   permissions: Record<string, string>
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
+  const admin = createAdminClient()
   const pageCode = ROUTE_TO_PAGE_CODE[route]
   if (!pageCode) return { success: false, error: "Unknown route: " + route }
 
@@ -1109,7 +1110,7 @@ export async function updateAccessMatrixRow(
     l7_access: appToDb(permissions.L7 || "NONE"),
   }
 
-  const { error } = await supabase
+  const { error } = await admin
     .from('cms_access_matrix')
     .update(updatePayload)
     .eq('page_code', pageCode)
