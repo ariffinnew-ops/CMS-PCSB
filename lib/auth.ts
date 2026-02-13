@@ -51,7 +51,7 @@ export const ROLE_LEVELS: Record<UserRole, number> = {
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
-  L1: "Super Admin",
+  L1: "System Administrator",
   L2A: "Data Lodger (PCSB)",
   L2B: "Data Lodger (Others)",
   L4: "PMT",

@@ -522,7 +522,7 @@ export default function UsersPage() {
                 <tr className="bg-slate-50 dark:bg-slate-900/50 border-b-2 border-border">
                   <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground w-10">#</th>
                   <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Email</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Crew Name</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Roles</th>
                   <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Staff ID</th>
                   <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Role</th>
                   <th className="px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</th>

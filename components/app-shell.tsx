@@ -272,8 +272,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     {user?.username?.charAt(0) || "U"}
                   </div>
                   <div className="flex flex-col items-start">
-                    <span className="text-xs font-semibold capitalize">{user?.username}</span>
-                    <span className={cn("text-[9px] font-medium uppercase tracking-wide", getRoleBadgeColor(user?.role || "L4"))}>
+                    <span className="text-xs font-semibold lowercase">{user?.username}</span>
+                    <span className={cn("text-[9px] font-medium tracking-wide", getRoleBadgeColor(user?.role || "L4"))} style={{ fontVariant: "small-caps" }}>
                       {getRoleLabel(user?.role || "L4")}
                     </span>
                   </div>
@@ -285,8 +285,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <DropdownMenuContent align="end" className="w-44">
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium capitalize">{user?.username}</p>
-                    <p className="text-xs text-muted-foreground">{getRoleLabel(user?.role || "L4")}</p>
+                    <p className="text-sm font-medium lowercase">{user?.username}</p>
+                    <p className="text-xs text-muted-foreground" style={{ fontVariant: "small-caps" }}>{getRoleLabel(user?.role || "L4")}</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -308,8 +308,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {user?.username?.charAt(0) || "U"}
               </div>
               <div>
-                <p className="text-sm font-semibold text-white capitalize">{user?.username}</p>
-                <p className={cn("text-xs font-medium uppercase", getRoleBadgeColor(user?.role || "L4"))}>
+                <p className="text-sm font-semibold text-white lowercase">{user?.username}</p>
+                <p className={cn("text-xs font-medium", getRoleBadgeColor(user?.role || "L4"))} style={{ fontVariant: "small-caps" }}>
                   {getRoleLabel(user?.role || "L4")}
                 </p>
               </div>
