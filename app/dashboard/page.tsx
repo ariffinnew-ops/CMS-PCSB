@@ -4,6 +4,8 @@ import { useState, useMemo, Fragment, useEffect, useRef, useCallback } from "rea
 import { AppShell } from "@/components/app-shell";
 import { PivotedCrewRow } from "@/lib/types";
 import { getPivotedRosterData, getOHNStaffFromMaster } from "@/lib/actions";
+import { useProject } from "@/hooks/use-project";
+import { SyncingPlaceholder } from "@/components/syncing-placeholder";
 import {
   isPersonnelOnBoard,
   getDaysOnBoard,
@@ -665,10 +667,12 @@ function CompactTable({
 }
 
 export default function DashboardPage() {
+  const project = useProject();
   const [systemDate, setSystemDate] = useState(() => new Date());
   const [liveTime, setLiveTime] = useState(() => new Date());
   const [data, setData] = useState<PivotedCrewRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rosterUnavailable, setRosterUnavailable] = useState(false);
   const [viewMode, setViewMode] = useState<"hud" | "list">("hud");
   const [hoveredSegment, setHoveredSegment] = useState<"SKA" | "SBA" | null>(null);
   const [hoveredTrade, setHoveredTrade] = useState<string | null>(null);
@@ -682,7 +686,15 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    Promise.all([getPivotedRosterData(), getOHNStaffFromMaster()]).then(([pivotedData, ohnStaff]) => {
+    setLoading(true);
+    setRosterUnavailable(false);
+    Promise.all([getPivotedRosterData(project), getOHNStaffFromMaster()]).then(([pivotedData, ohnStaff]) => {
+      if (project === "OTHERS" && pivotedData.length === 0) {
+        setRosterUnavailable(true);
+        setData([]);
+        setLoading(false);
+        return;
+      }
       // Merge OHN from master into roster data, avoiding duplicates
       const rosterIds = new Set(pivotedData.map((r) => r.crew_id));
       const merged = [...pivotedData];
@@ -694,7 +706,7 @@ export default function DashboardPage() {
       setData(merged);
       setLoading(false);
     });
-  }, []);
+  }, [project]);
 
   const filteredPersonnel = useMemo(() => {
     return data
@@ -728,6 +740,10 @@ export default function DashboardPage() {
     () => filteredPersonnel.filter((p) => p.client === "SBA"),
     [filteredPersonnel]
   );
+
+  if (rosterUnavailable) {
+    return <AppShell><SyncingPlaceholder project={project} label="Dashboard" /></AppShell>;
+  }
 
   if (loading) {
     return (
