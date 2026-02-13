@@ -524,11 +524,26 @@ export async function getCrewList(project?: string): Promise<{ success: boolean;
   if (project) q = q.eq('project', project);
   const { data, error } = await q.order('crew_name', { ascending: true })
 
+  console.log('[v0] getCrewList table:', MASTER_TABLE, 'project filter:', project, 'rows:', data?.length, 'error:', error)
+
   if (error) {
     console.error('Error fetching crew list:', error)
     return { success: false, error: error.message }
   }
   return { success: true, data: data || [] }
+}
+
+// Debug: test raw query without project filter
+export async function debugCrewCount(): Promise<{ total: number; projects: Record<string, number> }> {
+  const supabase = await createClient()
+  const { data } = await supabase.from(MASTER_TABLE).select('project')
+  const projects: Record<string, number> = {};
+  for (const row of data || []) {
+    const p = String(row.project || 'NULL');
+    projects[p] = (projects[p] || 0) + 1;
+  }
+  console.log('[v0] debugCrewCount total:', data?.length, 'by project:', projects)
+  return { total: data?.length || 0, projects };
 }
 
 export async function getCrewDetail(crewId: string, project?: string): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
