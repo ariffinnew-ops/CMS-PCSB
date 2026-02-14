@@ -568,14 +568,15 @@ export default function StaffDetailPage() {
     setCertPdfUrl(null);
     const supabase = createClient();
     const extensions = ["pdf", "jpg", "jpeg", "png"];
+    const bust = Date.now();
     let found = false;
     for (const ext of extensions) {
       const filePath = `${selectedId}_${safeName}.${ext}`;
       const { data } = supabase.storage.from("certificates").getPublicUrl(filePath);
       try {
-        const res = await fetch(data.publicUrl, { method: "HEAD" });
+        const res = await fetch(`${data.publicUrl}?t=${bust}`, { method: "HEAD", cache: "no-store" });
         if (res.ok) {
-          setCertPdfUrl(data.publicUrl);
+          setCertPdfUrl(`${data.publicUrl}?t=${bust}`);
           found = true;
           break;
         }
@@ -975,9 +976,10 @@ export default function StaffDetailPage() {
                 </div>
               ) : certPdfUrl ? (
                 <>
-                  {/\.(jpg|jpeg|png)$/i.test(certPdfUrl) ? (
+                  {/\.(jpg|jpeg|png)(\?|$)/i.test(certPdfUrl) ? (
                     <div className="w-full h-full min-h-[450px] flex items-center justify-center bg-black/5 overflow-auto p-4">
                       <img
+                        key={certPdfUrl}
                         src={certPdfUrl}
                         alt={`${certModal.cert_type} certificate`}
                         className="max-w-full max-h-full object-contain rounded-lg shadow"
@@ -985,6 +987,7 @@ export default function StaffDetailPage() {
                     </div>
                   ) : (
                     <iframe
+                      key={certPdfUrl}
                       ref={certIframeRef}
                       src={certPdfUrl}
                       className="w-full h-full min-h-[450px]"
@@ -1018,7 +1021,7 @@ export default function StaffDetailPage() {
                       type="button"
                       title="Print"
                       onClick={() => {
-                        if (/\.(jpg|jpeg|png)$/i.test(certPdfUrl)) {
+                        if (/\.(jpg|jpeg|png)(\?|$)/i.test(certPdfUrl)) {
                           const w = window.open("", "_blank");
                           if (w) { w.document.write(`<img src="${certPdfUrl}" onload="window.print();window.close()" style="max-width:100%" />`); w.document.close(); }
                         } else {
