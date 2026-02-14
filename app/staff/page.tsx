@@ -480,6 +480,7 @@ export default function StaffDetailPage() {
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [showDetailOverlay, setShowDetailOverlay] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [staffSearch, setStaffSearch] = useState("");
   const [certModal, setCertModal] = useState<{ cert_type: string } | null>(null);
   const [certPdfUrl, setCertPdfUrl] = useState<string | null>(null);
   const [certLoading, setCertLoading] = useState(false);
@@ -671,23 +672,37 @@ export default function StaffDetailPage() {
         {/* ═══ SECTION A: PROFILE SIDEBAR (30%) ═══ */}
         <div className="bg-background border border-border rounded-xl overflow-hidden flex flex-col h-full">
 
-          {/* Staff Dropdown (A-Z from cms_pcsb_master) */}
-          <div className="px-3 py-2 border-b border-border shrink-0">
-            <select
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-              className="w-full bg-gray-200 rounded-lg px-3 py-1.5 text-sm text-black font-semibold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-            >
-              <option value="" disabled>-- Select Staff --</option>
+          {/* Staff Search + List */}
+          <div className="border-b border-border shrink-0 flex flex-col">
+            <div className="px-3 py-2">
+              <input
+                type="text"
+                placeholder="Search staff name..."
+                value={staffSearch}
+                onChange={(e) => setStaffSearch(e.target.value)}
+                className="w-full bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-muted-foreground"
+              />
+            </div>
+            <div className="max-h-40 overflow-y-auto px-1 pb-1">
               {crewList
                 .slice()
                 .sort((a, b) => (a.crew_name || "").localeCompare(b.crew_name || ""))
+                .filter((c) => !staffSearch || (c.crew_name || "").toLowerCase().includes(staffSearch.toLowerCase()))
                 .map((c) => (
-                  <option key={c.id} value={c.id}>
+                  <button
+                    type="button"
+                    key={c.id}
+                    onClick={() => { setSelectedId(c.id); setStaffSearch(""); }}
+                    className={`w-full text-left px-3 py-1 rounded-md text-[11px] font-semibold truncate transition-colors ${
+                      selectedId === c.id
+                        ? "bg-blue-600 text-white"
+                        : "text-foreground hover:bg-muted"
+                    }`}
+                  >
                     {c.crew_name}
-                  </option>
+                  </button>
                 ))}
-            </select>
+            </div>
           </div>
 
           {d && (
@@ -936,7 +951,19 @@ export default function StaffDetailPage() {
                   />
 
                   {/* Floating Action Bar */}
-                  <div className="absolute top-3 right-3 flex items-center gap-1 bg-black/60 backdrop-blur-md rounded-xl px-1.5 py-1 shadow-lg">
+                  <div className="absolute top-3 right-3 z-[210] flex items-center gap-1 bg-black/60 backdrop-blur-md rounded-xl px-1.5 py-1 shadow-lg">
+                    <button
+                      type="button"
+                      title="Close / Exit Full Screen"
+                      onClick={() => {
+                        if (document.fullscreenElement) { document.exitFullscreen(); }
+                        else { setCertModal(null); setCertPdfUrl(null); setCertNotFound(false); }
+                      }}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-white/80 hover:text-white hover:bg-white/15 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    <div className="w-px h-5 bg-white/20" />
                     <button
                       type="button"
                       title="Full Screen"
