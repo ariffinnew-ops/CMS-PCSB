@@ -562,8 +562,8 @@ export default function StaffDetailPage() {
     setCertNotFound(false);
     setCertPdfUrl(null);
     const supabase = createClient();
-    const filePath = `${selectedId}/certificates/${selectedId}_${safeName}.pdf`;
-    const { data } = supabase.storage.from("pcsb-doc").getPublicUrl(filePath);
+    const filePath = `${selectedId}_${safeName}.pdf`;
+    const { data } = supabase.storage.from("certificates").getPublicUrl(filePath);
     // Check if file exists via HEAD request
     try {
       const res = await fetch(data.publicUrl, { method: "HEAD" });
@@ -584,10 +584,10 @@ export default function StaffDetailPage() {
     if (file.size > 5 * 1024 * 1024) { alert("Max 5MB"); return; }
     if (!file.name.toLowerCase().endsWith(".pdf")) { alert("Only PDF files allowed"); return; }
     const safeName = certModal.cert_type.replace(/[^a-zA-Z0-9_-]/g, "_");
-    const targetPath = `${selectedId}/certificates/${selectedId}_${safeName}.pdf`;
+    const targetPath = `${selectedId}_${safeName}.pdf`;
     setUploading(true);
     const supabase = createClient();
-    const { error } = await supabase.storage.from("pcsb-doc").upload(targetPath, file, { upsert: true });
+    const { error } = await supabase.storage.from("certificates").upload(targetPath, file, { upsert: true });
     setUploading(false);
     if (error) { alert(error.message); return; }
     // Refresh view
