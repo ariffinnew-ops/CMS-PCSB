@@ -186,24 +186,24 @@ function TradePanel({
   ];
 
   return (
-    <div className="bg-slate-800/60 backdrop-blur-xl border border-slate-600/50 rounded-2xl p-4 shadow-2xl min-w-[180px]">
+    <div className="bg-slate-800/60 backdrop-blur-xl border border-slate-600/50 rounded-2xl p-2.5 sm:p-4 shadow-2xl sm:min-w-[180px]">
       {/* Header */}
-      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-700/50">
-        <div className={`w-3 h-3 rounded-full ${client === "SKA" ? "bg-blue-500 shadow-lg shadow-blue-500/50" : "bg-orange-500 shadow-lg shadow-orange-500/50"}`} />
-        <span className="text-sm font-black text-white uppercase tracking-wider">
+      <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3 pb-1.5 sm:pb-2 border-b border-slate-700/50">
+        <div className={`w-2.5 sm:w-3 h-2.5 sm:h-3 rounded-full ${client === "SKA" ? "bg-blue-500 shadow-lg shadow-blue-500/50" : "bg-orange-500 shadow-lg shadow-orange-500/50"}`} />
+        <span className="text-xs sm:text-sm font-black text-white uppercase tracking-wider">
           {client}
         </span>
-        <span className="text-2xl font-black text-white ml-auto tabular-nums">
+        <span className="text-lg sm:text-2xl font-black text-white ml-auto tabular-nums">
           {personnel.length}
         </span>
       </div>
       
       {/* Trade Rows */}
-      <div className="space-y-2">
+      <div className="space-y-1.5 sm:space-y-2">
         {trades.map((trade) => (
           <motion.div
             key={trade.code}
-            className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all ${
+            className={`flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 rounded-xl cursor-pointer transition-all ${
               hoveredTrade === `${client}-${trade.code}`
                 ? "bg-slate-700/90 ring-2 ring-white/30"
                 : "hover:bg-slate-800/50"
@@ -212,13 +212,13 @@ function TradePanel({
             onMouseLeave={() => onTradeHover(null)}
             whileHover={{ scale: 1.02 }}
           >
-            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${trade.color} flex items-center justify-center shadow-lg`}>
-              <span className="text-[11px] font-black text-white">{trade.code}</span>
+            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br ${trade.color} flex items-center justify-center shadow-lg`}>
+              <span className="text-[9px] sm:text-[11px] font-black text-white">{trade.code}</span>
             </div>
-            <div className="flex-1">
-              <div className="text-[9px] text-slate-400 uppercase tracking-wide">{trade.name}</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[8px] sm:text-[9px] text-slate-400 uppercase tracking-wide truncate">{trade.name}</div>
             </div>
-            <div className="text-xl font-black text-white tabular-nums">{trade.list.length}</div>
+            <div className="text-base sm:text-xl font-black text-white tabular-nums">{trade.list.length}</div>
           </motion.div>
         ))}
       </div>
@@ -253,10 +253,10 @@ function NameListPopover({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: client === "SKA" ? -20 : 20 }}
       transition={{ duration: 0.2 }}
-      className={`fixed z-[9999] top-1/2 -translate-y-1/2 ${
-        client === "SKA" ? "left-4" : "right-4"
+      className={`fixed z-[9999] sm:top-1/2 sm:-translate-y-1/2 bottom-0 sm:bottom-auto left-0 right-0 sm:left-auto sm:right-auto ${
+        client === "SKA" ? "sm:left-4" : "sm:right-4"
       }`}
-      style={{ maxWidth: '360px', minWidth: '280px' }}
+      style={{ maxWidth: '100%' }}
     >
       <div className={`bg-slate-900/95 backdrop-blur-2xl border-2 rounded-2xl shadow-2xl overflow-hidden ${
         client === "SKA" ? "border-blue-500/60 shadow-blue-500/20" : "border-orange-500/60 shadow-orange-500/20"
@@ -761,7 +761,7 @@ export default function DashboardPage() {
   return (
     <AppShell>
       <div 
-        className="h-[calc(100vh-120px)] rounded-2xl overflow-hidden relative"
+        className="min-h-[calc(100vh-120px)] sm:h-[calc(100vh-120px)] rounded-2xl overflow-hidden relative"
         style={{
           backgroundImage: `url(https://image2url.com/r2/default/images/1770311131560-2493d85c-5fef-4dbd-96b2-5c844492a9aa.jpg)`,
           backgroundSize: 'cover',
@@ -793,22 +793,34 @@ export default function DashboardPage() {
               className="relative z-10 h-full flex flex-col"
             >
               {/* Compact Header */}
-              <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800/50">
-                {/* Top Left - CMS Live Data */}
-                <div className="flex items-center gap-2">
-                  <motion.div
-                    className="w-2 h-2 rounded-full bg-emerald-500"
-                    animate={{ opacity: [1, 0.3, 1], scale: [1, 1.2, 1] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                  />
-                  <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
-                    CMS - Live Data
-                  </span>
+              <div className="flex flex-col sm:flex-row items-center justify-between px-3 sm:px-4 py-2 border-b border-slate-800/50 gap-1 sm:gap-0">
+                <div className="flex items-center justify-between w-full sm:w-auto">
+                  {/* Top Left - CMS Live Data */}
+                  <div className="flex items-center gap-2">
+                    <motion.div
+                      className="w-2 h-2 rounded-full bg-emerald-500"
+                      animate={{ opacity: [1, 0.3, 1], scale: [1, 1.2, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    />
+                    <span className="text-[10px] sm:text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
+                      CMS - Live Data
+                    </span>
+                  </div>
+                  
+                  {/* Live Time - beside CMS badge on mobile, right side on desktop */}
+                  <div className="flex items-center gap-1.5 sm:hidden">
+                    <span className="text-[10px] font-bold text-slate-400 tabular-nums">
+                      {`${String(liveTime.getDate()).padStart(2, "0")}/${String(liveTime.getMonth() + 1).padStart(2, "0")}/${liveTime.getFullYear()}`}
+                    </span>
+                    <span className="text-sm font-black text-cyan-400 tabular-nums" style={{ textShadow: "0 0 20px rgba(6, 182, 212, 0.5)" }}>
+                      {liveTime.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                    </span>
+                  </div>
                 </div>
                 
                 {/* Title - Center */}
                 <h1 
-                  className="text-xl font-black text-white uppercase tracking-[0.25em] font-sans"
+                  className="text-sm sm:text-xl font-black text-white uppercase tracking-[0.15em] sm:tracking-[0.25em] font-sans text-center"
                   style={{ 
                     textShadow: "0 0 30px rgba(59, 130, 246, 0.5), 0 0 60px rgba(249, 115, 22, 0.3)"
                   }}
@@ -816,8 +828,8 @@ export default function DashboardPage() {
                   PROVISION OF IMS - PCSB
                 </h1>
                 
-                {/* Live Time */}
-                <div className="flex items-center gap-2 min-w-[180px] justify-end">
+                {/* Live Time - desktop only */}
+                <div className="hidden sm:flex items-center gap-2 min-w-[180px] justify-end">
                   <span className="text-xs font-bold text-slate-400 tabular-nums">
                     {`${String(liveTime.getDate()).padStart(2, "0")}/${String(liveTime.getMonth() + 1).padStart(2, "0")}/${liveTime.getFullYear()}`}
                   </span>
@@ -828,43 +840,40 @@ export default function DashboardPage() {
               </div>
 
               {/* Main HUD Content - Compact */}
-              <div className="flex-1 flex flex-col items-center justify-center px-4">
+              <div className="flex-1 flex flex-col items-center justify-center px-2 sm:px-4 overflow-y-auto">
                 {/* Compact Date Picker - Above Donut */}
                 <div className="mb-2">
                   <CompactDatePicker value={systemDate} onChange={setSystemDate} />
                 </div>
 
-                {/* HUD Layout: SKA (Left) - Donut (Center) - SBA (Right) */}
-                <div className="flex items-center justify-center gap-6 w-full max-w-5xl">
-                  {/* SKA Panel - LEFT */}
+                {/* HUD Layout: Desktop = SKA | Donut | SBA row. Mobile = Donut on top, panels below */}
+                {/* Desktop layout */}
+                <div className="hidden md:flex items-center justify-center gap-6 w-full max-w-5xl">
                   <div className="flex-shrink-0">
-                    <TradePanel
-                      client="SKA"
-                      personnel={skaPersonnel}
-                      hoveredTrade={hoveredTrade}
-                      onTradeHover={setHoveredTrade}
-                    />
+                    <TradePanel client="SKA" personnel={skaPersonnel} hoveredTrade={hoveredTrade} onTradeHover={setHoveredTrade} />
                   </div>
-
-                  {/* Center Donut */}
                   <div className="relative flex-shrink-0">
-                    <DonutChart
-                      total={stats.total}
-                      ska={stats.ska}
-                      sba={stats.sba}
-                      onSegmentHover={setHoveredSegment}
-                      hoveredSegment={hoveredSegment}
-                    />
+                    <DonutChart total={stats.total} ska={stats.ska} sba={stats.sba} onSegmentHover={setHoveredSegment} hoveredSegment={hoveredSegment} />
                   </div>
-
-                  {/* SBA Panel - RIGHT */}
                   <div className="flex-shrink-0">
-                    <TradePanel
-                      client="SBA"
-                      personnel={sbaPersonnel}
-                      hoveredTrade={hoveredTrade}
-                      onTradeHover={setHoveredTrade}
-                    />
+                    <TradePanel client="SBA" personnel={sbaPersonnel} hoveredTrade={hoveredTrade} onTradeHover={setHoveredTrade} />
+                  </div>
+                </div>
+
+                {/* Mobile layout */}
+                <div className="flex flex-col items-center gap-3 md:hidden w-full">
+                  {/* Smaller Donut */}
+                  <div className="relative scale-75 -my-6">
+                    <DonutChart total={stats.total} ska={stats.ska} sba={stats.sba} onSegmentHover={setHoveredSegment} hoveredSegment={hoveredSegment} />
+                  </div>
+                  {/* Trade panels side by side */}
+                  <div className="flex gap-2 w-full px-1">
+                    <div className="flex-1 min-w-0">
+                      <TradePanel client="SKA" personnel={skaPersonnel} hoveredTrade={hoveredTrade} onTradeHover={setHoveredTrade} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <TradePanel client="SBA" personnel={sbaPersonnel} hoveredTrade={hoveredTrade} onTradeHover={setHoveredTrade} />
+                    </div>
                   </div>
                 </div>
 
@@ -873,7 +882,7 @@ export default function DashboardPage() {
                   <motion.button
                     type="button"
                     onClick={() => setViewMode("list")}
-                    className="group flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-xl text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/30 transition-all"
+                    className="group flex items-center gap-2 px-5 sm:px-6 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-xl text-white font-bold text-[10px] sm:text-xs uppercase tracking-wider shadow-lg shadow-cyan-500/30 transition-all"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                   >
@@ -889,7 +898,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Compact Footer */}
-              <div className="px-6 py-2 border-t border-slate-800/50 flex items-center justify-between text-[9px] text-slate-500">
+              <div className="px-3 sm:px-6 py-2 border-t border-slate-800/50 flex items-center justify-between text-[8px] sm:text-[9px] text-slate-500">
                 <span>Viewing: {formatDateLong(systemDate)}</span>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
@@ -910,28 +919,28 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 50 }}
-              className="relative z-10 p-6 h-full overflow-auto"
+              className="relative z-10 p-3 sm:p-6 h-full overflow-auto"
             >
               {/* Back to HUD Button */}
-              <div className="flex justify-between items-center mb-4 sticky top-0 z-20 bg-transparent">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4 sticky top-0 z-20 bg-transparent">
                 <motion.button
                   type="button"
                   onClick={() => setViewMode("hud")}
-                  className="group flex items-center gap-3 px-6 py-3 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 rounded-xl text-white font-bold uppercase tracking-wider transition-all"
+                  className="group flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-2 sm:py-3 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700/50 rounded-xl text-white text-xs sm:text-sm font-bold uppercase tracking-wider transition-all"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <svg className="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
                   Back to HUD
                 </motion.button>
                 
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-slate-400">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-4">
+                  <span className="text-xs sm:text-sm text-slate-400">
                     <span className="text-white font-bold">{filteredPersonnel.length}</span> personnel for {formatDateLong(systemDate)}
                   </span>
-                  <h2 className="text-lg font-black text-white uppercase tracking-[0.2em]">
+                  <h2 className="text-sm sm:text-lg font-black text-white uppercase tracking-[0.15em] sm:tracking-[0.2em]">
                     PROVISION OF IMS - PCSB
                   </h2>
                 </div>
