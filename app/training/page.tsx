@@ -55,14 +55,15 @@ function getStatusTier(expiryStr: string | null, today: Date): "green" | "yellow
   return "green";                     // >6 months (safe)
 }
 
-// For cell styling we still use valid/expiring/expired
-function getCellStatus(expiryStr: string | null, today: Date): "valid" | "expiring" | "expired" | "no-data" {
+// For cell styling: 4-tier matching the pie chart
+function getCellStatus(expiryStr: string | null, today: Date): "valid" | "warning" | "critical" | "expired" | "no-data" {
   if (!expiryStr) return "no-data";
   const expiry = new Date(expiryStr);
   if (isNaN(expiry.getTime())) return "no-data";
   const diff = (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
   if (diff < 0) return "expired";
-  if (diff <= 90) return "expiring";
+  if (diff < 90) return "critical";
+  if (diff < 180) return "warning";
   return "valid";
 }
 
@@ -82,7 +83,8 @@ function toInputDate(d: string | null): string {
 
 const EXPIRY_CELL: Record<string, { bg: string; text: string }> = {
   valid:    { bg: "bg-emerald-100", text: "text-emerald-900 font-bold" },
-  expiring: { bg: "bg-amber-100",   text: "text-amber-900 font-bold" },
+  warning:  { bg: "bg-amber-100",   text: "text-amber-900 font-bold" },
+  critical: { bg: "bg-orange-100",  text: "text-orange-900 font-bold" },
   expired:  { bg: "bg-red-100",     text: "text-red-900 font-bold" },
   "no-data": { bg: "",              text: "text-slate-400" },
 };
