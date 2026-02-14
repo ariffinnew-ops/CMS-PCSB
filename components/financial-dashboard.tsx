@@ -411,7 +411,6 @@ export default function FinancialDashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-black text-foreground uppercase tracking-tight leading-none">Financial Dashboard</h2>
-            <p className="text-[9px] text-muted-foreground mt-0.5">Cost Breakdown | Sept 2025 onwards | Basic + Fixed + Offshore + Relief + Standby + Medevac</p>
           </div>
           <div className="flex items-center gap-2">
             {/* Tab Buttons */}
@@ -584,7 +583,6 @@ export default function FinancialDashboardPage() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h3 className="text-sm font-black text-foreground uppercase tracking-tight">Monthly Cost Estimate</h3>
-                <p className="text-[9px] text-muted-foreground">Fixed costs from master data. Variable costs from roster cycles with buffer multiplier.</p>
               </div>
               <div className="flex items-center gap-3 bg-muted px-4 py-2 rounded-xl border border-border" data-no-print>
                 <div className="flex flex-col">

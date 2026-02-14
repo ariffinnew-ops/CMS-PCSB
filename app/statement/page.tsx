@@ -535,7 +535,7 @@ export default function StatementPage() {
                   <tr className="text-white" style={{ backgroundColor: "#1e3a8a" }}>
                     <th rowSpan={2} className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-left border-r border-blue-700/50" style={{ minWidth: "240px" }}>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="whitespace-nowrap">Name / Client / Trade / Location</span>
+                        <span className="whitespace-nowrap">Details</span>
                         {(() => {
                           const role = user?.role as UserRole | undefined;
                           const isL1 = role === "L1";

@@ -554,77 +554,47 @@ export default function AdminPage() {
         )}
 
         {/* PAGE HEADER */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between border-b border-border pb-1 flex-shrink-0 gap-1">
-          <div>
-            <h2 className="text-2xl font-black text-foreground uppercase italic tracking-tighter leading-none">
-              MOVEMENT REGISTER
-            </h2>
-            <div className="flex items-center gap-4 mt-0.5">
-              <p className="text-muted-foreground font-black text-[9px] tracking-[0.3em] uppercase italic flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Live Edit - Auto-Sync
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex flex-wrap items-center gap-4 bg-muted p-3 rounded-2xl border border-border shadow-inner">
-              <div className="flex flex-col px-4 border-r border-border">
-                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
-                  Grade
-                </span>
-                <select
-                  value={tradeFilter}
-                  onChange={(e) =>
-                    setTradeFilter(e.target.value as TradeType | "ALL")
-                  }
-                  className="bg-transparent text-[14px] font-black uppercase outline-none cursor-pointer py-1"
-                >
-                  <option value="ALL">ALL TRADES</option>
-                  <option value="OM">OM</option>
-                  <option value="EM">EM</option>
-                  <option value="IMP/OHN">OHN</option>
-                </select>
-              </div>
-              <div className="flex flex-col px-4 border-r border-border">
-                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
-                  Site
-                </span>
-                <select
-                  value={locationFilter}
-                  onChange={(e) => setLocationFilter(e.target.value)}
-                  className="bg-transparent text-[14px] font-black uppercase outline-none cursor-pointer max-w-[180px] py-1"
-                >
-                  <option value="ALL">ALL SITES</option>
-                  {locations.map((l) => (
-                    <option key={l} value={l}>
-                      {l}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-col px-4 border-r border-border">
-                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
-                  Search
-                </span>
-                <input
-                  type="text"
-                  placeholder="Type name..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="bg-transparent border-none p-0 text-[14px] font-black uppercase outline-none w-36 py-1"
-                />
-              </div>
-              {(tradeFilter !== "ALL" || locationFilter !== "ALL" || search) && (
-                <button
-                  type="button"
-                  onClick={() => { setTradeFilter("ALL"); setLocationFilter("ALL"); setSearch(""); }}
-                  className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 font-black text-[10px] uppercase tracking-wider transition-all border border-red-200"
-                >
-                  Reset All
-                </button>
-              )}
-            </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-1.5 flex-shrink-0">
+          <h2 className="text-lg font-black text-foreground uppercase italic tracking-tighter leading-none shrink-0">
+            Movement Register
+          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={tradeFilter}
+              onChange={(e) => setTradeFilter(e.target.value as TradeType | "ALL")}
+              className="bg-muted border border-border rounded-lg px-2.5 py-1 text-[11px] font-bold uppercase outline-none cursor-pointer"
+            >
+              <option value="ALL">All Trades</option>
+              <option value="OM">OM</option>
+              <option value="EM">EM</option>
+              <option value="IMP/OHN">OHN</option>
+            </select>
+            <select
+              value={locationFilter}
+              onChange={(e) => setLocationFilter(e.target.value)}
+              className="bg-muted border border-border rounded-lg px-2.5 py-1 text-[11px] font-bold uppercase outline-none cursor-pointer max-w-[160px]"
+            >
+              <option value="ALL">All Sites</option>
+              {locations.map((l) => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+            <input
+              type="text"
+              placeholder="Search name..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-muted border border-border rounded-lg px-2.5 py-1 text-[11px] font-bold outline-none w-32 placeholder:normal-case"
+            />
+            {(tradeFilter !== "ALL" || locationFilter !== "ALL" || search) && (
+              <button
+                type="button"
+                onClick={() => { setTradeFilter("ALL"); setLocationFilter("ALL"); setSearch(""); }}
+                className="px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-600 font-bold text-[10px] uppercase tracking-wider transition-all border border-red-200"
+              >
+                Reset
+              </button>
+            )}
           </div>
         </div>
 
