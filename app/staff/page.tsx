@@ -574,9 +574,12 @@ export default function StaffDetailPage() {
       const filePath = `${selectedId}_${safeName}.${ext}`;
       const { data } = supabase.storage.from("certificates").getPublicUrl(filePath);
       try {
-        const res = await fetch(`${data.publicUrl}?t=${bust}`, { method: "HEAD", cache: "no-store" });
-        if (res.ok) {
-          setCertPdfUrl(`${data.publicUrl}?t=${bust}`);
+        const url = `${data.publicUrl}?t=${bust}`;
+        const res = await fetch(url, { method: "HEAD", cache: "no-store" });
+        const ct = res.headers.get("content-type") || "";
+        // Supabase may return 200 with XML/JSON for missing files
+        if (res.ok && !ct.includes("xml") && !ct.includes("json")) {
+          setCertPdfUrl(url);
           found = true;
           break;
         }
@@ -587,6 +590,7 @@ export default function StaffDetailPage() {
   };
 
   // Context-aware upload: force filename to ${crew_id}_${course_name}.{ext}
+  // Explicitly remove ALL existing files first to avoid RLS upsert conflict
   const handleCertUpload = async (file: File) => {
     if (!selectedId || !certModal) return;
     if (file.size > 5 * 1024 * 1024) { alert("Max 5MB"); return; }
@@ -596,22 +600,25 @@ export default function StaffDetailPage() {
     const safeName = certModal.cert_type.replace(/[^a-zA-Z0-9_-]/g, "_");
     const targetPath = `${selectedId}_${safeName}.${originalExt}`;
     setUploading(true);
+    setCertPdfUrl(null);
     const supabase = createClient();
-    // Remove old files with other extensions first
-    const otherExts = allowedExts.filter((e) => e !== originalExt);
-    for (const ext of otherExts) {
-      await supabase.storage.from("certificates").remove([`${selectedId}_${safeName}.${ext}`]);
-    }
-    const { error } = await supabase.storage.from("certificates").upload(targetPath, file, { upsert: true });
+    // Remove ALL extensions (including same name) to avoid RLS update conflict
+    const allPaths = allowedExts.map((ext) => `${selectedId}_${safeName}.${ext}`);
+    await supabase.storage.from("certificates").remove(allPaths);
+    // Fresh upload (no upsert needed since we deleted first)
+    const { error } = await supabase.storage.from("certificates").upload(targetPath, file);
     setUploading(false);
     if (error) { alert(error.message); return; }
+    // Refresh with cache bust
     await openCertModal(certModal.cert_type);
   };
 
-  // Delete certificate from bucket
+  // Delete certificate from bucket - hard reset state
   const handleCertDelete = async () => {
-    if (!selectedId || !certModal || !certPdfUrl) return;
+    if (!selectedId || !certModal) return;
     if (!window.confirm(`Delete certificate "${certModal.cert_type}"? This cannot be undone.`)) return;
+    setCertPdfUrl(null);
+    setCertNotFound(false);
     setUploading(true);
     const supabase = createClient();
     const safeName = certModal.cert_type.replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -621,6 +628,7 @@ export default function StaffDetailPage() {
     setUploading(false);
     setCertPdfUrl(null);
     setCertNotFound(true);
+    setCertExpanded(false);
   };
 
   // Save edited detail fields (from DetailOverlay)
