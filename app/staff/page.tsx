@@ -558,7 +558,7 @@ export default function StaffDetailPage() {
     }
   };
 
-  // Open certificate modal for a specific course
+  // Open certificate modal for a specific course - tries pdf, jpg, jpeg, png
   const openCertModal = async (certType: string) => {
     if (!selectedId) return;
     const safeName = certType.replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -567,35 +567,43 @@ export default function StaffDetailPage() {
     setCertNotFound(false);
     setCertPdfUrl(null);
     const supabase = createClient();
-    const filePath = `${selectedId}_${safeName}.pdf`;
-    const { data } = supabase.storage.from("certificates").getPublicUrl(filePath);
-    // Check if file exists via HEAD request
-    try {
-      const res = await fetch(data.publicUrl, { method: "HEAD" });
-      if (res.ok) {
-        setCertPdfUrl(data.publicUrl);
-      } else {
-        setCertNotFound(true);
-      }
-    } catch {
-      setCertNotFound(true);
+    const extensions = ["pdf", "jpg", "jpeg", "png"];
+    let found = false;
+    for (const ext of extensions) {
+      const filePath = `${selectedId}_${safeName}.${ext}`;
+      const { data } = supabase.storage.from("certificates").getPublicUrl(filePath);
+      try {
+        const res = await fetch(data.publicUrl, { method: "HEAD" });
+        if (res.ok) {
+          setCertPdfUrl(data.publicUrl);
+          found = true;
+          break;
+        }
+      } catch { /* try next extension */ }
     }
+    if (!found) setCertNotFound(true);
     setCertLoading(false);
   };
 
-  // Context-aware upload: force filename to ${crew_id}_${course_name}.pdf
+  // Context-aware upload: force filename to ${crew_id}_${course_name}.{ext}
   const handleCertUpload = async (file: File) => {
     if (!selectedId || !certModal) return;
     if (file.size > 5 * 1024 * 1024) { alert("Max 5MB"); return; }
-    if (!file.name.toLowerCase().endsWith(".pdf")) { alert("Only PDF files allowed"); return; }
+    const allowedExts = ["pdf", "jpg", "jpeg", "png"];
+    const originalExt = file.name.split(".").pop()?.toLowerCase() || "";
+    if (!allowedExts.includes(originalExt)) { alert("Only PDF, JPG, or PNG files allowed"); return; }
     const safeName = certModal.cert_type.replace(/[^a-zA-Z0-9_-]/g, "_");
-    const targetPath = `${selectedId}_${safeName}.pdf`;
+    const targetPath = `${selectedId}_${safeName}.${originalExt}`;
     setUploading(true);
     const supabase = createClient();
+    // Remove old files with other extensions first
+    const otherExts = allowedExts.filter((e) => e !== originalExt);
+    for (const ext of otherExts) {
+      await supabase.storage.from("certificates").remove([`${selectedId}_${safeName}.${ext}`]);
+    }
     const { error } = await supabase.storage.from("certificates").upload(targetPath, file, { upsert: true });
     setUploading(false);
     if (error) { alert(error.message); return; }
-    // Refresh view
     await openCertModal(certModal.cert_type);
   };
 
@@ -947,17 +955,27 @@ export default function StaffDetailPage() {
                   </svg>
                   <p className="text-sm text-muted-foreground font-medium">No Certificate Uploaded</p>
                   <p className="text-[10px] text-muted-foreground">
-                    Expected: <code className="bg-muted px-1.5 py-0.5 rounded text-[9px]">{selectedId}_{certModal.cert_type.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf</code>
+                    Expected: <code className="bg-muted px-1.5 py-0.5 rounded text-[9px]">{selectedId}_{certModal.cert_type.replace(/[^a-zA-Z0-9_-]/g, "_")}.[pdf/jpg/png]</code>
                   </p>
                 </div>
               ) : certPdfUrl ? (
                 <>
-                  <iframe
-                    ref={certIframeRef}
-                    src={certPdfUrl}
-                    className="w-full h-full min-h-[450px]"
-                    title={`${certModal.cert_type} certificate`}
-                  />
+                  {/\.(jpg|jpeg|png)$/i.test(certPdfUrl) ? (
+                    <div className="w-full h-full min-h-[450px] flex items-center justify-center bg-black/5 overflow-auto p-4">
+                      <img
+                        src={certPdfUrl}
+                        alt={`${certModal.cert_type} certificate`}
+                        className="max-w-full max-h-full object-contain rounded-lg shadow"
+                      />
+                    </div>
+                  ) : (
+                    <iframe
+                      ref={certIframeRef}
+                      src={certPdfUrl}
+                      className="w-full h-full min-h-[450px]"
+                      title={`${certModal.cert_type} certificate`}
+                    />
+                  )}
 
                   {/* Floating Action Bar */}
                   <div className="absolute top-3 right-3 z-[210] flex items-center gap-1 bg-black/60 backdrop-blur-md rounded-xl px-1.5 py-1 shadow-lg">
@@ -985,8 +1003,13 @@ export default function StaffDetailPage() {
                       type="button"
                       title="Print"
                       onClick={() => {
-                        try { certIframeRef.current?.contentWindow?.print(); }
-                        catch { window.open(certPdfUrl, "_blank")?.print(); }
+                        if (/\.(jpg|jpeg|png)$/i.test(certPdfUrl)) {
+                          const w = window.open("", "_blank");
+                          if (w) { w.document.write(`<img src="${certPdfUrl}" onload="window.print();window.close()" style="max-width:100%" />`); w.document.close(); }
+                        } else {
+                          try { certIframeRef.current?.contentWindow?.print(); }
+                          catch { window.open(certPdfUrl, "_blank")?.print(); }
+                        }
                       }}
                       className="w-8 h-8 rounded-lg flex items-center justify-center text-white/80 hover:text-white hover:bg-white/15 transition-colors"
                     >
@@ -994,7 +1017,7 @@ export default function StaffDetailPage() {
                     </button>
                     <a
                       href={certPdfUrl}
-                      download={`${selectedId}_${certModal.cert_type.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`}
+                      download={certPdfUrl.split("/").pop() || "certificate"}
                       title="Download"
                       className="w-8 h-8 rounded-lg flex items-center justify-center text-white/80 hover:text-white hover:bg-white/15 transition-colors"
                     >
@@ -1010,11 +1033,11 @@ export default function StaffDetailPage() {
               <div className="px-4 py-2 border-t border-border flex items-center justify-end shrink-0 bg-muted/30">
                 <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer transition-colors bg-blue-600 text-white hover:bg-blue-500">
                   <Upload className="w-3 h-3" />
-                  {uploading ? "Uploading..." : certPdfUrl ? "Replace PDF" : "Upload PDF"}
+                  {uploading ? "Uploading..." : certPdfUrl ? "Replace" : "Upload"}
                   <input
                     type="file"
                     className="hidden"
-                    accept=".pdf"
+                    accept=".pdf,.jpg,.jpeg,.png"
                     disabled={uploading}
                     onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCertUpload(f); e.target.value = ""; }}
                   />
