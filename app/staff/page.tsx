@@ -479,6 +479,10 @@ export default function StaffDetailPage() {
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [showDetailOverlay, setShowDetailOverlay] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [certModal, setCertModal] = useState<{ cert_type: string } | null>(null);
+  const [certPdfUrl, setCertPdfUrl] = useState<string | null>(null);
+  const [certLoading, setCertLoading] = useState(false);
+  const [certNotFound, setCertNotFound] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
 
@@ -549,19 +553,45 @@ export default function StaffDetailPage() {
     }
   };
 
-  // Upload Doc
-  const handleUpload = async (file: File) => {
-    if (!selectedId || !file) return;
+  // Open certificate modal for a specific course
+  const openCertModal = async (certType: string) => {
+    if (!selectedId) return;
+    const safeName = certType.replace(/[^a-zA-Z0-9_-]/g, "_");
+    setCertModal({ cert_type: certType });
+    setCertLoading(true);
+    setCertNotFound(false);
+    setCertPdfUrl(null);
+    const supabase = createClient();
+    const filePath = `${selectedId}/certificates/${selectedId}_${safeName}.pdf`;
+    const { data } = supabase.storage.from("pcsb-doc").getPublicUrl(filePath);
+    // Check if file exists via HEAD request
+    try {
+      const res = await fetch(data.publicUrl, { method: "HEAD" });
+      if (res.ok) {
+        setCertPdfUrl(data.publicUrl);
+      } else {
+        setCertNotFound(true);
+      }
+    } catch {
+      setCertNotFound(true);
+    }
+    setCertLoading(false);
+  };
+
+  // Context-aware upload: force filename to ${crew_id}_${course_name}.pdf
+  const handleCertUpload = async (file: File) => {
+    if (!selectedId || !certModal) return;
     if (file.size > 5 * 1024 * 1024) { alert("Max 5MB"); return; }
-    const ext = file.name.split(".").pop()?.toLowerCase();
-    if (!["pdf", "jpg", "jpeg", "png"].includes(ext || "")) { alert("Only PDF/JPG/PNG"); return; }
+    if (!file.name.toLowerCase().endsWith(".pdf")) { alert("Only PDF files allowed"); return; }
+    const safeName = certModal.cert_type.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const targetPath = `${selectedId}/certificates/${selectedId}_${safeName}.pdf`;
     setUploading(true);
     const supabase = createClient();
-    const path = `${selectedId}/${Date.now()}_${file.name}`;
-    const { error } = await supabase.storage.from("pcsb-doc").upload(path, file);
+    const { error } = await supabase.storage.from("pcsb-doc").upload(targetPath, file, { upsert: true });
     setUploading(false);
-    if (error) alert(error.message);
-    else alert("Uploaded successfully!");
+    if (error) { alert(error.message); return; }
+    // Refresh view
+    await openCertModal(certModal.cert_type);
   };
 
   // Save edited detail fields (from DetailOverlay)
@@ -805,21 +835,7 @@ export default function StaffDetailPage() {
           <div className="bg-background border border-border rounded-xl shrink-0 flex flex-col overflow-hidden">
             <div className="px-4 py-1.5 border-b border-border flex items-center justify-between shrink-0">
               <h4 className="text-[10px] font-black uppercase tracking-wider text-foreground">Certification List</h4>
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] text-muted-foreground font-bold">{matrix.length} certs</span>
-                <label className={`px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase cursor-pointer transition-colors ${
-                  isL1L2 ? "bg-blue-600 text-white hover:bg-blue-500" : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                }`}>
-                  {uploading ? "..." : "Upload Doc"}
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    disabled={!isL1L2 || uploading}
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ""; }}
-                  />
-                </label>
-              </div>
+              <span className="text-[9px] text-muted-foreground font-bold">{matrix.length} certs</span>
             </div>
             <div className="p-2">
               {matrix.length === 0 ? (
@@ -829,7 +845,12 @@ export default function StaffDetailPage() {
                   {matrix.map((cert) => {
                     const st = certStatus(cert.expiry_date);
                     return (
-                      <div key={cert.id} className="flex flex-col px-1.5 py-1 rounded-md border border-border bg-accent/30 hover:bg-accent/60 transition-colors min-w-0">
+                      <button
+                        type="button"
+                        key={cert.id}
+                        onClick={() => openCertModal(cert.cert_type)}
+                        className="flex flex-col px-1.5 py-1 rounded-md border border-border bg-accent/30 hover:bg-accent/60 hover:ring-1 hover:ring-blue-400/50 transition-all min-w-0 text-left cursor-pointer"
+                      >
                         <p className="text-[9px] font-bold text-foreground uppercase truncate leading-tight">{cert.cert_type}</p>
                         <div className="flex items-center justify-between gap-0.5 mt-0.5">
                           <p className="text-[8px] text-muted-foreground truncate">{fmtDate(cert.expiry_date)}</p>
@@ -837,7 +858,7 @@ export default function StaffDetailPage() {
                             {st.label}
                           </span>
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -863,6 +884,74 @@ export default function StaffDetailPage() {
       {/* Modals */}
       {showStatusDialog && detail && (
         <ChangeStatusDialog currentStatus={statusVal} onSave={handleStatusSave} onClose={() => setShowStatusDialog(false)} />
+      )}
+
+      {/* Certificate Modal */}
+      {certModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-5 py-3 border-b border-border flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-wider text-foreground">{certModal.cert_type}</h3>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {detail?.crew_name ? String(detail.crew_name) : "Staff"} &middot; Certificate Viewer
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setCertModal(null); setCertPdfUrl(null); setCertNotFound(false); }}
+                className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 min-h-0 p-4">
+              {certLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : certNotFound ? (
+                <div className="flex flex-col items-center justify-center h-64 gap-3">
+                  <svg className="w-12 h-12 text-muted-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className="text-sm text-muted-foreground font-medium">No Certificate Uploaded</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Expected: <code className="bg-muted px-1.5 py-0.5 rounded text-[9px]">{selectedId}_{certModal.cert_type.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf</code>
+                  </p>
+                </div>
+              ) : certPdfUrl ? (
+                <iframe
+                  src={certPdfUrl}
+                  className="w-full h-full min-h-[400px] rounded-lg border border-border"
+                  title={`${certModal.cert_type} certificate`}
+                />
+              ) : null}
+            </div>
+
+            {/* Modal Footer - Upload (L1/L2 only) */}
+            {isL1L2 && (
+              <div className="px-5 py-3 border-t border-border flex items-center justify-between shrink-0 bg-muted/30">
+                <p className="text-[9px] text-muted-foreground">
+                  {certPdfUrl ? "Replace existing certificate" : "Upload a new certificate"} (PDF only, max 5MB)
+                </p>
+                <label className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer transition-colors bg-blue-600 text-white hover:bg-blue-500">
+                  {uploading ? "Uploading..." : certPdfUrl ? "Replace PDF" : "Upload PDF"}
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".pdf"
+                    disabled={uploading}
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCertUpload(f); e.target.value = ""; }}
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
     </AppShell>
