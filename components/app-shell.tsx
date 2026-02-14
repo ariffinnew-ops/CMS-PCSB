@@ -371,13 +371,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </header>
 
-      <main className="flex-grow max-w-7xl mx-auto w-full px-4 py-4">
+      <main className="flex-grow max-w-7xl mx-auto w-full px-2 py-3 sm:px-4 sm:py-4">
         {children}
       </main>
 
  <footer className="no-print bg-slate-950 border-t border-slate-800 py-2.5 relative">
-  <div className="flex items-center justify-center gap-3">
-    <p className="text-[11px] text-white font-medium tracking-wide">
+  <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-3 px-2">
+    <p className="text-[10px] sm:text-[11px] text-white font-medium tracking-wide text-center">
       &copy; {new Date().getFullYear()} kawie - Crewing Management System. All Rights Reserved.
     </p>
     {user?.role === "L1" && (
