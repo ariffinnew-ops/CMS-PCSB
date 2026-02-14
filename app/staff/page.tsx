@@ -14,6 +14,7 @@ import {
   listCrewDocuments,
 } from "@/lib/actions";
 import { createClient } from "@/lib/supabase/client";
+import { Maximize, Printer, Download, Upload, X } from "lucide-react";
 import { getClients, getPostsForClient, getLocationsForClientPost } from "@/lib/client-location-map";
 
 // ─── Types ───
@@ -483,6 +484,8 @@ export default function StaffDetailPage() {
   const [certPdfUrl, setCertPdfUrl] = useState<string | null>(null);
   const [certLoading, setCertLoading] = useState(false);
   const [certNotFound, setCertNotFound] = useState(false);
+  const certModalRef = useRef<HTMLDivElement>(null);
+  const certIframeRef = useRef<HTMLIFrameElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
 
 
@@ -889,33 +892,33 @@ export default function StaffDetailPage() {
       {/* Certificate Modal */}
       {certModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
-            {/* Modal Header */}
-            <div className="px-5 py-3 border-b border-border flex items-center justify-between shrink-0">
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-wider text-foreground">{certModal.cert_type}</h3>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {detail?.crew_name ? String(detail.crew_name) : "Staff"} &middot; Certificate Viewer
+          <div ref={certModalRef} className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Compact Header */}
+            <div className="px-4 py-2 border-b border-border flex items-center justify-between shrink-0">
+              <div className="min-w-0">
+                <h3 className="text-xs font-black uppercase tracking-wider text-foreground truncate">{certModal.cert_type}</h3>
+                <p className="text-[9px] text-muted-foreground truncate">
+                  {detail?.crew_name ? String(detail.crew_name) : "Staff"}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => { setCertModal(null); setCertPdfUrl(null); setCertNotFound(false); }}
-                className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="flex-1 min-h-0 p-4">
+            {/* Body - PDF viewer or empty state */}
+            <div className="flex-1 min-h-0 relative">
               {certLoading ? (
                 <div className="flex items-center justify-center h-64">
                   <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : certNotFound ? (
                 <div className="flex flex-col items-center justify-center h-64 gap-3">
-                  <svg className="w-12 h-12 text-muted-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-12 h-12 text-muted-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <p className="text-sm text-muted-foreground font-medium">No Certificate Uploaded</p>
@@ -924,21 +927,53 @@ export default function StaffDetailPage() {
                   </p>
                 </div>
               ) : certPdfUrl ? (
-                <iframe
-                  src={certPdfUrl}
-                  className="w-full h-full min-h-[400px] rounded-lg border border-border"
-                  title={`${certModal.cert_type} certificate`}
-                />
+                <>
+                  <iframe
+                    ref={certIframeRef}
+                    src={certPdfUrl}
+                    className="w-full h-full min-h-[450px]"
+                    title={`${certModal.cert_type} certificate`}
+                  />
+
+                  {/* Floating Action Bar */}
+                  <div className="absolute top-3 right-3 flex items-center gap-1 bg-black/60 backdrop-blur-md rounded-xl px-1.5 py-1 shadow-lg">
+                    <button
+                      type="button"
+                      title="Full Screen"
+                      onClick={() => certModalRef.current?.requestFullscreen?.()}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-white/80 hover:text-white hover:bg-white/15 transition-colors"
+                    >
+                      <Maximize className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Print"
+                      onClick={() => {
+                        try { certIframeRef.current?.contentWindow?.print(); }
+                        catch { window.open(certPdfUrl, "_blank")?.print(); }
+                      }}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-white/80 hover:text-white hover:bg-white/15 transition-colors"
+                    >
+                      <Printer className="w-4 h-4" />
+                    </button>
+                    <a
+                      href={certPdfUrl}
+                      download={`${selectedId}_${certModal.cert_type.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`}
+                      title="Download"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-white/80 hover:text-white hover:bg-white/15 transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                    </a>
+                  </div>
+                </>
               ) : null}
             </div>
 
-            {/* Modal Footer - Upload (L1/L2 only) */}
+            {/* Footer - Upload (L1/L2 only) */}
             {isL1L2 && (
-              <div className="px-5 py-3 border-t border-border flex items-center justify-between shrink-0 bg-muted/30">
-                <p className="text-[9px] text-muted-foreground">
-                  {certPdfUrl ? "Replace existing certificate" : "Upload a new certificate"} (PDF only, max 5MB)
-                </p>
-                <label className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer transition-colors bg-blue-600 text-white hover:bg-blue-500">
+              <div className="px-4 py-2 border-t border-border flex items-center justify-end shrink-0 bg-muted/30">
+                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer transition-colors bg-blue-600 text-white hover:bg-blue-500">
+                  <Upload className="w-3 h-3" />
                   {uploading ? "Uploading..." : certPdfUrl ? "Replace PDF" : "Upload PDF"}
                   <input
                     type="file"
