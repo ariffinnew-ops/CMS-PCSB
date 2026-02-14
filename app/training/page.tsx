@@ -37,20 +37,22 @@ const COURSE_CONFIG: CourseConfig[] = [
 const ALL_COURSE_NAMES = COURSE_CONFIG.map((c) => c.name);
 const FIXED_COLS = 2; // #, Name (Trade/Client shown in separator)
 
-// Pie chart colors: Green, Yellow, Orange (NO RED per spec)
+// Pie chart colors
 const PIE_GREEN = "#22c55e";
 const PIE_YELLOW = "#eab308";
 const PIE_ORANGE = "#f97316";
+const PIE_RED = "#dc2626";
 
-// ─── Status helpers (3-tier: green >6m, yellow 3-6m, orange <3m/expired) ───
-function getStatusTier(expiryStr: string | null, today: Date): "green" | "yellow" | "orange" | "no-data" {
+// ─── Status helpers (4-tier: green >6m, yellow 3-6m, orange <3m, red expired) ───
+function getStatusTier(expiryStr: string | null, today: Date): "green" | "yellow" | "orange" | "red" | "no-data" {
   if (!expiryStr) return "no-data";
   const expiry = new Date(expiryStr);
   if (isNaN(expiry.getTime())) return "no-data";
   const diff = (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
-  if (diff < 90) return "orange";   // <3 months or expired
-  if (diff < 180) return "yellow";  // 3-6 months
-  return "green";                    // >6 months
+  if (diff < 0) return "red";        // expired (past due)
+  if (diff < 90) return "orange";    // <3 months (critical)
+  if (diff < 180) return "yellow";   // 3-6 months (warning)
+  return "green";                     // >6 months (safe)
 }
 
 // For cell styling we still use valid/expiring/expired
@@ -121,172 +123,144 @@ interface PersonMatrix {
   post: string;
   client: string;
   location: string;
+  status: string;
   certs: Record<string, CertEntry>;
 }
 
-// ─── 3D Pie Chart for header (120x120, total in center, % on slices via labels) ───
-function CoursePieChart({ green, yellow, orange, planCount }: { green: number; yellow: number; orange: number; planCount: number }) {
-  const data = [
-    { name: "Safe", value: green, color: PIE_GREEN, dark: "#16a34a" },
-    { name: "Warning", value: yellow, color: PIE_YELLOW, dark: "#ca8a04" },
-    { name: "Critical", value: orange, color: PIE_ORANGE, dark: "#ea580c" },
-  ].filter((d) => d.value > 0);
+// ─── 2D Gradient Pie Chart with Side Legend (clickable) ───
+type StatusTier = "green" | "yellow" | "orange" | "red";
+const TIER_ITEMS: { tier: StatusTier; label: string; color: string }[] = [
+  { tier: "green", label: "S", color: PIE_GREEN },
+  { tier: "yellow", label: "W", color: PIE_YELLOW },
+  { tier: "orange", label: "C", color: PIE_ORANGE },
+  { tier: "red", label: "E", color: PIE_RED },
+];
 
-  const total = green + yellow + orange;
-  const size = 120;
+function CoursePieChart({ green, yellow, orange, red, planCount, courseName, activeFilter, onChartClick, onLegendClick, onReset }: {
+  green: number; yellow: number; orange: number; red: number; planCount: number;
+  courseName: string;
+  activeFilter: { course: string; tier: string } | null;
+  onChartClick: (course: string) => void;
+  onLegendClick: (course: string, tier: StatusTier) => void;
+  onReset: (course: string) => void;
+}) {
+  const allCounts: Record<StatusTier, number> = { green, yellow, orange, red };
+  const data = TIER_ITEMS
+    .map((t) => ({ ...t, value: allCounts[t.tier] }))
+    .filter((d) => d.value > 0);
+
+  const total = green + yellow + orange + red;
+  const isActive = activeFilter?.course === courseName;
+  const size = 80;
   const cx = size / 2;
   const cy = size / 2;
-  const ir = 26;
-  const or = 54;
+  const ir = 20;
+  const or = 38;
 
   if (total === 0) {
     return (
-      <div className="flex flex-col items-center gap-1">
-        <div className="rounded-full bg-slate-200 flex items-center justify-center" style={{ width: size, height: size }}>
-          <span className="text-sm text-slate-400 font-bold">N/A</span>
+      <div className="flex items-center gap-1">
+        <div className="rounded-full bg-slate-100 flex items-center justify-center" style={{ width: size, height: size }}>
+          <span className="text-[10px] text-slate-400 font-bold">N/A</span>
         </div>
-        {planCount > 0 && (
-          <span className="text-[9px] font-bold bg-blue-500 text-white px-2.5 py-0.5 rounded-full leading-none">PLAN: {planCount}</span>
-        )}
+        <div className="flex flex-col gap-px">
+          {TIER_ITEMS.map((t) => (
+            <div key={t.tier} className="flex items-center gap-1 text-[8px] text-slate-300 font-bold">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color, opacity: 0.3 }} />
+              <span>0</span>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
-  // Custom label to show % on each slice
   const renderLabel = ({ cx: lx, cy: ly, midAngle, innerRadius, outerRadius, index }: { cx: number; cy: number; midAngle: number; innerRadius: number; outerRadius: number; index: number }) => {
     const RADIAN = Math.PI / 180;
-    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.55;
     const x = lx + radius * Math.cos(-midAngle * RADIAN);
     const y = ly + radius * Math.sin(-midAngle * RADIAN);
     const pct = Math.round((data[index].value / total) * 100);
     if (pct < 5) return null;
     return (
-      <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight="bold" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>
+      <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={8} fontWeight="800" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.6)" }}>
         {pct}%
       </text>
     );
   };
 
   return (
-    <div className="flex flex-col items-center gap-1">
-      <div style={{ width: size, height: size + 4, position: "relative" }}>
-        {/* 3D shadow layer - shifted down */}
-        <PieChart width={size} height={size} margin={{ top: 0, right: 0, bottom: 0, left: 0 }} style={{ position: "absolute", top: 4, left: 0 }}>
-          <Pie data={data} cx={cx} cy={cy} innerRadius={ir} outerRadius={or} paddingAngle={2} dataKey="value" stroke="none" isAnimationActive={false}>
-            {data.map((entry, i) => (
-              <Cell key={i} fill={entry.dark} opacity={0.35} />
-            ))}
-          </Pie>
-        </PieChart>
-        {/* Main pie + 3D sphere center in same SVG */}
-        <PieChart width={size} height={size} margin={{ top: 0, right: 0, bottom: 0, left: 0 }} style={{ position: "absolute", top: 0, left: 0 }}>
+    <div className="flex items-center gap-0.5">
+      {/* Pie */}
+      <div
+        style={{ width: size, height: size, position: "relative", outline: "none", cursor: "pointer" }}
+        tabIndex={-1}
+        onClick={() => { if (isActive) onReset(courseName); else onChartClick(courseName); }}
+        className={isActive ? "ring-2 ring-blue-400 rounded-full" : "hover:ring-1 hover:ring-slate-300 rounded-full transition-all"}
+      >
+        <PieChart width={size} height={size} style={{ outline: "none" }}>
           <defs>
-            <radialGradient id="sphereSmall" cx="40%" cy="35%" r="60%" fx="35%" fy="30%">
-              <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="30%" stopColor="#e8ecf1" />
-              <stop offset="70%" stopColor="#b0bac9" />
-              <stop offset="100%" stopColor="#7a8a9e" />
-            </radialGradient>
-            <filter id="sphereShadowSmall">
-              <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.25" />
-            </filter>
+            {data.map((d) => (
+              <radialGradient key={d.tier} id={`grad_${courseName}_${d.tier}`} cx="30%" cy="30%">
+                <stop offset="0%" stopColor={d.color} stopOpacity={1} />
+                <stop offset="100%" stopColor={d.color} stopOpacity={0.7} />
+              </radialGradient>
+            ))}
           </defs>
-          <Pie data={data} cx={cx} cy={cy} innerRadius={ir} outerRadius={or} paddingAngle={2} dataKey="value" stroke="rgba(255,255,255,0.6)" strokeWidth={2} label={renderLabel} labelLine={false} isAnimationActive={false}>
-            {data.map((entry, i) => (
-              <Cell key={i} fill={entry.color} />
+          <Pie
+            data={data} cx={cx} cy={cy} innerRadius={ir} outerRadius={or} paddingAngle={2} dataKey="value"
+            stroke="rgba(255,255,255,0.7)" strokeWidth={1} label={renderLabel} labelLine={false} isAnimationActive={false}
+            style={{ outline: "none" }} tabIndex={-1}
+          >
+            {data.map((entry) => (
+              <Cell key={entry.tier} fill={`url(#grad_${courseName}_${entry.tier})`} style={{ outline: "none" }} />
             ))}
           </Pie>
-          {/* 3D sphere background - matches innerRadius exactly */}
-          <circle cx={cx} cy={cy} r={ir} fill="url(#sphereSmall)" filter="url(#sphereShadowSmall)" />
-          {/* Glossy highlight */}
-          <ellipse cx={cx - 3} cy={cy - 4} rx={9} ry={5} fill="white" opacity={0.4} />
-          {/* Center number */}
-          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={22} fontWeight="900" fill="#1e293b">
+          <circle cx={cx} cy={cy} r={ir} fill={isActive ? "#dbeafe" : "#f8fafc"} stroke={isActive ? "#3b82f6" : "#e2e8f0"} strokeWidth={1} />
+          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={15} fontWeight="900" fill="#1e293b">
             {total}
           </text>
         </PieChart>
       </div>
-      {planCount > 0 && (
-        <span className="text-[9px] font-bold bg-blue-500 text-white px-2.5 py-0.5 rounded-full leading-none shadow-sm">PLAN: {planCount}</span>
-      )}
+      {/* Side Legend - clickable for filtering */}
+      <div className="flex flex-col gap-px">
+        {TIER_ITEMS.map((t) => {
+          const count = allCounts[t.tier];
+          const isLegendActive = isActive && activeFilter?.tier === t.tier;
+          return (
+            <button
+              key={t.tier}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); if (isLegendActive) onReset(courseName); else onLegendClick(courseName, t.tier); }}
+              className={`flex items-center gap-0.5 text-[8px] font-bold rounded px-0.5 py-px transition-all outline-none ${
+                isLegendActive ? "bg-blue-100 ring-1 ring-blue-400" : count > 0 ? "hover:bg-slate-100 cursor-pointer" : "opacity-40 cursor-default"
+              }`}
+              style={{ outline: "none" }}
+              tabIndex={-1}
+              disabled={count === 0}
+            >
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.color }} />
+              <span className="tabular-nums" style={{ color: count > 0 ? "#334155" : "#94a3b8" }}>{count}</span>
+            </button>
+          );
+        })}
+        {planCount > 0 && (
+          <div className="flex items-center gap-0.5 text-[8px] font-bold px-0.5">
+            <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+            <span className="text-blue-600 tabular-nums">{planCount}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-// ─── Overall Pie Chart (180x180, shown in top-left of table) ───
-// total = crew count (center number), green/yellow/orange = certificate counts for % slices
-function OverallPieChart({ green, yellow, orange, total }: { green: number; yellow: number; orange: number; total: number }) {
-  const certTotal = green + yellow + orange;
-  const data = [
-    { name: "Safe", value: green, color: PIE_GREEN, dark: "#16a34a" },
-    { name: "Warning", value: yellow, color: PIE_YELLOW, dark: "#ca8a04" },
-    { name: "Critical", value: orange, color: PIE_ORANGE, dark: "#ea580c" },
-  ].filter((d) => d.value > 0);
-
-  const size = 180;
-  const cx = size / 2;
-  const cy = size / 2;
-
-  if (total === 0) {
-    return (
-      <div className="rounded-full bg-slate-200 flex items-center justify-center" style={{ width: size, height: size }}>
-        <span className="text-lg text-slate-400 font-bold">N/A</span>
-      </div>
-    );
-  }
-
-  // % based on total certificates, not crew count
-  const renderLabel = ({ cx: lx, cy: ly, midAngle, innerRadius, outerRadius, index }: { cx: number; cy: number; midAngle: number; innerRadius: number; outerRadius: number; index: number }) => {
-    const RADIAN = Math.PI / 180;
-    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-    const x = lx + radius * Math.cos(-midAngle * RADIAN);
-    const y = ly + radius * Math.sin(-midAngle * RADIAN);
-    const pct = certTotal > 0 ? Math.round((data[index].value / certTotal) * 100) : 0;
-    if (pct < 3) return null;
-    return (
-      <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={13} fontWeight="bold" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.6)" }}>
-        {pct}%
-      </text>
-    );
-  };
-
+// ─── KPI Box Component ───
+function KpiBox({ label, value, color, textColor }: { label: string; value: number; color: string; textColor: string }) {
   return (
-    <div style={{ width: size, height: size + 6, position: "relative" }}>
-      {/* 3D shadow - shifted down 5px */}
-      <PieChart width={size} height={size} margin={{ top: 0, right: 0, bottom: 0, left: 0 }} style={{ position: "absolute", top: 5, left: 0 }}>
-        <Pie data={data} cx={cx} cy={cy} innerRadius={40} outerRadius={84} paddingAngle={2} dataKey="value" stroke="none" isAnimationActive={false}>
-          {data.map((entry, i) => (
-            <Cell key={i} fill={entry.dark} opacity={0.3} />
-          ))}
-        </Pie>
-      </PieChart>
-      {/* Main pie + 3D sphere center in same coordinate space */}
-      <PieChart width={size} height={size} margin={{ top: 0, right: 0, bottom: 0, left: 0 }} style={{ position: "absolute", top: 0, left: 0 }}>
-        <defs>
-          <radialGradient id="sphereLarge" cx="40%" cy="35%" r="60%" fx="35%" fy="30%">
-            <stop offset="0%" stopColor="#ffffff" />
-            <stop offset="25%" stopColor="#eaeff4" />
-            <stop offset="60%" stopColor="#b4c0cf" />
-            <stop offset="100%" stopColor="#6b7d93" />
-          </radialGradient>
-          <filter id="sphereShadowLarge">
-            <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#000" floodOpacity="0.3" />
-          </filter>
-        </defs>
-        <Pie data={data} cx={cx} cy={cy} innerRadius={40} outerRadius={84} paddingAngle={2} dataKey="value" stroke="rgba(255,255,255,0.6)" strokeWidth={2} label={renderLabel} labelLine={false} isAnimationActive={false}>
-          {data.map((entry, i) => (
-            <Cell key={i} fill={entry.color} />
-          ))}
-        </Pie>
-        {/* 3D sphere background - matches innerRadius=40 exactly */}
-        <circle cx={cx} cy={cy} r={40} fill="url(#sphereLarge)" filter="url(#sphereShadowLarge)" />
-        {/* Glossy highlight */}
-        <ellipse cx={cx - 4} cy={cy - 7} rx={14} ry={8} fill="white" opacity={0.4} />
-        {/* Center text */}
-        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={34} fontWeight="900" fill="#1e293b">
-          {total}
-        </text>
-      </PieChart>
+    <div className="rounded-lg border px-3 py-1.5 flex items-center justify-between gap-2" style={{ backgroundColor: color, borderColor: color }}>
+      <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: textColor }}>{label}</span>
+      <span className="text-lg font-black tabular-nums" style={{ color: textColor }}>{value}</span>
     </div>
   );
 }
@@ -360,7 +334,7 @@ function EditableCell({
         canEdit ? "cursor-pointer hover:ring-2 hover:ring-blue-400 hover:ring-inset" : ""
       } ${saving ? "opacity-50" : ""}`}
       onDoubleClick={() => canEdit && setEditing(true)}
-      title={canEdit ? "Double-click to edit" : undefined}
+      title=""
     >
       {saving ? "..." : displayValue}
     </td>
@@ -381,6 +355,8 @@ export default function TrainingMatrixPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [search, setSearch] = useState("");
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [pieFilter, setPieFilter] = useState<{ course: string; tier: StatusTier } | null>(null);
+  const [kpiCourse, setKpiCourse] = useState<string | null>(null); // null = all courses
   const today = useMemo(() => new Date(), []);
 
   const canEdit = user?.role === "L1" || user?.role === "L2A" || user?.role === "L2B";
@@ -406,6 +382,8 @@ export default function TrainingMatrixPage() {
   const personnel = useMemo(() => {
     const map = new Map<string, PersonMatrix>();
     for (const row of rawData) {
+      // Exclude Resigned crew
+      if ((row.status || "").toLowerCase() === "resigned") continue;
       if (!map.has(row.crew_id)) {
         map.set(row.crew_id, {
           crew_id: row.crew_id,
@@ -413,6 +391,7 @@ export default function TrainingMatrixPage() {
           post: row.post,
           client: row.client,
           location: row.location,
+          status: row.status || "active",
           certs: {},
         });
       }
@@ -455,47 +434,73 @@ export default function TrainingMatrixPage() {
       if (locationFilter !== "ALL" && p.location !== locationFilter) return false;
       if (search && !p.crew_name.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter !== "ALL") {
-        // Check if person has ANY cert matching the status filter
+        const tierMap: Record<string, string> = { safe: "green", warning: "yellow", critical: "orange", expired: "red" };
+        const targetTier = tierMap[statusFilter];
         const hasMatch = ALL_COURSE_NAMES.some((cn) => {
-          const st = getCellStatus(p.certs[cn]?.expiry_date || null, today);
-          return st === statusFilter;
+          const tier = getStatusTier(p.certs[cn]?.expiry_date || null, today);
+          return tier === targetTier;
         });
         if (!hasMatch) return false;
       }
+      // Pie chart slice filter
+      if (pieFilter) {
+        const tier = getStatusTier(p.certs[pieFilter.course]?.expiry_date || null, today);
+        if (tier !== pieFilter.tier) return false;
+      }
       return true;
     });
-  }, [personnel, clientFilter, tradeFilter, locationFilter, search, statusFilter, today]);
+  }, [personnel, clientFilter, tradeFilter, locationFilter, search, statusFilter, pieFilter, today]);
 
-  // Per-course stats for PIE CHARTS - based on FILTERED data (reacts to client/trade/location)
-  const courseStats = useMemo(() => {
-    const stats: Record<string, { green: number; yellow: number; orange: number; planCount: number }> = {};
+  // Per-course stats for PIE CHARTS - based on personnel (excludes resigned, but NOT affected by pieFilter)
+  const courseStatsBase = useMemo(() => {
+    // Use personnel filtered by top-bar filters only (not pieFilter)
+    const base = personnel.filter((p) => {
+      if (clientFilter !== "ALL" && p.client !== clientFilter) return false;
+      if (tradeFilter !== "ALL" && shortTrade(p.post) !== tradeFilter) return false;
+      if (locationFilter !== "ALL" && p.location !== locationFilter) return false;
+      if (search && !p.crew_name.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    });
+    const stats: Record<string, { green: number; yellow: number; orange: number; red: number; planCount: number }> = {};
     for (const cc of COURSE_CONFIG) {
-      const st = { green: 0, yellow: 0, orange: 0, planCount: 0 };
-      for (const p of filtered) {
+      const st = { green: 0, yellow: 0, orange: 0, red: 0, planCount: 0 };
+      for (const p of base) {
         const tier = getStatusTier(p.certs[cc.name]?.expiry_date || null, today);
         if (tier === "green") st.green++;
         else if (tier === "yellow") st.yellow++;
         else if (tier === "orange") st.orange++;
+        else if (tier === "red") st.red++;
         if (p.certs[cc.name]?.plan_date) st.planCount++;
       }
       stats[cc.name] = st;
     }
     return stats;
-  }, [filtered, today]);
+  }, [personnel, clientFilter, tradeFilter, locationFilter, search, today]);
 
-  // Overall stats across ALL courses for ALL personnel (not affected by filters)
-  const overallStats = useMemo(() => {
-    let green = 0, yellow = 0, orange = 0;
-    for (const p of personnel) {
-      for (const cc of COURSE_CONFIG) {
+  // KPI - dynamic: shows stats for kpiCourse if set, otherwise ALL courses
+  const kpiStats = useMemo(() => {
+    const courses = kpiCourse ? COURSE_CONFIG.filter((c) => c.name === kpiCourse) : COURSE_CONFIG;
+    // Use personnel filtered by top-bar only (not pieFilter) for KPI
+    const base = personnel.filter((p) => {
+      if (clientFilter !== "ALL" && p.client !== clientFilter) return false;
+      if (tradeFilter !== "ALL" && shortTrade(p.post) !== tradeFilter) return false;
+      if (locationFilter !== "ALL" && p.location !== locationFilter) return false;
+      if (search && !p.crew_name.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    });
+    let safe = 0, warning = 0, critical = 0, expired = 0, plan = 0;
+    for (const p of base) {
+      for (const cc of courses) {
         const tier = getStatusTier(p.certs[cc.name]?.expiry_date || null, today);
-        if (tier === "green") green++;
-        else if (tier === "yellow") yellow++;
-        else if (tier === "orange") orange++;
+        if (tier === "green") safe++;
+        else if (tier === "yellow") warning++;
+        else if (tier === "orange") critical++;
+        else if (tier === "red") expired++;
+        if (p.certs[cc.name]?.plan_date) plan++;
       }
     }
-    return { green, yellow, orange };
-  }, [personnel, today]);
+    return { safe, warning, critical, expired, plan };
+  }, [personnel, kpiCourse, clientFilter, tradeFilter, locationFilter, search, today]);
 
   const totalSubCols = visibleCourses.reduce((acc, c) => acc + c.colCount, 0);
   const totalCols = FIXED_COLS + totalSubCols;
@@ -524,7 +529,7 @@ export default function TrainingMatrixPage() {
 
       <div className="flex flex-col h-[calc(100vh-80px)] animate-in fade-in duration-500">
         {/* Title + Filters -- hidden on print */}
-        <div className="no-print-header flex-shrink-0 space-y-1.5 pb-1" data-no-print>
+        <div className="no-print-header flex-shrink-0 space-y-1 pb-0.5" data-no-print>
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-1">
             <div>
               <h2 className="text-lg font-black text-foreground uppercase tracking-tight">Training Matrix</h2>
@@ -581,8 +586,9 @@ export default function TrainingMatrixPage() {
               <label className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">Status</label>
               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-slate-200 border border-slate-400 text-slate-900 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
                 <option value="ALL">All Status</option>
-                <option value="valid">Valid</option>
-                <option value="expiring">Expiring</option>
+                <option value="safe">Safe</option>
+                <option value="warning">Warning</option>
+                <option value="critical">Critical</option>
                 <option value="expired">Expired</option>
               </select>
             </div>
@@ -590,10 +596,10 @@ export default function TrainingMatrixPage() {
             <span className="text-[10px] text-slate-300 font-bold">
               Showing <span className="text-white font-black">{filtered.length}</span> of {personnel.length}
             </span>
-            {(clientFilter !== "ALL" || tradeFilter !== "ALL" || locationFilter !== "ALL" || courseFilter !== "ALL" || statusFilter !== "ALL") && (
+            {(clientFilter !== "ALL" || tradeFilter !== "ALL" || locationFilter !== "ALL" || courseFilter !== "ALL" || statusFilter !== "ALL" || pieFilter || kpiCourse || search) && (
               <button
                 type="button"
-                onClick={() => { setClientFilter("ALL"); setTradeFilter("ALL"); setLocationFilter("ALL"); setCourseFilter("ALL"); setStatusFilter("ALL"); }}
+                onClick={() => { setClientFilter("ALL"); setTradeFilter("ALL"); setLocationFilter("ALL"); setCourseFilter("ALL"); setStatusFilter("ALL"); setPieFilter(null); setKpiCourse(null); setSearch(""); }}
                 className="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-bold text-[9px] uppercase tracking-wider transition-all border border-red-500/30"
               >
                 Reset All
@@ -623,24 +629,27 @@ export default function TrainingMatrixPage() {
           </div>
 
           {/* Legend */}
-          <div className="flex items-center gap-4 text-[8px] font-bold uppercase text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PIE_GREEN }} />
-              <span>{"Safe (>6 months)"}</span>
+          <div className="flex items-center gap-3 text-[8px] font-bold uppercase text-muted-foreground">
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_GREEN }} />
+              <span>{"Safe (>6m)"}</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PIE_YELLOW }} />
-              <span>{"Warning (3-6 months)"}</span>
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_YELLOW }} />
+              <span>{"Warning (3-6m)"}</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PIE_ORANGE }} />
-              <span>{"Critical (<3 months)"}</span>
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_ORANGE }} />
+              <span>{"Critical (<3m)"}</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-blue-500" />
-              <span>Plan scheduled</span>
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_RED }} />
+              <span>Expired</span>
             </div>
-
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+              <span>Plan</span>
+            </div>
           </div>
         </div>
 
@@ -653,31 +662,50 @@ export default function TrainingMatrixPage() {
           ) : (
             <table className="w-full text-left border-collapse min-w-max">
               <thead className="sticky top-0 z-50">
-                {/* Row 1: Overall Pie on left, Course Pie Charts across top */}
+                {/* Row 1: KPI Grid on left, Compact Course Pie Charts across top */}
                 <tr>
-                  <th rowSpan={2} colSpan={2} className="border-r border-b border-slate-300 bg-white sticky left-0 z-[60] align-middle" style={{ minWidth: 210 }}>
-                    <div className="flex items-center justify-center py-1">
-                      <OverallPieChart
-                        green={overallStats.green}
-                        yellow={overallStats.yellow}
-                        orange={overallStats.orange}
-                        total={personnel.length}
-                      />
+                  <th rowSpan={2} colSpan={2} className="border-r border-b border-slate-300 bg-white sticky left-0 z-[60] align-top p-1.5" style={{ minWidth: 210 }}>
+                    {kpiCourse && (
+                      <div className="text-[9px] font-black uppercase tracking-wider text-blue-600 mb-1 flex items-center justify-between">
+                        <span>KPI: {kpiCourse}</span>
+                        <button type="button" onClick={() => setKpiCourse(null)} className="text-red-500 hover:text-red-700 text-[8px] font-bold uppercase">reset</button>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-3 gap-1">
+                      <KpiBox label="Safe" value={kpiStats.safe} color={PIE_GREEN} textColor="#fff" />
+                      <KpiBox label="Warning" value={kpiStats.warning} color={PIE_YELLOW} textColor="#78350f" />
+                      <KpiBox label="Plan" value={kpiStats.plan} color="#3b82f6" textColor="#fff" />
                     </div>
+                    <div className="grid grid-cols-2 gap-1 mt-1">
+                      <KpiBox label="Critical" value={kpiStats.critical} color={PIE_ORANGE} textColor="#fff" />
+                      <KpiBox label="Expired" value={kpiStats.expired} color={PIE_RED} textColor="#fff" />
+                    </div>
+                    {pieFilter && (
+                      <button type="button" onClick={() => { setPieFilter(null); setKpiCourse(null); }} className="mt-1 w-full text-[8px] font-bold text-red-600 bg-red-50 border border-red-200 rounded-md py-0.5 hover:bg-red-100 transition-colors uppercase tracking-wider">
+                        Clear filter: {pieFilter.course} / {pieFilter.tier}
+                      </button>
+                    )}
                   </th>
-                    {visibleCourses.map((cc) => {
-                    const st = courseStats[cc.name] || { green: 0, yellow: 0, orange: 0, planCount: 0 };
+                  {visibleCourses.map((cc) => {
+                    const st = courseStatsBase[cc.name] || { green: 0, yellow: 0, orange: 0, red: 0, planCount: 0 };
                     return (
                       <th
                         key={cc.name}
                         colSpan={cc.colCount}
-                        className="px-1 py-1.5 border-r border-b border-slate-300 text-center bg-white"
+                        className="px-0.5 py-1 border-r border-b border-slate-300 text-center bg-white"
                       >
-                        <div className="flex flex-col items-center gap-1">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-white px-2 py-0.5 rounded" style={{ backgroundColor: cc.headerBg }}>
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-white px-1.5 py-px rounded" style={{ backgroundColor: cc.headerBg }}>
                             {cc.name}
                           </span>
-                          <CoursePieChart green={st.green} yellow={st.yellow} orange={st.orange} planCount={st.planCount} />
+                          <CoursePieChart
+                            green={st.green} yellow={st.yellow} orange={st.orange} red={st.red} planCount={st.planCount}
+                            courseName={cc.name}
+                            activeFilter={pieFilter}
+                            onChartClick={(course) => setKpiCourse((prev) => prev === course ? null : course)}
+                            onLegendClick={(course, tier) => { setPieFilter({ course, tier }); setKpiCourse(course); }}
+                            onReset={(course) => { setPieFilter((prev) => prev?.course === course ? null : prev); if (kpiCourse === course) setKpiCourse(null); }}
+                          />
                         </div>
                       </th>
                     );
@@ -721,19 +749,23 @@ export default function TrainingMatrixPage() {
                       {showSep && (
                         <tr className="bg-slate-200">
                           <td colSpan={totalCols} className="px-3 py-0.5 sticky left-0 bg-slate-200 z-10">
-                            <span className={`inline-flex items-center gap-2 text-sm font-black uppercase tracking-wider ${
-                              person.client === "SKA" ? "text-blue-700" : "text-orange-700"
-                            }`}>
-                              <span className={`w-2.5 h-2.5 rounded-full ${person.client === "SKA" ? "bg-blue-600" : "bg-orange-600"}`} />
-                              {person.client} - {fullTrade(person.post)}
-                            </span>
+                            <div className="flex items-center gap-3">
+                              <span className={`inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider ${
+                                person.client === "SKA" ? "text-blue-700" : "text-orange-700"
+                              }`}>
+                                <span className={`w-2 h-2 rounded-full ${person.client === "SKA" ? "bg-blue-600" : "bg-orange-600"}`} />
+                                {person.client}
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-600">{fullTrade(person.post)}</span>
+                              {person.location && <span className="text-[9px] font-semibold text-slate-400">{person.location}</span>}
+                            </div>
                           </td>
                         </tr>
                       )}
                       <tr className="hover:bg-blue-50/50 transition-colors group">
                         <td className="px-2 py-0.5 border-r border-slate-200 sticky left-0 bg-white group-hover:bg-blue-50/50 z-10 text-[10px] text-slate-500 font-bold tabular-nums text-center">{idx + 1}</td>
                         <td className="px-2 py-0.5 border-r border-slate-200 sticky left-[36px] bg-white group-hover:bg-blue-50/50 z-10 overflow-hidden">
-                          <div className="text-[10px] font-bold text-slate-900 uppercase truncate w-[155px]">{person.crew_name}</div>
+                          <div className="text-[10px] font-bold text-slate-900 uppercase truncate w-[155px]" title="">{person.crew_name}</div>
                         </td>
                         {/* Render cells for each course */}
                         {visibleCourses.map((cc) => {

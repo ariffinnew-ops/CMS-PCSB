@@ -534,8 +534,8 @@ export async function getMatrixData(): Promise<{ success: boolean; data?: Matrix
   // Fetch crew details from master table
   const { data: crewData, error: crewError } = await supabase
     .from(MASTER_TABLE)
-    .select('id, crew_name, post, client, location')
-
+    .select('id, crew_name, post, client, location, status')
+  
   if (crewError) {
     console.error('Error fetching crew detail:', crewError)
     return { success: false, error: crewError.message }
@@ -552,9 +552,9 @@ export async function getMatrixData(): Promise<{ success: boolean; data?: Matrix
   }
 
   // Build crew lookup
-  const crewMap = new Map<string, { crew_name: string; post: string; client: string; location: string }>();
+  const crewMap = new Map<string, { crew_name: string; post: string; client: string; location: string; status: string }>();
   for (const c of (crewData || [])) {
-    crewMap.set(c.id, { crew_name: c.crew_name || '', post: c.post || '', client: c.client || '', location: c.location || '' });
+    crewMap.set(c.id, { crew_name: c.crew_name || '', post: c.post || '', client: c.client || '', location: c.location || '', status: (c.status as string) || 'active' });
   }
 
   // Join matrix with crew data
@@ -573,6 +573,7 @@ export async function getMatrixData(): Promise<{ success: boolean; data?: Matrix
         post: crew?.post || '',
         client: crew?.client || '',
         location: crew?.location || '',
+        status: crew?.status || 'active',
       };
     });
     return { success: true, data: flattened }
