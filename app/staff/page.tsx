@@ -486,7 +486,7 @@ export default function StaffDetailPage() {
   const [certPdfUrl, setCertPdfUrl] = useState<string | null>(null);
   const [certLoading, setCertLoading] = useState(false);
   const [certNotFound, setCertNotFound] = useState(false);
-  const certModalRef = useRef<HTMLDivElement>(null);
+  const [certExpanded, setCertExpanded] = useState(false);
   const certIframeRef = useRef<HTMLIFrameElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -914,7 +914,9 @@ export default function StaffDetailPage() {
       {/* Certificate Modal */}
       {certModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div ref={certModalRef} className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+          <div className={`bg-background border border-border shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ${
+            certExpanded ? "fixed inset-0 z-[201] rounded-none max-w-none max-h-none" : "rounded-2xl w-full max-w-3xl max-h-[90vh]"
+          }`}>
             {/* Compact Header */}
             <div className="px-4 py-2 border-b border-border flex items-center justify-between shrink-0">
               <div className="min-w-0">
@@ -925,7 +927,7 @@ export default function StaffDetailPage() {
               </div>
               <button
                 type="button"
-                onClick={() => { setCertModal(null); setCertPdfUrl(null); setCertNotFound(false); }}
+                onClick={() => { setCertModal(null); setCertPdfUrl(null); setCertNotFound(false); setCertExpanded(false); }}
                 className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0"
               >
                 <X className="w-4 h-4" />
@@ -961,10 +963,10 @@ export default function StaffDetailPage() {
                   <div className="absolute top-3 right-3 z-[210] flex items-center gap-1 bg-black/60 backdrop-blur-md rounded-xl px-1.5 py-1 shadow-lg">
                     <button
                       type="button"
-                      title="Close / Exit Full Screen"
+                      title={certExpanded ? "Exit Full Screen" : "Close"}
                       onClick={() => {
-                        if (document.fullscreenElement) { document.exitFullscreen(); }
-                        else { setCertModal(null); setCertPdfUrl(null); setCertNotFound(false); }
+                        if (certExpanded) { setCertExpanded(false); }
+                        else { setCertModal(null); setCertPdfUrl(null); setCertNotFound(false); setCertExpanded(false); }
                       }}
                       className="w-8 h-8 rounded-lg flex items-center justify-center text-white/80 hover:text-white hover:bg-white/15 transition-colors"
                     >
@@ -974,7 +976,7 @@ export default function StaffDetailPage() {
                     <button
                       type="button"
                       title="Full Screen"
-                      onClick={() => certModalRef.current?.requestFullscreen?.()}
+                      onClick={() => setCertExpanded(!certExpanded)}
                       className="w-8 h-8 rounded-lg flex items-center justify-center text-white/80 hover:text-white hover:bg-white/15 transition-colors"
                     >
                       <Maximize className="w-4 h-4" />
