@@ -37,20 +37,22 @@ const COURSE_CONFIG: CourseConfig[] = [
 const ALL_COURSE_NAMES = COURSE_CONFIG.map((c) => c.name);
 const FIXED_COLS = 2; // #, Name (Trade/Client shown in separator)
 
-// Pie chart colors: Green, Yellow, Orange (NO RED per spec)
+// Pie chart colors
 const PIE_GREEN = "#22c55e";
 const PIE_YELLOW = "#eab308";
 const PIE_ORANGE = "#f97316";
+const PIE_RED = "#dc2626";
 
-// ─── Status helpers (3-tier: green >6m, yellow 3-6m, orange <3m/expired) ───
-function getStatusTier(expiryStr: string | null, today: Date): "green" | "yellow" | "orange" | "no-data" {
+// ─── Status helpers (4-tier: green >6m, yellow 3-6m, orange <3m, red expired) ───
+function getStatusTier(expiryStr: string | null, today: Date): "green" | "yellow" | "orange" | "red" | "no-data" {
   if (!expiryStr) return "no-data";
   const expiry = new Date(expiryStr);
   if (isNaN(expiry.getTime())) return "no-data";
   const diff = (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
-  if (diff < 90) return "orange";   // <3 months or expired
-  if (diff < 180) return "yellow";  // 3-6 months
-  return "green";                    // >6 months
+  if (diff < 0) return "red";        // expired (past due)
+  if (diff < 90) return "orange";    // <3 months (critical)
+  if (diff < 180) return "yellow";   // 3-6 months (warning)
+  return "green";                     // >6 months (safe)
 }
 
 // For cell styling we still use valid/expiring/expired
@@ -125,20 +127,23 @@ interface PersonMatrix {
   certs: Record<string, CertEntry>;
 }
 
-// ─── Compact Mini Pie Chart (80x80, counts on slices, clickable) ───
-function CoursePieChart({ green, yellow, orange, planCount, courseName, onSliceClick, onReset }: {
-  green: number; yellow: number; orange: number; planCount: number;
+// ─── Compact Mini Pie Chart (76x76, counts on slices, clickable) ───
+function CoursePieChart({ green, yellow, orange, red, planCount, courseName, activeFilter, onSliceClick, onReset }: {
+  green: number; yellow: number; orange: number; red: number; planCount: number;
   courseName: string;
-  onSliceClick: (course: string, status: "green" | "yellow" | "orange") => void;
+  activeFilter: { course: string; tier: string } | null;
+  onSliceClick: (course: string, status: "green" | "yellow" | "orange" | "red") => void;
   onReset: (course: string) => void;
 }) {
   const data = [
     { name: "Safe", value: green, color: PIE_GREEN, tier: "green" as const },
     { name: "Warning", value: yellow, color: PIE_YELLOW, tier: "yellow" as const },
     { name: "Critical", value: orange, color: PIE_ORANGE, tier: "orange" as const },
+    { name: "Expired", value: red, color: PIE_RED, tier: "red" as const },
   ].filter((d) => d.value > 0);
 
-  const total = green + yellow + orange;
+  const total = green + yellow + orange + red;
+  const isActive = activeFilter?.course === courseName;
   const size = 76;
   const cx = size / 2;
   const cy = size / 2;
@@ -174,18 +179,21 @@ function CoursePieChart({ green, yellow, orange, planCount, courseName, onSliceC
 
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <div style={{ width: size, height: size, position: "relative" }}>
+      <div style={{ width: size, height: size, position: "relative" }} className={isActive ? "ring-2 ring-blue-500 rounded-full" : ""}>
         <PieChart width={size} height={size} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
           <Pie data={data} cx={cx} cy={cy} innerRadius={ir} outerRadius={or} paddingAngle={2} dataKey="value" stroke="rgba(255,255,255,0.5)" strokeWidth={1} label={renderLabel} labelLine={false} isAnimationActive={false}
-            onClick={(_: unknown, index: number) => onSliceClick(courseName, data[index].tier)}
+            onClick={(_: unknown, index: number) => {
+              const tier = data[index].tier;
+              if (isActive && activeFilter?.tier === tier) onReset(courseName);
+              else onSliceClick(courseName, tier);
+            }}
             style={{ cursor: "pointer" }}
           >
             {data.map((entry, i) => (
-              <Cell key={i} fill={entry.color} />
+              <Cell key={i} fill={entry.color} opacity={isActive && activeFilter?.tier !== entry.tier ? 0.3 : 1} />
             ))}
           </Pie>
-          {/* Center sphere - click to reset */}
-          <circle cx={cx} cy={cy} r={ir} fill="#f1f5f9" stroke="#cbd5e1" strokeWidth={1} style={{ cursor: "pointer" }} onClick={() => onReset(courseName)} />
+          <circle cx={cx} cy={cy} r={ir} fill={isActive ? "#dbeafe" : "#f1f5f9"} stroke={isActive ? "#3b82f6" : "#cbd5e1"} strokeWidth={1} style={{ cursor: "pointer" }} onClick={() => onReset(courseName)} />
           <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={14} fontWeight="900" fill="#1e293b" style={{ cursor: "pointer" }} onClick={() => onReset(courseName)}>
             {total}
           </text>
@@ -298,7 +306,7 @@ export default function TrainingMatrixPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [search, setSearch] = useState("");
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [pieFilter, setPieFilter] = useState<{ course: string; tier: "green" | "yellow" | "orange" } | null>(null);
+  const [pieFilter, setPieFilter] = useState<{ course: string; tier: "green" | "yellow" | "orange" | "red" } | null>(null);
   const today = useMemo(() => new Date(), []);
 
   const canEdit = user?.role === "L1" || user?.role === "L2A" || user?.role === "L2B";
@@ -401,14 +409,15 @@ export default function TrainingMatrixPage() {
       if (search && !p.crew_name.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-    const stats: Record<string, { green: number; yellow: number; orange: number; planCount: number }> = {};
+    const stats: Record<string, { green: number; yellow: number; orange: number; red: number; planCount: number }> = {};
     for (const cc of COURSE_CONFIG) {
-      const st = { green: 0, yellow: 0, orange: 0, planCount: 0 };
+      const st = { green: 0, yellow: 0, orange: 0, red: 0, planCount: 0 };
       for (const p of base) {
         const tier = getStatusTier(p.certs[cc.name]?.expiry_date || null, today);
         if (tier === "green") st.green++;
         else if (tier === "yellow") st.yellow++;
         else if (tier === "orange") st.orange++;
+        else if (tier === "red") st.red++;
         if (p.certs[cc.name]?.plan_date) st.planCount++;
       }
       stats[cc.name] = st;
@@ -418,17 +427,18 @@ export default function TrainingMatrixPage() {
 
   // KPI counts across ALL courses for filtered personnel
   const kpiStats = useMemo(() => {
-    let safe = 0, warning = 0, critical = 0, plan = 0;
+    let safe = 0, warning = 0, critical = 0, expired = 0, plan = 0;
     for (const p of filtered) {
       for (const cc of COURSE_CONFIG) {
         const tier = getStatusTier(p.certs[cc.name]?.expiry_date || null, today);
         if (tier === "green") safe++;
         else if (tier === "yellow") warning++;
         else if (tier === "orange") critical++;
+        else if (tier === "red") expired++;
         if (p.certs[cc.name]?.plan_date) plan++;
       }
     }
-    return { safe, warning, critical, plan };
+    return { safe, warning, critical, expired, plan };
   }, [filtered, today]);
 
   const totalSubCols = visibleCourses.reduce((acc, c) => acc + c.colCount, 0);
@@ -458,7 +468,7 @@ export default function TrainingMatrixPage() {
 
       <div className="flex flex-col h-[calc(100vh-80px)] animate-in fade-in duration-500">
         {/* Title + Filters -- hidden on print */}
-        <div className="no-print-header flex-shrink-0 space-y-1.5 pb-1" data-no-print>
+        <div className="no-print-header flex-shrink-0 space-y-1 pb-0.5" data-no-print>
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-1">
             <div>
               <h2 className="text-lg font-black text-foreground uppercase tracking-tight">Training Matrix</h2>
@@ -515,19 +525,19 @@ export default function TrainingMatrixPage() {
               <label className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">Status</label>
               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-slate-200 border border-slate-400 text-slate-900 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
                 <option value="ALL">All Status</option>
-                <option value="valid">Valid</option>
-                <option value="expiring">Expiring</option>
-                <option value="expired">Expired</option>
+                <option value="valid">Safe</option>
+                <option value="expiring">Warning</option>
+                <option value="expired">Critical / Expired</option>
               </select>
             </div>
             {/* Record count */}
             <span className="text-[10px] text-slate-300 font-bold">
               Showing <span className="text-white font-black">{filtered.length}</span> of {personnel.length}
             </span>
-            {(clientFilter !== "ALL" || tradeFilter !== "ALL" || locationFilter !== "ALL" || courseFilter !== "ALL" || statusFilter !== "ALL") && (
+            {(clientFilter !== "ALL" || tradeFilter !== "ALL" || locationFilter !== "ALL" || courseFilter !== "ALL" || statusFilter !== "ALL" || pieFilter || search) && (
               <button
                 type="button"
-                onClick={() => { setClientFilter("ALL"); setTradeFilter("ALL"); setLocationFilter("ALL"); setCourseFilter("ALL"); setStatusFilter("ALL"); setPieFilter(null); }}
+                onClick={() => { setClientFilter("ALL"); setTradeFilter("ALL"); setLocationFilter("ALL"); setCourseFilter("ALL"); setStatusFilter("ALL"); setPieFilter(null); setSearch(""); }}
                 className="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-bold text-[9px] uppercase tracking-wider transition-all border border-red-500/30"
               >
                 Reset All
@@ -557,24 +567,27 @@ export default function TrainingMatrixPage() {
           </div>
 
           {/* Legend */}
-          <div className="flex items-center gap-4 text-[8px] font-bold uppercase text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PIE_GREEN }} />
-              <span>{"Safe (>6 months)"}</span>
+          <div className="flex items-center gap-3 text-[8px] font-bold uppercase text-muted-foreground">
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_GREEN }} />
+              <span>{"Safe (>6m)"}</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PIE_YELLOW }} />
-              <span>{"Warning (3-6 months)"}</span>
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_YELLOW }} />
+              <span>{"Warning (3-6m)"}</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: PIE_ORANGE }} />
-              <span>{"Critical (<3 months)"}</span>
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_ORANGE }} />
+              <span>{"Critical (<3m)"}</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-blue-500" />
-              <span>Plan scheduled</span>
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_RED }} />
+              <span>Expired</span>
             </div>
-
+            <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+              <span>Plan</span>
+            </div>
           </div>
         </div>
 
@@ -590,11 +603,14 @@ export default function TrainingMatrixPage() {
                 {/* Row 1: KPI Grid on left, Compact Course Pie Charts across top */}
                 <tr>
                   <th rowSpan={2} colSpan={2} className="border-r border-b border-slate-300 bg-white sticky left-0 z-[60] align-top p-2" style={{ minWidth: 210 }}>
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <div className="grid grid-cols-3 gap-1">
                       <KpiBox label="Safe" value={kpiStats.safe} color={PIE_GREEN} textColor="#fff" />
                       <KpiBox label="Warning" value={kpiStats.warning} color={PIE_YELLOW} textColor="#78350f" />
-                      <KpiBox label="Critical" value={kpiStats.critical} color={PIE_ORANGE} textColor="#fff" />
                       <KpiBox label="Plan" value={kpiStats.plan} color="#3b82f6" textColor="#fff" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 mt-1">
+                      <KpiBox label="Critical" value={kpiStats.critical} color={PIE_ORANGE} textColor="#fff" />
+                      <KpiBox label="Expired" value={kpiStats.expired} color={PIE_RED} textColor="#fff" />
                     </div>
                     {pieFilter && (
                       <button type="button" onClick={() => setPieFilter(null)} className="mt-1.5 w-full text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 rounded-lg py-1 hover:bg-red-100 transition-colors uppercase tracking-wider">
@@ -603,7 +619,7 @@ export default function TrainingMatrixPage() {
                     )}
                   </th>
                   {visibleCourses.map((cc) => {
-                    const st = courseStatsBase[cc.name] || { green: 0, yellow: 0, orange: 0, planCount: 0 };
+                    const st = courseStatsBase[cc.name] || { green: 0, yellow: 0, orange: 0, red: 0, planCount: 0 };
                     return (
                       <th
                         key={cc.name}
@@ -615,8 +631,9 @@ export default function TrainingMatrixPage() {
                             {cc.name}
                           </span>
                           <CoursePieChart
-                            green={st.green} yellow={st.yellow} orange={st.orange} planCount={st.planCount}
+                            green={st.green} yellow={st.yellow} orange={st.orange} red={st.red} planCount={st.planCount}
                             courseName={cc.name}
+                            activeFilter={pieFilter}
                             onSliceClick={(course, tier) => setPieFilter({ course, tier })}
                             onReset={() => setPieFilter(null)}
                           />
