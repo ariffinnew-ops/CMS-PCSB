@@ -89,4 +89,5 @@ export interface MatrixRecord {
   post: string;
   client: string;
   location: string;
+  status?: string;
 }
