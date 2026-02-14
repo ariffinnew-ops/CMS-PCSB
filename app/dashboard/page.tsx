@@ -55,11 +55,24 @@ function DonutChart({
       <svg
         height={radius * 2}
         width={radius * 2}
-        className="transform rotate-90 drop-shadow-2xl"
-        style={{
-          filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.5)) drop-shadow(0 10px 20px rgba(0,0,0,0.3))",
-        }}
+        viewBox={`0 0 ${radius * 2} ${radius * 2}`}
+        className="drop-shadow-2xl"
       >
+        <g transform={`rotate(-90 ${radius} ${radius})`}>
+        {/* All gradient defs in one block */}
+        <defs>
+          <linearGradient id="skaBlueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#3b82f6" />
+            <stop offset="50%" stopColor="#2563eb" />
+            <stop offset="100%" stopColor="#1d4ed8" />
+          </linearGradient>
+          <linearGradient id="sbaOrangeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#fb923c" />
+            <stop offset="50%" stopColor="#f97316" />
+            <stop offset="100%" stopColor="#ea580c" />
+          </linearGradient>
+        </defs>
+
         {/* Background ring with 3D depth */}
         <circle
           stroke="rgba(0,0,0,0.3)"
@@ -78,28 +91,23 @@ function DonutChart({
           cy={radius}
         />
         
-        {/* SKA Segment (LEFT side) - Solid Blue with 3D */}
-        <defs>
-          <linearGradient id="skaBlueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="50%" stopColor="#2563eb" />
-            <stop offset="100%" stopColor="#1d4ed8" />
-          </linearGradient>
-        </defs>
+        {/* SKA Segment - Blue arc starting from top-left */}
         <motion.circle
           stroke="url(#skaBlueGradient)"
           fill="transparent"
           strokeWidth={hoveredSegment === "SKA" ? strokeWidth + 14 : strokeWidth}
           strokeDasharray={`${skaStroke} ${circumference}`}
+          strokeDashoffset={0}
           strokeLinecap="round"
           r={normalizedRadius}
           cx={radius}
           cy={radius}
-          className="cursor-pointer transition-all duration-300"
+          className="cursor-pointer"
           style={{
             filter: hoveredSegment === "SKA" 
-              ? "drop-shadow(0 0 40px #3b82f6) drop-shadow(0 0 80px #2563eb) drop-shadow(0 8px 16px rgba(0,0,0,0.5))" 
-              : "drop-shadow(0 0 15px rgba(59, 130, 246, 0.6)) drop-shadow(0 6px 12px rgba(0,0,0,0.4))",
+              ? "drop-shadow(0 0 40px #3b82f6) drop-shadow(0 0 80px #2563eb)" 
+              : "drop-shadow(0 0 15px rgba(59, 130, 246, 0.6))",
+            transition: "stroke-width 0.3s ease, filter 0.3s ease",
           }}
           onMouseEnter={() => onSegmentHover("SKA")}
           onMouseLeave={() => onSegmentHover(null)}
@@ -108,14 +116,7 @@ function DonutChart({
           transition={{ duration: 1.2, ease: "easeOut" }}
         />
         
-        {/* SBA Segment (RIGHT side) - Solid Orange with 3D */}
-        <defs>
-          <linearGradient id="sbaOrangeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#fb923c" />
-            <stop offset="50%" stopColor="#f97316" />
-            <stop offset="100%" stopColor="#ea580c" />
-          </linearGradient>
-        </defs>
+        {/* SBA Segment - Orange arc starting after SKA */}
         <motion.circle
           stroke="url(#sbaOrangeGradient)"
           fill="transparent"
@@ -126,11 +127,12 @@ function DonutChart({
           r={normalizedRadius}
           cx={radius}
           cy={radius}
-          className="cursor-pointer transition-all duration-300"
+          className="cursor-pointer"
           style={{
             filter: hoveredSegment === "SBA" 
-              ? "drop-shadow(0 0 40px #f97316) drop-shadow(0 0 80px #ea580c) drop-shadow(0 8px 16px rgba(0,0,0,0.5))" 
-              : "drop-shadow(0 0 15px rgba(249, 115, 22, 0.6)) drop-shadow(0 6px 12px rgba(0,0,0,0.4))",
+              ? "drop-shadow(0 0 40px #f97316) drop-shadow(0 0 80px #ea580c)" 
+              : "drop-shadow(0 0 15px rgba(249, 115, 22, 0.6))",
+            transition: "stroke-width 0.3s ease, filter 0.3s ease",
           }}
           onMouseEnter={() => onSegmentHover("SBA")}
           onMouseLeave={() => onSegmentHover(null)}
@@ -138,6 +140,7 @@ function DonutChart({
           animate={{ strokeDasharray: `${sbaStroke} ${circumference}` }}
           transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}
         />
+        </g>
       </svg>
       
       {/* Center Content - Total POB */}
