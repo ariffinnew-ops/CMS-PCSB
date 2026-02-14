@@ -56,90 +56,71 @@ function DonutChart({
         height={radius * 2}
         width={radius * 2}
         viewBox={`0 0 ${radius * 2} ${radius * 2}`}
-        className="drop-shadow-2xl"
       >
-        <g transform={`rotate(-90 ${radius} ${radius})`}>
-        {/* All gradient defs in one block */}
+        {/* Defs MUST be direct child of svg, not inside transformed g */}
         <defs>
-          <linearGradient id="skaBlueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient id="skaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="50%" stopColor="#2563eb" />
             <stop offset="100%" stopColor="#1d4ed8" />
           </linearGradient>
-          <linearGradient id="sbaOrangeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient id="sbaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#fb923c" />
-            <stop offset="50%" stopColor="#f97316" />
             <stop offset="100%" stopColor="#ea580c" />
           </linearGradient>
         </defs>
 
-        {/* Background ring with 3D depth */}
-        <circle
-          stroke="rgba(0,0,0,0.3)"
-          fill="transparent"
-          strokeWidth={strokeWidth + 4}
-          r={normalizedRadius}
-          cx={radius}
-          cy={radius}
-        />
-        <circle
-          stroke="rgba(255,255,255,0.03)"
-          fill="transparent"
-          strokeWidth={strokeWidth}
-          r={normalizedRadius}
-          cx={radius}
-          cy={radius}
-        />
-        
-        {/* SKA Segment - Blue arc starting from top-left */}
-        <motion.circle
-          stroke="url(#skaBlueGradient)"
-          fill="transparent"
-          strokeWidth={hoveredSegment === "SKA" ? strokeWidth + 14 : strokeWidth}
-          strokeDasharray={`${skaStroke} ${circumference}`}
-          strokeDashoffset={0}
-          strokeLinecap="round"
-          r={normalizedRadius}
-          cx={radius}
-          cy={radius}
-          className="cursor-pointer"
-          style={{
-            filter: hoveredSegment === "SKA" 
-              ? "drop-shadow(0 0 40px #3b82f6) drop-shadow(0 0 80px #2563eb)" 
-              : "drop-shadow(0 0 15px rgba(59, 130, 246, 0.6))",
-            transition: "stroke-width 0.3s ease, filter 0.3s ease",
-          }}
-          onMouseEnter={() => onSegmentHover("SKA")}
-          onMouseLeave={() => onSegmentHover(null)}
-          initial={{ strokeDasharray: `0 ${circumference}` }}
-          animate={{ strokeDasharray: `${skaStroke} ${circumference}` }}
-          transition={{ duration: 1.2, ease: "easeOut" }}
-        />
-        
-        {/* SBA Segment - Orange arc starting after SKA */}
-        <motion.circle
-          stroke="url(#sbaOrangeGradient)"
-          fill="transparent"
-          strokeWidth={hoveredSegment === "SBA" ? strokeWidth + 14 : strokeWidth}
-          strokeDasharray={`${sbaStroke} ${circumference}`}
-          strokeDashoffset={-skaStroke}
-          strokeLinecap="round"
-          r={normalizedRadius}
-          cx={radius}
-          cy={radius}
-          className="cursor-pointer"
-          style={{
-            filter: hoveredSegment === "SBA" 
-              ? "drop-shadow(0 0 40px #f97316) drop-shadow(0 0 80px #ea580c)" 
-              : "drop-shadow(0 0 15px rgba(249, 115, 22, 0.6))",
-            transition: "stroke-width 0.3s ease, filter 0.3s ease",
-          }}
-          onMouseEnter={() => onSegmentHover("SBA")}
-          onMouseLeave={() => onSegmentHover(null)}
-          initial={{ strokeDasharray: `0 ${circumference}` }}
-          animate={{ strokeDasharray: `${sbaStroke} ${circumference}` }}
-          transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}
-        />
+        <g transform={`rotate(-90 ${radius} ${radius})`}>
+          {/* Background ring */}
+          <circle
+            stroke="rgba(0,0,0,0.3)"
+            fill="transparent"
+            strokeWidth={strokeWidth + 4}
+            r={normalizedRadius}
+            cx={radius}
+            cy={radius}
+          />
+          <circle
+            stroke="rgba(255,255,255,0.05)"
+            fill="transparent"
+            strokeWidth={strokeWidth}
+            r={normalizedRadius}
+            cx={radius}
+            cy={radius}
+          />
+          
+          {/* SKA Segment - Blue */}
+          <circle
+            stroke="#2563eb"
+            fill="transparent"
+            strokeWidth={hoveredSegment === "SKA" ? strokeWidth + 10 : strokeWidth}
+            strokeDasharray={`${skaStroke} ${circumference}`}
+            strokeDashoffset={0}
+            strokeLinecap="round"
+            r={normalizedRadius}
+            cx={radius}
+            cy={radius}
+            className="cursor-pointer"
+            style={{ transition: "stroke-width 0.3s ease" }}
+            onMouseEnter={() => onSegmentHover("SKA")}
+            onMouseLeave={() => onSegmentHover(null)}
+          />
+          
+          {/* SBA Segment - Orange */}
+          <circle
+            stroke="#f97316"
+            fill="transparent"
+            strokeWidth={hoveredSegment === "SBA" ? strokeWidth + 10 : strokeWidth}
+            strokeDasharray={`${sbaStroke} ${circumference}`}
+            strokeDashoffset={-skaStroke}
+            strokeLinecap="round"
+            r={normalizedRadius}
+            cx={radius}
+            cy={radius}
+            className="cursor-pointer"
+            style={{ transition: "stroke-width 0.3s ease" }}
+            onMouseEnter={() => onSegmentHover("SBA")}
+            onMouseLeave={() => onSegmentHover(null)}
+          />
         </g>
       </svg>
       
