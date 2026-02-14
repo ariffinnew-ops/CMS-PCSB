@@ -528,10 +528,6 @@ export default function TrainingMatrixPage() {
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-1">
             <div>
               <h2 className="text-lg font-black text-foreground uppercase tracking-tight">Training Matrix</h2>
-              <p className="text-[10px] text-muted-foreground">
-                IMS Personnel Competency & Certification Tracker
-                {canEdit && <span className="ml-2 text-blue-400">(Double-click cells to edit)</span>}
-              </p>
             </div>
             <button
               type="button"
@@ -644,9 +640,7 @@ export default function TrainingMatrixPage() {
               <div className="w-3 h-3 rounded-full bg-blue-500" />
               <span>Plan scheduled</span>
             </div>
-            {canEdit && (
-              <span className="ml-3 text-blue-400 normal-case">Double-click a cell to edit</span>
-            )}
+
           </div>
         </div>
 

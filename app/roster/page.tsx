@@ -418,7 +418,7 @@ export default function RosterPage() {
                   {daysInMonth.map((d) => (
                     <th
                       key={d.dayNum}
-                      className={`px-0 py-1.5 text-center w-[26px] min-w-[26px] max-w-[26px] border-r border-gray-200 ${
+                        className={`px-0 py-1.5 text-center w-[26px] min-w-[26px] max-w-[26px] ${
                         d.isWeekend ? "bg-gray-100" : "bg-slate-50"
                       }`}
                     >
@@ -503,19 +503,20 @@ export default function RosterPage() {
                               }`}
                               style={{ height: '28px' }}
                             >
-                              {/* Only show grid line if no active bar spanning this edge */}
-                              {(status === "OFF" || !toNext) && (
-                                <div className="absolute inset-y-0 right-0 w-px bg-gray-300 z-0" />
+                              {/* Grid line only for OFF (empty) cells */}
+                              {status === "OFF" && (
+                                <div className="absolute inset-y-0 right-0 w-px bg-gray-200 z-0" />
                               )}
                               
                               {status !== "OFF" && (
                                 <div
-                                  className={`absolute z-20 gantt-bar ${roundedLeft} ${roundedRight} ${barClass} flex items-center justify-center`}
+                                  className={`absolute gantt-bar ${roundedLeft} ${roundedRight} ${barClass} flex items-center justify-center`}
                                   style={{
                                     top: '4px',
                                     bottom: '4px',
-                                    left: 0,
-                                    right: 0,
+                                    left: fromPrev ? '-1px' : '0px',
+                                    right: toNext ? '-1px' : '0px',
+                                    zIndex: 20,
                                   }}
                                 >
                                   {barLabel && (

@@ -52,33 +52,36 @@ function DonutChart({
         <div className="w-full h-full rounded-full bg-gradient-to-tr from-blue-500 to-orange-400" />
       </div>
       
-      <svg
+      <motion.svg
         height={radius * 2}
         width={radius * 2}
         viewBox={`0 0 ${radius * 2} ${radius * 2}`}
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 120, damping: 14 }}
       >
-        {/* Defs MUST be direct child of svg, not inside transformed g */}
         <defs>
-          <linearGradient id="skaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="100%" stopColor="#1d4ed8" />
-          </linearGradient>
-          <linearGradient id="sbaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#fb923c" />
-            <stop offset="100%" stopColor="#ea580c" />
-          </linearGradient>
+          <filter id="skaGlow">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <filter id="sbaGlow">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
         </defs>
 
         <g transform={`rotate(-90 ${radius} ${radius})`}>
-          {/* Background ring */}
+          {/* Background ring shadow */}
           <circle
-            stroke="rgba(0,0,0,0.3)"
+            stroke="rgba(0,0,0,0.4)"
             fill="transparent"
-            strokeWidth={strokeWidth + 4}
+            strokeWidth={strokeWidth + 6}
             r={normalizedRadius}
             cx={radius}
             cy={radius}
           />
+          {/* Background ring */}
           <circle
             stroke="rgba(255,255,255,0.05)"
             fill="transparent"
@@ -88,11 +91,11 @@ function DonutChart({
             cy={radius}
           />
           
-          {/* SKA Segment - Blue */}
-          <circle
+          {/* SKA Segment - Blue with glow */}
+          <motion.circle
             stroke="#2563eb"
             fill="transparent"
-            strokeWidth={hoveredSegment === "SKA" ? strokeWidth + 10 : strokeWidth}
+            strokeWidth={hoveredSegment === "SKA" ? strokeWidth + 12 : strokeWidth}
             strokeDasharray={`${skaStroke} ${circumference}`}
             strokeDashoffset={0}
             strokeLinecap="round"
@@ -100,16 +103,20 @@ function DonutChart({
             cx={radius}
             cy={radius}
             className="cursor-pointer"
+            filter={hoveredSegment === "SKA" ? "url(#skaGlow)" : undefined}
             style={{ transition: "stroke-width 0.3s ease" }}
             onMouseEnter={() => onSegmentHover("SKA")}
             onMouseLeave={() => onSegmentHover(null)}
+            initial={{ strokeDasharray: `0 ${circumference}` }}
+            animate={{ strokeDasharray: `${skaStroke} ${circumference}` }}
+            transition={{ duration: 1.2, ease: "easeOut" }}
           />
           
-          {/* SBA Segment - Orange */}
-          <circle
+          {/* SBA Segment - Orange with glow */}
+          <motion.circle
             stroke="#f97316"
             fill="transparent"
-            strokeWidth={hoveredSegment === "SBA" ? strokeWidth + 10 : strokeWidth}
+            strokeWidth={hoveredSegment === "SBA" ? strokeWidth + 12 : strokeWidth}
             strokeDasharray={`${sbaStroke} ${circumference}`}
             strokeDashoffset={-skaStroke}
             strokeLinecap="round"
@@ -117,12 +124,16 @@ function DonutChart({
             cx={radius}
             cy={radius}
             className="cursor-pointer"
+            filter={hoveredSegment === "SBA" ? "url(#sbaGlow)" : undefined}
             style={{ transition: "stroke-width 0.3s ease" }}
             onMouseEnter={() => onSegmentHover("SBA")}
             onMouseLeave={() => onSegmentHover(null)}
+            initial={{ strokeDasharray: `0 ${circumference}` }}
+            animate={{ strokeDasharray: `${sbaStroke} ${circumference}` }}
+            transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}
           />
         </g>
-      </svg>
+      </motion.svg>
       
       {/* Center Content - Total POB */}
       <div className="absolute inset-0 flex items-center justify-center">
@@ -804,12 +815,9 @@ export default function DashboardPage() {
                 
                 {/* Title - Center */}
                 <h1 
-                  className="text-sm sm:text-xl font-black text-white uppercase tracking-[0.15em] sm:tracking-[0.25em] font-sans text-center"
-                  style={{ 
-                    textShadow: "0 0 30px rgba(59, 130, 246, 0.5), 0 0 60px rgba(249, 115, 22, 0.3)"
-                  }}
+                  className="text-sm sm:text-xl font-extrabold text-white uppercase tracking-[0.08em] sm:tracking-[0.12em] font-sans text-center leading-tight"
                 >
-                  PROVISION OF IMS - PCSB
+                  Provision of IMS - PCSB
                 </h1>
                 
                 {/* Live Time - desktop only */}
@@ -881,20 +889,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Compact Footer */}
-              <div className="px-3 sm:px-6 py-2 border-t border-slate-800/50 flex items-center justify-between text-[8px] sm:text-[9px] text-slate-500">
-                <span>Viewing: {formatDateLong(systemDate)}</span>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-blue-500 shadow-lg shadow-blue-500/50" />
-                    <span>SKA: {stats.ska}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-orange-500 shadow-lg shadow-orange-500/50" />
-                    <span>SBA: {stats.sba}</span>
-                  </div>
-                </div>
-              </div>
+
 
             </motion.div>
           ) : (
