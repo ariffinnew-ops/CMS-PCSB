@@ -14,7 +14,7 @@ import {
   listCrewDocuments,
 } from "@/lib/actions";
 import { createClient } from "@/lib/supabase/client";
-import { Maximize, Printer, Download, Upload, X } from "lucide-react";
+import { Maximize, Printer, Download, Upload, X, Trash2 } from "lucide-react";
 import { getClients, getPostsForClient, getLocationsForClientPost } from "@/lib/client-location-map";
 
 // ─── Types ───
@@ -607,6 +607,21 @@ export default function StaffDetailPage() {
     await openCertModal(certModal.cert_type);
   };
 
+  // Delete certificate from bucket
+  const handleCertDelete = async () => {
+    if (!selectedId || !certModal || !certPdfUrl) return;
+    if (!window.confirm(`Delete certificate "${certModal.cert_type}"? This cannot be undone.`)) return;
+    setUploading(true);
+    const supabase = createClient();
+    const safeName = certModal.cert_type.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const allExts = ["pdf", "jpg", "jpeg", "png"];
+    const filesToRemove = allExts.map((ext) => `${selectedId}_${safeName}.${ext}`);
+    await supabase.storage.from("certificates").remove(filesToRemove);
+    setUploading(false);
+    setCertPdfUrl(null);
+    setCertNotFound(true);
+  };
+
   // Save edited detail fields (from DetailOverlay)
   const handleDetailSave = async (fields: Record<string, string>) => {
     if (!selectedId) return;
@@ -1028,10 +1043,21 @@ export default function StaffDetailPage() {
               ) : null}
             </div>
 
-            {/* Footer - Upload (L1/L2 only) */}
+            {/* Footer - Admin Controls (L1/L2 only) */}
             {isL1L2 && (
-              <div className="px-4 py-2 border-t border-border flex items-center justify-end shrink-0 bg-muted/30">
-                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer transition-colors bg-blue-600 text-white hover:bg-blue-500">
+              <div className="px-4 py-2 border-t border-border flex items-center justify-end gap-2 shrink-0 bg-muted/30">
+                {certPdfUrl && (
+                  <button
+                    type="button"
+                    disabled={uploading}
+                    onClick={handleCertDelete}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-colors bg-red-600 text-white hover:bg-red-500 disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Delete
+                  </button>
+                )}
+                <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer transition-colors bg-blue-600 text-white hover:bg-blue-500 ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
                   <Upload className="w-3 h-3" />
                   {uploading ? "Uploading..." : certPdfUrl ? "Replace" : "Upload"}
                   <input
