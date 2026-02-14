@@ -227,7 +227,7 @@ export default function LoginPage() {
           &copy; {new Date().getFullYear()} kawie - Crewing Management System. All Rights Reserved.
         </p>
         <p className="text-[10px] text-white font-normal tracking-wide mt-0.5 italic">
-          version : v2-140226
+          version : v2-150226.1430
         </p>
       </div>
     </div>
