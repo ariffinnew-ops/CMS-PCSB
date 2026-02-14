@@ -481,6 +481,7 @@ export default function StaffDetailPage() {
   const [showDetailOverlay, setShowDetailOverlay] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [staffSearch, setStaffSearch] = useState("");
+  const [staffListOpen, setStaffListOpen] = useState(false);
   const [certModal, setCertModal] = useState<{ cert_type: string } | null>(null);
   const [certPdfUrl, setCertPdfUrl] = useState<string | null>(null);
   const [certLoading, setCertLoading] = useState(false);
@@ -672,37 +673,43 @@ export default function StaffDetailPage() {
         {/* ═══ SECTION A: PROFILE SIDEBAR (30%) ═══ */}
         <div className="bg-background border border-border rounded-xl overflow-hidden flex flex-col h-full">
 
-          {/* Staff Search + List */}
-          <div className="border-b border-border shrink-0 flex flex-col">
+          {/* Staff Search + Floating Popover List */}
+          <div className="border-b border-border shrink-0 relative">
             <div className="px-3 py-2">
               <input
                 type="text"
                 placeholder="Search staff name..."
                 value={staffSearch}
-                onChange={(e) => setStaffSearch(e.target.value)}
+                onFocus={() => setStaffListOpen(true)}
+                onChange={(e) => { setStaffSearch(e.target.value); setStaffListOpen(true); }}
                 className="w-full bg-muted border border-border rounded-lg px-3 py-1.5 text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-muted-foreground"
               />
             </div>
-            <div className="max-h-40 overflow-y-auto px-1 pb-1">
-              {crewList
-                .slice()
-                .sort((a, b) => (a.crew_name || "").localeCompare(b.crew_name || ""))
-                .filter((c) => !staffSearch || (c.crew_name || "").toLowerCase().includes(staffSearch.toLowerCase()))
-                .map((c) => (
-                  <button
-                    type="button"
-                    key={c.id}
-                    onClick={() => { setSelectedId(c.id); setStaffSearch(""); }}
-                    className={`w-full text-left px-3 py-1 rounded-md text-[11px] font-semibold truncate transition-colors ${
-                      selectedId === c.id
-                        ? "bg-blue-600 text-white"
-                        : "text-foreground hover:bg-muted"
-                    }`}
-                  >
-                    {c.crew_name}
-                  </button>
-                ))}
-            </div>
+            {staffListOpen && (
+              <>
+                <div className="fixed inset-0 z-[99]" onClick={() => setStaffListOpen(false)} />
+                <div className="absolute left-2 right-2 top-full z-[100] bg-background border border-border rounded-xl shadow-xl max-h-52 overflow-y-auto py-1">
+                  {crewList
+                    .slice()
+                    .sort((a, b) => (a.crew_name || "").localeCompare(b.crew_name || ""))
+                    .filter((c) => !staffSearch || (c.crew_name || "").toLowerCase().includes(staffSearch.toLowerCase()))
+                    .map((c) => (
+                      <button
+                        type="button"
+                        key={c.id}
+                        onClick={() => { setSelectedId(c.id); setStaffSearch(""); setStaffListOpen(false); }}
+                        className={`w-full text-left px-3 py-1.5 text-[11px] font-semibold truncate transition-colors ${
+                          selectedId === c.id
+                            ? "bg-blue-600 text-white"
+                            : "text-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {c.crew_name}
+                      </button>
+                    ))}
+                </div>
+              </>
+            )}
           </div>
 
           {d && (
