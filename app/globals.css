@@ -178,6 +178,15 @@
   }
   /* Ensure charts visible */
   .recharts-wrapper, .recharts-surface, svg { overflow: visible !important; }
+.recharts-wrapper *:focus,
+.recharts-wrapper *:focus-visible,
+.recharts-sector:focus,
+.recharts-sector:focus-visible,
+.recharts-pie-sector:focus,
+.recharts-pie-sector:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
   /* Force white bg for print */
   body, main { background: white !important; color: black !important; }
   /* Approval stamp visible on print with colors */

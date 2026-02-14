@@ -127,7 +127,7 @@ interface PersonMatrix {
   certs: Record<string, CertEntry>;
 }
 
-// ─── Compact Mini Pie Chart (76x76, counts on slices, clickable) ───
+// ─── 3D Mini Pie Chart (90x90, counts on slices, clickable, no focus outline) ───
 function CoursePieChart({ green, yellow, orange, red, planCount, courseName, activeFilter, onSliceClick, onReset }: {
   green: number; yellow: number; orange: number; red: number; planCount: number;
   courseName: string;
@@ -136,19 +136,19 @@ function CoursePieChart({ green, yellow, orange, red, planCount, courseName, act
   onReset: (course: string) => void;
 }) {
   const data = [
-    { name: "Safe", value: green, color: PIE_GREEN, tier: "green" as const },
-    { name: "Warning", value: yellow, color: PIE_YELLOW, tier: "yellow" as const },
-    { name: "Critical", value: orange, color: PIE_ORANGE, tier: "orange" as const },
-    { name: "Expired", value: red, color: PIE_RED, tier: "red" as const },
+    { name: "Safe", value: green, color: PIE_GREEN, dark: "#16a34a", tier: "green" as const },
+    { name: "Warning", value: yellow, color: PIE_YELLOW, dark: "#ca8a04", tier: "yellow" as const },
+    { name: "Critical", value: orange, color: PIE_ORANGE, dark: "#c2410c", tier: "orange" as const },
+    { name: "Expired", value: red, color: PIE_RED, dark: "#991b1b", tier: "red" as const },
   ].filter((d) => d.value > 0);
 
   const total = green + yellow + orange + red;
   const isActive = activeFilter?.course === courseName;
-  const size = 76;
+  const size = 90;
   const cx = size / 2;
   const cy = size / 2;
-  const ir = 18;
-  const or = 35;
+  const ir = 22;
+  const or = 42;
 
   if (total === 0) {
     return (
@@ -171,30 +171,61 @@ function CoursePieChart({ green, yellow, orange, red, planCount, courseName, act
     const val = data[index].value;
     if (val === 0) return null;
     return (
-      <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={9} fontWeight="900" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.6)", cursor: "pointer" }}>
+      <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight="900" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.7)" }}>
         {val}
       </text>
     );
   };
 
+  const uid = `pie3d_${courseName.replace(/\s/g, "")}`;
+
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <div style={{ width: size, height: size, position: "relative" }} className={isActive ? "ring-2 ring-blue-500 rounded-full" : ""}>
-        <PieChart width={size} height={size} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-          <Pie data={data} cx={cx} cy={cy} innerRadius={ir} outerRadius={or} paddingAngle={2} dataKey="value" stroke="rgba(255,255,255,0.5)" strokeWidth={1} label={renderLabel} labelLine={false} isAnimationActive={false}
+      <div
+        style={{ width: size, height: size + 3, position: "relative", outline: "none" }}
+        className={isActive ? "ring-2 ring-blue-500 ring-offset-1 rounded-full" : ""}
+        tabIndex={-1}
+      >
+        {/* 3D shadow layer */}
+        <PieChart width={size} height={size} style={{ position: "absolute", top: 3, left: 0, outline: "none" }}>
+          <Pie data={data} cx={cx} cy={cy} innerRadius={ir} outerRadius={or} paddingAngle={2} dataKey="value" stroke="none" isAnimationActive={false}>
+            {data.map((entry, i) => (
+              <Cell key={i} fill={entry.dark} opacity={0.3} />
+            ))}
+          </Pie>
+        </PieChart>
+        {/* Main pie */}
+        <PieChart width={size} height={size} style={{ position: "absolute", top: 0, left: 0, outline: "none" }}>
+          <defs>
+            <radialGradient id={`${uid}_sphere`} cx="40%" cy="35%" r="60%" fx="35%" fy="30%">
+              <stop offset="0%" stopColor="#ffffff" />
+              <stop offset="30%" stopColor="#e8ecf1" />
+              <stop offset="70%" stopColor="#b0bac9" />
+              <stop offset="100%" stopColor="#7a8a9e" />
+            </radialGradient>
+            <filter id={`${uid}_shadow`}>
+              <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#000" floodOpacity="0.25" />
+            </filter>
+          </defs>
+          <Pie
+            data={data} cx={cx} cy={cy} innerRadius={ir} outerRadius={or} paddingAngle={2} dataKey="value"
+            stroke="rgba(255,255,255,0.6)" strokeWidth={1.5} label={renderLabel} labelLine={false} isAnimationActive={false}
             onClick={(_: unknown, index: number) => {
               const tier = data[index].tier;
               if (isActive && activeFilter?.tier === tier) onReset(courseName);
               else onSliceClick(courseName, tier);
             }}
-            style={{ cursor: "pointer" }}
+            style={{ cursor: "pointer", outline: "none" }}
+            tabIndex={-1}
           >
             {data.map((entry, i) => (
-              <Cell key={i} fill={entry.color} opacity={isActive && activeFilter?.tier !== entry.tier ? 0.3 : 1} />
+              <Cell key={i} fill={entry.color} opacity={isActive && activeFilter?.tier !== entry.tier ? 0.25 : 1} style={{ outline: "none" }} />
             ))}
           </Pie>
-          <circle cx={cx} cy={cy} r={ir} fill={isActive ? "#dbeafe" : "#f1f5f9"} stroke={isActive ? "#3b82f6" : "#cbd5e1"} strokeWidth={1} style={{ cursor: "pointer" }} onClick={() => onReset(courseName)} />
-          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={14} fontWeight="900" fill="#1e293b" style={{ cursor: "pointer" }} onClick={() => onReset(courseName)}>
+          {/* 3D sphere center */}
+          <circle cx={cx} cy={cy} r={ir} fill={isActive ? "#dbeafe" : `url(#${uid}_sphere)`} filter={`url(#${uid}_shadow)`} style={{ cursor: "pointer" }} onClick={() => onReset(courseName)} />
+          <ellipse cx={cx - 2} cy={cy - 3} rx={7} ry={4} fill="white" opacity={0.35} />
+          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontSize={16} fontWeight="900" fill="#1e293b" style={{ cursor: "pointer" }} onClick={() => onReset(courseName)}>
             {total}
           </text>
         </PieChart>
@@ -285,7 +316,7 @@ function EditableCell({
         canEdit ? "cursor-pointer hover:ring-2 hover:ring-blue-400 hover:ring-inset" : ""
       } ${saving ? "opacity-50" : ""}`}
       onDoubleClick={() => canEdit && setEditing(true)}
-      title={canEdit ? "Double-click to edit" : undefined}
+      title=""
     >
       {saving ? "..." : displayValue}
     </td>
@@ -384,9 +415,11 @@ export default function TrainingMatrixPage() {
       if (locationFilter !== "ALL" && p.location !== locationFilter) return false;
       if (search && !p.crew_name.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter !== "ALL") {
+        const tierMap: Record<string, string> = { safe: "green", warning: "yellow", critical: "orange", expired: "red" };
+        const targetTier = tierMap[statusFilter];
         const hasMatch = ALL_COURSE_NAMES.some((cn) => {
-          const st = getCellStatus(p.certs[cn]?.expiry_date || null, today);
-          return st === statusFilter;
+          const tier = getStatusTier(p.certs[cn]?.expiry_date || null, today);
+          return tier === targetTier;
         });
         if (!hasMatch) return false;
       }
@@ -525,9 +558,10 @@ export default function TrainingMatrixPage() {
               <label className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">Status</label>
               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-slate-200 border border-slate-400 text-slate-900 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer">
                 <option value="ALL">All Status</option>
-                <option value="valid">Safe</option>
-                <option value="expiring">Warning</option>
-                <option value="expired">Critical / Expired</option>
+                <option value="safe">Safe</option>
+                <option value="warning">Warning</option>
+                <option value="critical">Critical</option>
+                <option value="expired">Expired</option>
               </select>
             </div>
             {/* Record count */}
@@ -680,19 +714,23 @@ export default function TrainingMatrixPage() {
                       {showSep && (
                         <tr className="bg-slate-200">
                           <td colSpan={totalCols} className="px-3 py-0.5 sticky left-0 bg-slate-200 z-10">
-                            <span className={`inline-flex items-center gap-2 text-sm font-black uppercase tracking-wider ${
-                              person.client === "SKA" ? "text-blue-700" : "text-orange-700"
-                            }`}>
-                              <span className={`w-2.5 h-2.5 rounded-full ${person.client === "SKA" ? "bg-blue-600" : "bg-orange-600"}`} />
-                              {person.client} - {fullTrade(person.post)}
-                            </span>
+                            <div className="flex items-center gap-3">
+                              <span className={`inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider ${
+                                person.client === "SKA" ? "text-blue-700" : "text-orange-700"
+                              }`}>
+                                <span className={`w-2 h-2 rounded-full ${person.client === "SKA" ? "bg-blue-600" : "bg-orange-600"}`} />
+                                {person.client}
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-600">{fullTrade(person.post)}</span>
+                              {person.location && <span className="text-[9px] font-semibold text-slate-400">{person.location}</span>}
+                            </div>
                           </td>
                         </tr>
                       )}
                       <tr className="hover:bg-blue-50/50 transition-colors group">
                         <td className="px-2 py-0.5 border-r border-slate-200 sticky left-0 bg-white group-hover:bg-blue-50/50 z-10 text-[10px] text-slate-500 font-bold tabular-nums text-center">{idx + 1}</td>
                         <td className="px-2 py-0.5 border-r border-slate-200 sticky left-[36px] bg-white group-hover:bg-blue-50/50 z-10 overflow-hidden">
-                          <div className="text-[10px] font-bold text-slate-900 uppercase truncate w-[155px]">{person.crew_name}</div>
+                          <div className="text-[10px] font-bold text-slate-900 uppercase truncate w-[155px]" title="">{person.crew_name}</div>
                         </td>
                         {/* Render cells for each course */}
                         {visibleCourses.map((cc) => {
